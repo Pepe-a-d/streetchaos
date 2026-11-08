@@ -56,3 +56,5 @@ Las carreras, en circuito o pista cerrada. La app se arma y cronometra sola para
 ## Créditos
 
 Fuentes: Press Start 2P y VT323 (OFL, vía Fontsource) y DSEG7 de Keshikan (OFL, `public/fonts/DSEG-LICENSE.txt`). Pixel art y sonidos (WebAudio) hechos para la app.
+
+Iconos: se diseñan en Figma (archivo «Street Chaos · Iconos»: componente «Icono app» de 64×64 a 8 px por píxel y componentes «Pestaña/…» de 16×16). El icono de la app se exporta a `public/icons/` (512, 192) y `public/favicon.png` (64); los de la barra a `src/icons/` como SVG con `currentColor`.

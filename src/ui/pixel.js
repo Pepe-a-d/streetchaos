@@ -1,4 +1,8 @@
 // Pixel art hecho a mano: iconos de la barra y la moto de los duelos.
+import dash from '../icons/tab-dash.svg?raw'
+import crono from '../icons/tab-crono.svg?raw'
+import vs from '../icons/tab-vs.svg?raw'
+import garage from '../icons/tab-garage.svg?raw'
 
 /** Convierte un dibujo en texto a SVG de rectángulos nítidos. */
 export function pixelSvg(rows, palette, { className = '', title = '' } = {}) {
@@ -22,85 +26,10 @@ export function pixelSvg(rows, palette, { className = '', title = '' } = {}) {
   return `<svg class="${className}" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges" aria-hidden="${title ? 'false' : 'true'}">${title ? `<title>${title}</title>` : ''}${rects}</svg>`
 }
 
-const I = { X: 'currentColor' }
+// Iconos de la barra: diseñados en Figma («Street Chaos · Iconos», componentes Pestaña/*)
+// y exportados a src/icons como SVG de 16x16 con currentColor (trazo) y 45 % (sombra).
 
-export const ICONS = {
-  dash: pixelSvg(
-    [
-      '...XXXXXX...',
-      '.XX......XX.',
-      'X..X......X.',
-      'X...X.....XX',
-      'X....X....XX',
-      'X.....XX..XX',
-      'X.....XX...X',
-      'X..........X',
-      '.X........X.',
-      '..XXXXXXXX..',
-    ],
-    I,
-  ),
-  crono: pixelSvg(
-    [
-      '....XXXX....',
-      '.....XX.....',
-      '..XXXXXXXX..',
-      '.X....X...X.',
-      'X.....X....X',
-      'X.....X....X',
-      'X.....XXX..X',
-      'X..........X',
-      '.X........X.',
-      '..XXXXXXXX..',
-    ],
-    I,
-  ),
-  vs: pixelSvg(
-    [
-      'X.X.X.......',
-      '.X.X.X......',
-      'X.X.X.......',
-      '.X.X.X..XXX.',
-      'X.......X.X.',
-      'X.......XXX.',
-      'X......X.X.X',
-      'X.......X.X.',
-      'X......X.X.X',
-      'X.......X.X.',
-    ],
-    I,
-  ),
-  garage: pixelSvg(
-    [
-      '.....XX.....',
-      '...XX..XX...',
-      '.XX......XX.',
-      'X..........X',
-      'XXXXXXXXXXXX',
-      'X.X......X.X',
-      'X.X.XXXX.X.X',
-      'X.X.X..X.X.X',
-      'X.X.XXXX.X.X',
-      'X.X......X.X',
-    ],
-    I,
-  ),
-  gear: pixelSvg(
-    [
-      '....XX....',
-      '.X.XXXX.X.',
-      '..XXXXXX..',
-      '.XXX..XXX.',
-      'XXX....XXX',
-      'XXX....XXX',
-      '.XXX..XXX.',
-      '..XXXXXX..',
-      '.X.XXXX.X.',
-      '....XX....',
-    ],
-    I,
-  ),
-}
+export const ICONS = { dash, crono, vs, garage }
 
 // Moto deportiva de perfil (mira a la derecha). B = color del piloto.
 const BIKE_ROWS = [

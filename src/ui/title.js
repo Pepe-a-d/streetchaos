@@ -14,7 +14,6 @@ export function showTitle(onStart) {
        ${bikeSvg(settings.color)}
        <h1>STREET<span>CHAOS</span></h1>
        <div class="press blink">TOCA PARA EMPEZAR</div>
-       <div class="legal">Dashboard y drag races por GPS. Corre solo en circuito cerrado y respeta las normas de tráfico.</div>
      </div>`,
     'titlescreen solid',
   )

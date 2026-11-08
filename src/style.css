@@ -199,8 +199,9 @@ main {
 }
 .tab:last-child { border-right: 0; }
 .tab svg {
-  width: 26px;
-  height: auto;
+  /* 16x16 de Figma a 2 px por píxel: nítido en cualquier pantalla */
+  width: 32px;
+  height: 32px;
 }
 .tab.on {
   color: var(--bg);
@@ -362,10 +363,9 @@ main {
   font-family: var(--pixel);
   font-size: min(6cqh, 4cqw);
   color: var(--pink);
-  align-self: flex-end;
-  margin-bottom: 4cqh;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+  white-space: nowrap;
+  /* A la altura de la base de los dígitos */
+  transform: translateY(calc(min(56cqh, 30cqw) * 0.4 - 50%));
 }
 .speedbox .max {
   position: absolute;
@@ -883,12 +883,6 @@ main {
   font-family: var(--pixel);
   font-size: min(3.6vw, 14px);
   color: #fff;
-  text-shadow: 2px 2px 0 #000;
-}
-.logo .legal {
-  font-size: 17px;
-  color: #c9bff5;
-  max-width: 34ch;
   text-shadow: 2px 2px 0 #000;
 }
 .logo .sprite { width: min(30vw, 22vh, 150px); height: auto; animation: bob 0.3s steps(2) infinite; }
