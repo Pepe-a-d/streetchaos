@@ -207,7 +207,7 @@ export function mountGarage(el, { applySource }) {
         ${group(
           'TELEMETRIA',
           `<div class="set"><span>Caja negra<small data-k="tele">Mirando lo guardado…</small></span><span data-k="teleState">${settings.logTelemetry ? state('EN ESPERA', '') : state('APAGADA', 'off')}</span></div>
-           <div class="set"><span>Exportar todo<small>Archivo .json con la telemetría, las pasadas y los duelos, para pasarlo al ordenador (AirDrop, Drive, correo)</small></span><button class="btn small cyan" data-act="export">EXPORTAR</button></div>
+           <div class="set"><span>Exportar todo<small>Archivo .json con la telemetría, las pasadas y los duelos. Pásalo al ordenador (AirDrop, Drive, correo) y ábrelo en <b>${esc(location.host + import.meta.env.BASE_URL)}blackbox</b></small></span><button class="btn small cyan" data-act="export">EXPORTAR</button></div>
            <div class="set"><span>Borrar telemetría<small>Después de pasarla al ordenador, para liberar espacio</small></span><button class="btn small ghost" data-act="wipeTele">BORRAR</button></div>`,
         )}
         ${group(

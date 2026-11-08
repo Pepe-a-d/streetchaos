@@ -2,7 +2,7 @@
 
 La app graba sola, en el móvil, el GPS y los sensores de cada salida en moto. No enseña nada de esto en pantalla: es la materia prima para la futura app de escritorio de análisis. Este documento es el contrato entre las dos.
 
-Código: `src/core/blackbox.js` (grabación y formato) y `src/core/logger.js` (lo conecta con la app). Exportación: `buildExport()` en `src/core/share.js`.
+Código: `src/core/blackbox.js` (grabación y formato) y `src/core/logger.js` (lo conecta con la app). Exportación: `buildExport()` en `src/core/share.js`. El analizador que lo lee está en `/blackbox` (`src/blackbox/`, ver el README).
 
 ## Cómo se graba
 

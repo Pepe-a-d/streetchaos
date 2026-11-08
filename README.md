@@ -54,6 +54,19 @@ Privacidad: en el radar se comparte la posición redondeada a ~10 m, solo mientr
 - **Enviar para análisis**: solo las pasadas y los duelos, sin posición ni telemetría, a la tabla `analysis_uploads` de Supabase (ver `supabase/migrations/`: la app solo puede insertar, nadie puede leerlos con la clave pública). Cada pasada lleva los parciales, la traza desde la salida y las muestras GPS en bruto (tiempo, velocidad, precisión y altitud).
 - **Borrar** la telemetría (para liberar espacio después de exportarla) o el historial.
 
+## Blackbox: el analizador
+
+En **`/blackbox`** (https://pepe-a-d.github.io/streetchaos/blackbox/) hay un analizador para el ordenador. Sueltas el `.json` exportado y se queda guardado en ese navegador. Para cada salida:
+
+- **Mapa** con la traza coloreada por velocidad, inclinación, G longitudinal, G lateral o altitud, y las curvas numeradas.
+- **Gráficas apiladas** (velocidad, inclinación, G, altitud, giro, vibración, precisión del GPS) con el cursor sincronizado con el mapa, eje de tiempo o distancia, zoom arrastrando y una tira de vista general. Se puede superponer lo que calculó el móvil en marcha.
+- **Pestañas**: estadísticas del tramo elegido, diagrama G-G con su envolvente e histograma de inclinación, curvas (inclinación y velocidades de entrada, mínima y salida), frenadas, pasadas del crono y calidad de los datos.
+- **CSV** con los canales a 10 Hz.
+
+El análisis (`src/blackbox/process.js`) es offline y por eso más fino que el del móvil: traza la curva entre fixes de GPS con un spline que respeta su rumbo y velocidad, saca la postura del móvil en el soporte (arriba = gravedad media, adelante = la dirección del acelerómetro que mejor explica lo que acelera el GPS), da la G longitudinal del acelerómetro calibrado, y la inclinación de `sen φ = v·giro/g` fusionada con el giro de alabeo del giroscopio, sin retraso. `src/blackbox/synth.js` inventa salidas con física y ruido realistas para probarlo (`tests/analysis.test.js`: error medio de inclinación < 2,5°) y para la demo (`node scripts/demo-telemetry.mjs` → `public/demo/`).
+
+No se guarda para usar sin conexión: la app del móvil (PWA) deja fuera sus archivos (`bb-*`).
+
 ## Publicar
 
 `.github/workflows/publicar.yml` construye y publica en GitHub Pages con cada push a `main`. Para el modo online, añade `VITE_SUPABASE_URL` y `VITE_SUPABASE_KEY` como secretos del repositorio.

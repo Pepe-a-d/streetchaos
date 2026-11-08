@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { resolve } from 'node:path'
 import basicSsl from '@vitejs/plugin-basic-ssl'
 import { VitePWA } from 'vite-plugin-pwa'
 
@@ -25,10 +26,25 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}'],
+        // El analizador (/blackbox) es para el ordenador: ni se guarda para usar sin conexión ni
+        // se le sirve la app del móvil al navegar
+        globIgnores: ['blackbox/**', 'assets/bb-*'],
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/\/blackbox(\/|$)/],
       },
     }),
   ].filter(Boolean),
+  build: {
+    rolldownOptions: {
+      input: { main: resolve(import.meta.dirname, 'index.html'), blackbox: resolve(import.meta.dirname, 'blackbox/index.html') },
+      output: {
+        // Los trozos que solo usa el analizador llevan «bb-» para dejarlos fuera de la app del móvil
+        entryFileNames: (c) => (c.name === 'blackbox' ? 'assets/bb-[name]-[hash].js' : 'assets/[name]-[hash].js'),
+        chunkFileNames: (c) => (c.moduleIds.some((id) => /maplibre|uplot|[\\/]src[\\/]blackbox[\\/]/.test(id)) ? 'assets/bb-[name]-[hash].js' : 'assets/[name]-[hash].js'),
+        assetFileNames: (a) => (/maplibre|uplot|blackbox|^map\./i.test(a.names?.[0] ?? a.name ?? '') ? 'assets/bb-[name]-[hash][extname]' : 'assets/[name]-[hash][extname]'),
+      },
+    },
+  },
   server: {
     allowedHosts: ['.trycloudflare.com'],
   },
