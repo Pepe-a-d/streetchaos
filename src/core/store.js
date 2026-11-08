@@ -37,6 +37,7 @@ const DEFAULTS = {
   leanZero: null,
   gyroSign: null,
   onboarded: false,
+  logTelemetry: true,
 }
 
 export const settings = { ...DEFAULTS, ...load('settings', {}) }

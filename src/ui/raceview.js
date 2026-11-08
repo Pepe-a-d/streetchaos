@@ -6,6 +6,7 @@ import { setBusy } from '../core/lobby.js'
 import { sfx } from '../core/audio.js'
 import { $, layer, setter, esc, segPad, toSpeed, speedUnit, fmtT } from './util.js'
 import { drawBike, BIKE_W, BIKE_H } from './pixel.js'
+import { logEvent } from '../core/logger.js'
 
 export function modeLabel(id) {
   const m = RACE_MODES[id]
@@ -243,6 +244,7 @@ export function openRace({ modeId, opp, online = null, onRematch = null }) {
       'solid',
     )
     addRace({ mode: modeId, opp: { name: opp.name, bike: opp.bike, kind: opp.kind }, me, them: op, win: r.win })
+    logEvent('race', { mode: modeId, opp: opp.kind, win: r.win, me, them: op })
     if (race.rec.result?.valid) addRun({ ...race.rec.result, race: modeId })
     $(resultEl, '[data-k="out"]').onclick = () => (sfx.click(), close())
     const again = $(resultEl, '[data-k="again"]')

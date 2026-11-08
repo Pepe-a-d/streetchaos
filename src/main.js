@@ -7,6 +7,7 @@ import { geoPermission, isStandalone } from './core/device.js'
 import { createSimGps } from './core/sim.js'
 import { unlockAudio, sfx } from './core/audio.js'
 import { startLobby, stopLobby, lobby } from './core/lobby.js'
+import { initLogger, logger } from './core/logger.js'
 import { mountDash } from './ui/dash.js'
 import { mountCrono } from './ui/crono.js'
 import { mountVs, setupIncoming } from './ui/vs.js'
@@ -174,6 +175,7 @@ onSetting((key, val) => {
   if (key === 'visible') val ? startLobby() : stopLobby()
 })
 setupIncoming()
+initLogger()
 requestAnimationFrame(frame)
 
 // Lo que no necesita un toque: GPS, radar, pantalla encendida y (fuera de iPhone) el acelerómetro
@@ -205,4 +207,4 @@ geoPermission().then((geo) => {
 })
 
 // Ganchos para probar desde la consola
-window.__sc = { T, settings, lobby, get sim() { return sim }, go }
+window.__sc = { T, settings, lobby, get sim() { return sim }, go, logger }

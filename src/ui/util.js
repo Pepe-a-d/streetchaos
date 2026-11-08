@@ -39,6 +39,8 @@ export function markLabel(id) {
   return m.label
 }
 
+export const fmtBytes = (n) => (n < 1048576 ? `${Math.ceil(n / 1024)} KB` : n < 1073741824 ? `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} MB` : `${(n / 1073741824).toFixed(1)} GB`)
+
 export function fmtDate(ts) {
   const d = new Date(ts)
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`

@@ -7,7 +7,7 @@ Web app (PWA) para llevar en la moto: dashboard por GPS, cronómetro de acelerac
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # tests del motor de cronometraje
+npm test           # tests del cronometraje, la telemetría y la caja negra
 npm run build      # versión de producción en dist/
 ```
 
@@ -47,7 +47,12 @@ Privacidad: en el radar se comparte la posición redondeada a ~10 m, solo mientr
 
 ## Datos
 
-**Garaje → Datos** permite enviar las pasadas y los duelos para analizarlos (tabla `analysis_uploads` de Supabase, ver `supabase/migrations/`: la app solo puede insertar, nadie puede leerlos con la clave pública) o descargar una copia en `.json`. Cada pasada guarda los parciales, la traza desde la salida y las muestras GPS en bruto (tiempo, velocidad, precisión y altitud), sin posición.
+**Caja negra**: la app guarda sola, solo en el móvil (IndexedDB), la telemetría en bruto de cada salida en moto: cada fix del GPS con posición, todos los eventos del acelerómetro y el giroscopio, lo que calcula la app a 10 Hz (velocidad, G, inclinación) y eventos como las pasadas del crono. No se enseña en la app: es para analizarla en el ordenador. Empieza al pasar de 9 km/h (con los 30 s de antes) y acaba tras 3 minutos parado. Se apaga en Garaje → Ajustes. Formato y cómo leerlo: [`docs/telemetria.md`](docs/telemetria.md).
+
+**Garaje → Datos**:
+- **Exportar**: un `.json` con la telemetría, las pasadas y los duelos, para pasarlo al ordenador (AirDrop, Drive, correo).
+- **Enviar para análisis**: solo las pasadas y los duelos, sin posición ni telemetría, a la tabla `analysis_uploads` de Supabase (ver `supabase/migrations/`: la app solo puede insertar, nadie puede leerlos con la clave pública). Cada pasada lleva los parciales, la traza desde la salida y las muestras GPS en bruto (tiempo, velocidad, precisión y altitud).
+- **Borrar** la telemetría (para liberar espacio después de exportarla) o el historial.
 
 ## Publicar
 

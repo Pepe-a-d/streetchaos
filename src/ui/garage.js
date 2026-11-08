@@ -8,8 +8,9 @@ import { BIKES } from '../core/physics.js'
 import { lobby } from '../core/lobby.js'
 import { sfx } from '../core/audio.js'
 import { geoPermission, isIOS, isStandalone } from '../core/device.js'
-import { sendForAnalysis, exportFile } from '../core/share.js'
-import { $, esc, layer, toast, toSpeed, speedUnit, toDist, distUnit, fmtT, fmtDate, markLabel } from './util.js'
+import { sendForAnalysis, buildExport, shareFile } from '../core/share.js'
+import { logger } from '../core/logger.js'
+import { $, esc, layer, toast, toSpeed, speedUnit, toDist, distUnit, fmtT, fmtDate, fmtBytes, markLabel } from './util.js'
 import { bikeSvg, pixelSvg } from './pixel.js'
 import { editRider } from './title.js'
 import { RACE_MODES } from '../core/race.js'
@@ -40,7 +41,7 @@ const ITEMS = [
   },
   { id: 'settings', title: 'AJUSTES', sub: () => 'Unidades, sonido, crono, radar' },
   { id: 'perms', title: 'PERMISOS', sub: () => (T.status === 'ok' ? 'GPS OK' : 'GPS sin señal') + (T.motion ? ' · movimiento OK' : '') },
-  { id: 'data', title: 'DATOS', sub: () => 'Enviar para análisis · copia' },
+  { id: 'data', title: 'DATOS', sub: () => (settings.logTelemetry ? 'Telemetría guardándose · exportar' : 'Telemetría apagada · exportar') },
 ]
 
 export function mountGarage(el, { applySource }) {
@@ -77,6 +78,29 @@ export function mountGarage(el, { applySource }) {
             : ''
         }
       </div>`
+    if (page === 'data') fillTele()
+  }
+
+  // El resumen de la caja negra se lee de IndexedDB (asíncrono)
+  async function fillTele() {
+    const L = logger()
+    const txt = $(el, '[data-k="tele"]')
+    const badge = $(el, '[data-k="teleState"]')
+    if (!txt) return
+    if (!L) {
+      txt.textContent = 'Este navegador no deja guardarla'
+      return
+    }
+    const sum = await L.summary()
+    const est = await navigator.storage?.estimate?.().catch(() => null)
+    if (!txt.isConnected) return
+    const left = est?.quota ? est.quota - est.usage : null
+    const free = left == null ? '' : ` · ${fmtBytes(Math.max(0, left))} libres`
+    txt.textContent = sum.sessions
+      ? `${sum.sessions} ${sum.sessions === 1 ? 'salida' : 'salidas'} · ${toDist(sum.dist).toFixed(1)} ${distUnit()} · ${fmtBytes(sum.bytes)}${free}`
+      : 'Aún vacía: empieza a grabar sola al pasar de 9 km/h'
+    if (sum.error) txt.textContent += ` · ERROR: ${sum.error}`
+    badge.innerHTML = !settings.logTelemetry ? state('APAGADA', 'off') : sum.recording ? state('GRABANDO', 'on') : state('EN ESPERA', '')
   }
 
   const onOff = (key, label, small = '') =>
@@ -142,6 +166,10 @@ export function mountGarage(el, { applySource }) {
             pick('radius', 'Radio de rivales', [[500, '0.5 KM'], [1500, '1.5 KM'], [3000, '3 KM']]) +
             `<div class="set"><span>Servidor<small>${lobby.kind === 'online' ? 'Retos entre móviles' : 'Solo pestañas de este navegador'}</small></span>${state(lobby.kind === 'online' ? 'ONLINE' : 'LOCAL', lobby.kind === 'online' ? 'on' : '')}</div>`,
         ),
+        group(
+          'TELEMETRIA',
+          onOff('logTelemetry', 'Caja negra', 'Guarda sola el GPS y los sensores de cada salida, solo en este móvil, para analizarlos después en el ordenador. No se ve en la app.'),
+        ),
         group('VIAJE', `<div class="set"><span>Reiniciar viaje<small>Viaje, punta, inclinación y G de esta sesión</small></span><button class="btn small ghost" data-act="trip">REINICIAR</button></div>`),
         group(
           'GPS',
@@ -176,10 +204,18 @@ export function mountGarage(el, { applySource }) {
     },
     data() {
       return `
-        <p class="empty-note">Tienes <b>${runs.length}</b> ${runs.length === 1 ? 'pasada' : 'pasadas'} y <b>${races.length}</b> ${races.length === 1 ? 'duelo' : 'duelos'} guardados en este móvil.</p>
-        <div class="set"><span>Enviar para análisis<small>Tiempos, velocidades y precisión del GPS de cada pasada, sin tu posición. Solo se pueden leer desde el proyecto, no desde la web.</small></span><button class="btn small green" data-act="send" ${lobby.kind === 'online' ? '' : 'disabled'}>ENVIAR</button></div>
-        <div class="set"><span>Descargar copia<small>Archivo .json con todo, para guardarlo o pasarlo al ordenador</small></span><button class="btn small cyan" data-act="export">COPIA</button></div>
-        <div class="set"><span>Borrar datos<small>Historial, duelos y récords de este móvil</small></span><button class="btn small ghost" data-act="wipe">BORRAR</button></div>`
+        ${group(
+          'TELEMETRIA',
+          `<div class="set"><span>Caja negra<small data-k="tele">Mirando lo guardado…</small></span><span data-k="teleState">${settings.logTelemetry ? state('EN ESPERA', '') : state('APAGADA', 'off')}</span></div>
+           <div class="set"><span>Exportar todo<small>Archivo .json con la telemetría, las pasadas y los duelos, para pasarlo al ordenador (AirDrop, Drive, correo)</small></span><button class="btn small cyan" data-act="export">EXPORTAR</button></div>
+           <div class="set"><span>Borrar telemetría<small>Después de pasarla al ordenador, para liberar espacio</small></span><button class="btn small ghost" data-act="wipeTele">BORRAR</button></div>`,
+        )}
+        ${group(
+          'PASADAS Y DUELOS',
+          `<p class="empty-note">Tienes <b>${runs.length}</b> ${runs.length === 1 ? 'pasada' : 'pasadas'} y <b>${races.length}</b> ${races.length === 1 ? 'duelo' : 'duelos'} guardados en este móvil.</p>
+           <div class="set"><span>Enviar para análisis<small>Tiempos, velocidades y precisión del GPS de cada pasada, sin tu posición ni la telemetría. Solo se pueden leer desde el proyecto, no desde la web.</small></span><button class="btn small green" data-act="send" ${lobby.kind === 'online' ? '' : 'disabled'}>ENVIAR</button></div>
+           <div class="set"><span>Borrar datos<small>Historial, duelos y récords de este móvil</small></span><button class="btn small ghost" data-act="wipe">BORRAR</button></div>`,
+        )}`
     },
   }
 
@@ -222,7 +258,19 @@ export function mountGarage(el, { applySource }) {
       toast(r.ok ? 'DATOS ENVIADOS. YA PUEDES PEDIR EL ANALISIS' : `NO SE PUDO ENVIAR: ${r.error}`, 4000)
       if (!r.ok) sfx.error()
     } else if (b.dataset.act === 'export') {
-      await exportFile()
+      b.disabled = true
+      b.textContent = '...'
+      try {
+        exportReady(await buildExport())
+      } catch (err) {
+        sfx.error()
+        toast(`NO SE PUDO EXPORTAR: ${err?.message || err}`, 4000)
+      }
+    } else if (b.dataset.act === 'wipeTele') {
+      if (confirm('¿Borrar toda la telemetría guardada en este móvil? No se puede deshacer: expórtala antes si la quieres.')) {
+        await logger()?.wipe()
+        toast('TELEMETRIA BORRADA')
+      }
     } else if (b.dataset.act === 'wipe') {
       if (confirm('¿Borrar historial, duelos y récords? No se puede deshacer.')) {
         wipeAll()
@@ -244,6 +292,24 @@ export function mountGarage(el, { applySource }) {
       sub = null
     },
     frame() {},
+  }
+}
+
+function exportReady(file) {
+  const el = layer(
+    `<div class="panel modal">
+      <h2 class="title">ARCHIVO LISTO</h2>
+      <p class="tip" style="text-align:center">${esc(file.name)}<br><b>${fmtBytes(file.size)}</b></p>
+      <div class="actions">
+        <button class="btn ghost small" data-k="close">CERRAR</button>
+        <button class="btn cyan" data-k="share">GUARDAR</button>
+      </div>
+    </div>`,
+  )
+  $(el, '[data-k="close"]').onclick = () => (sfx.click(), el.remove())
+  $(el, '[data-k="share"]').onclick = async () => {
+    sfx.click()
+    if (await shareFile(file)) el.remove()
   }
 }
 

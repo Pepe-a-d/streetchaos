@@ -74,14 +74,20 @@ export function createSimGps({ hz = 1, bike = 'sport', seed = Math.random() } = 
   function emit(t) {
     const moving = st.v > 0.2
     const [la, lo] = destination(lat, lon, Math.random() * 360, Math.abs(rnd()) * 1.2)
+    const v = Math.max(0, st.v + (moving ? rnd() * 0.15 : Math.abs(rnd()) * 0.05))
+    const hdg = moving && st.v > 1 ? heading : null
     onFix({
       t,
       lat: la,
       lon: lo,
-      v: Math.max(0, st.v + (moving ? rnd() * 0.15 : Math.abs(rnd()) * 0.05)),
+      v,
       acc: 3.5 + Math.random() * 1.5,
       alt: alt + rnd() * 1.5,
-      heading: moving && st.v > 1 ? heading : null,
+      heading: hdg,
+      ts: Date.now() - Math.round((performance.now() / 1000 - t) * 1000),
+      altAcc: 3,
+      speedRaw: v,
+      headingRaw: hdg,
     })
   }
 

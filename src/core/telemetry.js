@@ -40,8 +40,11 @@ export const T = {
 
 const sampleSubs = new Set()
 const hintSubs = new Set()
+const rawSubs = new Set()
 export const onSample = (fn) => (sampleSubs.add(fn), () => sampleSubs.delete(fn))
 export const onHint = (fn) => (hintSubs.add(fn), () => hintSubs.delete(fn))
+/** Cada evento devicemotion tal cual, con su hora (para la caja negra). */
+export const onRawMotion = (fn) => (rawSubs.add(fn), () => rawSubs.delete(fn))
 
 let lastFixAt = 0
 
@@ -158,6 +161,7 @@ function onMotion(e) {
   const dt = clamp(t - (M.last || t - 0.016), 0.004, 0.1)
   M.last = t
   T.motion = true
+  for (const fn of rawSubs) fn(e, t)
   const g = { x: ag.x, y: ag.y, z: ag.z }
   M.grav = M.grav ? { x: ema(M.grav.x, g.x, dt, 0.4), y: ema(M.grav.y, g.y, dt, 0.4), z: ema(M.grav.z, g.z, dt, 0.4) } : g
 
@@ -280,6 +284,11 @@ export function createRealGps() {
             acc: c.accuracy,
             alt: c.altitude,
             heading: Number.isFinite(c.heading) && (v ?? 0) > 1 ? c.heading : null,
+            // Lo que da el móvil sin tocar, para la caja negra
+            ts: pos.timestamp,
+            altAcc: c.altitudeAccuracy,
+            speedRaw: c.speed,
+            headingRaw: c.heading,
           }
           prev = s
           onFix(s)

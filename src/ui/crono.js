@@ -4,6 +4,7 @@ import { T, onSample, onHint, signalBars } from '../core/telemetry.js'
 import { settings, setSetting, addRun, deleteRun, bests } from '../core/store.js'
 import { sfx } from '../core/audio.js'
 import { $, $$, setter, segPad, toSpeed, speedUnit, fmtT, toast } from './util.js'
+import { logEvent } from '../core/logger.js'
 
 const MODES = { kmh: ['k0-100', 'k100-200', '1/8', '1/4'], mph: ['m0-60', 'm60-130', '1/8', '1/4'] }
 
@@ -22,11 +23,13 @@ export function mountCrono(el) {
   function onEvent(e, data) {
     if (e === 'armed') sfx.armed()
     if (e === 'aborted') {
+      logEvent('abort')
       sfx.error()
       toast('PASADA CANCELADA')
       renderBoard()
     }
     if (e === 'launch') {
+      logEvent('launch', {}, data?.t0 ?? undefined)
       sfx.launch()
       shown = null
       records = new Set()
@@ -41,6 +44,7 @@ export function mountCrono(el) {
       const before = bests()
       records = new Set(Object.keys(data.marks).filter((id) => !before[id] || data.marks[id].t < before[id].t))
       shown = addRun(data)
+      logEvent('run', { id: shown.id, marks: Object.fromEntries(Object.entries(data.marks).map(([id, m]) => [id, m.t])), maxV: data.maxV }, data.tStart)
       if (records.has(mode())) sfx.record()
       else sfx.done()
       renderBoard()
