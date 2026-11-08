@@ -76,7 +76,8 @@ export async function createMap(el, { onHover, onPick }) {
   const hasGlyphs = Boolean(style.glyphs)
 
   const empty = { type: 'FeatureCollection', features: [] }
-  map.addSource('track', { type: 'geojson', data: empty })
+  // tolerance 0: sin simplificar, que con poco zoom se comía los tramos cortos y la traza salía a trozos
+  map.addSource('track', { type: 'geojson', data: empty, tolerance: 0 })
   map.addSource('cursor', { type: 'geojson', data: empty })
   map.addSource('marks', { type: 'geojson', data: empty })
   const inside = ['case', ['get', 'in'], 1, 0.22]
@@ -157,7 +158,9 @@ export async function createMap(el, { onHover, onPick }) {
         let val = ch.get(A, i)
         if (ch.abs) val = Math.abs(val)
         const u = Number.isFinite(val) ? (val - lo) / (hi - lo || 1) : 0
-        const b = Math.max(0, Math.min(BUCKETS - 1, Math.floor(u * BUCKETS)))
+        let b = Math.max(0, Math.min(BUCKETS - 1, Math.floor(u * BUCKETS)))
+        // Histéresis: no cambia de color por rozar el borde entre dos tonos
+        if (cur && Math.abs(u * BUCKETS - (cur.properties.b + 0.5)) < 0.8) b = cur.properties.b
         const ins = i >= r0 && i <= r1
         const pt = [Math.round(A.lon[i] * 1e6) / 1e6, Math.round(A.lat[i] * 1e6) / 1e6]
         if (cur && (cur.properties.b !== b || cur.properties.in !== ins || A.seg[i] !== A.seg[i - 1])) {

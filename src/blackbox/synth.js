@@ -245,7 +245,7 @@ export function synthRide({ path, seed = 7, start = Date.UTC(2026, 10, 9, 9, 30)
     source: 'demo',
     sim: null,
     calib: { leanZero: null, gyroSign: null },
-    rider: { bike: 'DEMO', units: 'kmh' },
+    rider: { bike: 'Moto inventada', units: 'kmh' },
     device: { ua: 'Salida inventada para la demo', screen: null, orientation: 'portrait-primary', standalone: true },
     chunks: 1,
     bytes: g.byteLength + im.byteLength + ca.byteLength,
