@@ -1,0 +1,26 @@
+{
+  "name": "streetchaos",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "dev:movil": "vite --host --mode movil",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "dependencies": {
+    "@fontsource/press-start-2p": "5.3.0",
+    "@fontsource/vt323": "5.3.0",
+    "@supabase/supabase-js": "2.119.0",
+    "dseg": "0.46.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "2.3.0",
+    "vite": "8.3.5",
+    "vite-plugin-pwa": "2.0.0",
+    "vitest": "5.1.0"
+  }
+}
