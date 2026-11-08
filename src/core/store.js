@@ -35,6 +35,7 @@ const DEFAULTS = {
   timerMode: 'k0-100',
   raceMode: '1/4',
   leanZero: null,
+  gyroSign: null,
   onboarded: false,
 }
 

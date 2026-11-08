@@ -46,6 +46,8 @@ function gDial() {
     <line x1="6" y1="60" x2="114" y2="60" stroke="#2a1f5c" stroke-width="2"/>
     <text x="60" y="16" text-anchor="middle" font-family="'Press Start 2P'" font-size="6" fill="#4a3f86">ACEL</text>
     <text x="60" y="112" text-anchor="middle" font-family="'Press Start 2P'" font-size="6" fill="#4a3f86">FRENO</text>
+    <text x="9" y="57" font-family="'Press Start 2P'" font-size="6" fill="#4a3f86">IZQ</text>
+    <text x="111" y="57" text-anchor="end" font-family="'Press Start 2P'" font-size="6" fill="#4a3f86">DER</text>
     <g data-k="trail"></g>
     <rect data-k="dot" x="54" y="54" width="12" height="12" fill="#22e3ff" stroke="#000" stroke-width="2"/>
   </svg>`
@@ -113,7 +115,8 @@ export function mountDash(el) {
       set(E.speed, T.status === 'ok' || T.status === 'lost' ? segPad(n, 3) : '!!-')
       set(E.unit, speedUnit())
       set(E.max, String(Math.round(toSpeed(T.maxV))))
-      set(E.glong, (T.gLong >= 0 ? '' : '-') + Math.abs(T.gLong).toFixed(2))
+      const gl = Math.round(T.gLong * 100) / 100 // sin "-0.00"
+      set(E.glong, (gl < 0 ? '-' : '') + Math.abs(gl).toFixed(2))
 
       const top = settings.units === 'mph' ? 200 : 300
       const nl = Math.min(SEGS, Math.round((v / top) * SEGS))

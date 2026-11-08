@@ -126,7 +126,10 @@ export function tick(dt) {
 
 // ---------- Acelerómetro y giroscopio ----------
 
-const M = { grav: null, lin: null, last: 0, theta0: settings.leanZero, tilt: 0, yaw: 0, yawSum: 0, yawN: 0, sign: 1, corr: 0, over: null, cool: 0 }
+// Signo del giroscopio. Con el estándar (gravedad aparente hacia ARRIBA en reposo y giros por la
+// regla de la mano derecha) una curva a derecha da w < 0, así que se empieza en -1. Si este móvil
+// usa el convenio contrario, alignGyro() lo descubre en la primera curva y lo guarda.
+const M = { grav: null, lin: null, last: 0, theta0: settings.leanZero, tilt: 0, yaw: 0, yawSum: 0, yawN: 0, sign: settings.gyroSign ?? -1, corr: 0, over: null, cool: 0 }
 
 export async function requestMotion() {
   try {
@@ -194,9 +197,16 @@ function alignGyro() {
   M.yawN = 0
   if (Math.abs(T.yawGps) > 0.05 && T.v > 4) {
     M.corr = M.corr * 0.95 + avg * T.yawGps
-    M.sign = M.corr >= 0 ? 1 : -1
+    // Solo se cambia con una correlación clara, para que una muestra rara no lo invierta
+    if (Math.abs(M.corr) > CORR_SURE) {
+      const sign = M.corr > 0 ? 1 : -1
+      if (sign !== M.sign) M.sign = sign
+      if (settings.gyroSign !== sign) setSetting('gyroSign', sign)
+    }
   }
 }
+
+const CORR_SURE = 0.02 // (rad/s)²: ~1 s de curva a 0,15 rad/s con el giroscopio de acuerdo
 
 function updateLean(dt) {
   const v = T.v
@@ -272,3 +282,6 @@ export function createRealGps() {
     },
   }
 }
+
+// Solo para los tests: inyectar eventos de movimiento y ver el estado interno
+export const __test = { onMotion: (e) => onMotion(e), M }
