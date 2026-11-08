@@ -45,6 +45,10 @@ La red va por **Supabase Realtime** (presencia y mensajes, sin tablas). Crea `.e
 
 Privacidad: en el radar se comparte la posición redondeada a ~10 m, solo mientras la app está abierta, y se puede apagar en Garaje → «Visible en el radar».
 
+## Datos
+
+**Garaje → Datos** permite enviar las pasadas y los duelos para analizarlos (tabla `analysis_uploads` de Supabase, ver `supabase/migrations/`: la app solo puede insertar, nadie puede leerlos con la clave pública) o descargar una copia en `.json`. Cada pasada guarda los parciales, la traza desde la salida y las muestras GPS en bruto (tiempo, velocidad, precisión y altitud), sin posición.
+
 ## Publicar
 
 `.github/workflows/publicar.yml` construye y publica en GitHub Pages con cada push a `main`. Para el modo online, añade `VITE_SUPABASE_URL` y `VITE_SUPABASE_KEY` como secretos del repositorio.

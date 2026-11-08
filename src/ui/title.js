@@ -3,29 +3,35 @@ import { settings, setSetting } from '../core/store.js'
 import { sfx } from '../core/audio.js'
 import { $, $$, esc, layer } from './util.js'
 import { bikeSvg } from './pixel.js'
+import { isIOS, isStandalone } from '../core/device.js'
 
 const COLORS = ['#ff2e88', '#22e3ff', '#ffd23f', '#3dff7a', '#ff8a1f', '#9d8cff', '#ff3b3b', '#f4f1ff']
 
-/** Muestra el título; `onStart` se llama dentro del toque (permisos que exigen gesto). */
-export function showTitle(onStart) {
+/**
+ * Muestra el título. Con `onStart` espera un toque (los permisos de la primera vez lo exigen);
+ * con `auto` solo saluda unos milisegundos y se va solo (o al tocar).
+ */
+export function showTitle(onStart, { auto = 0 } = {}) {
   const el = layer(
     `<div class="sun"></div><div class="floor"></div>
      <div class="logo">
        ${bikeSvg(settings.color)}
        <h1>STREET<span>CHAOS</span></h1>
-       <div class="press blink">TOCA PARA EMPEZAR</div>
+       <div class="press ${auto ? '' : 'blink'}">${auto ? `HOLA, ${esc(settings.name || 'PILOTO')}` : 'TOCA PARA EMPEZAR'}</div>
      </div>`,
     'titlescreen solid',
   )
-  el.addEventListener(
-    'click',
-    () => {
-      onStart()
-      el.remove()
-      if (!settings.onboarded) editRider(() => {}, true)
-    },
-    { once: true },
-  )
+  let gone = false
+  const go = () => {
+    if (gone) return
+    gone = true
+    onStart?.()
+    el.classList.add('out')
+    setTimeout(() => el.remove(), 250)
+    if (!settings.onboarded) editRider(() => {}, true)
+  }
+  el.addEventListener('click', go, { once: true })
+  if (auto) setTimeout(go, auto)
 }
 
 export function editRider(onSave, first = false) {
@@ -39,7 +45,7 @@ export function editRider(onSave, first = false) {
       <label class="field"><span class="lbl">Tu moto</span><input data-k="bike" maxlength="14" value="${esc(settings.bike)}" placeholder="MT-07, R6..." autocomplete="off" autocapitalize="characters"></label>
       <div class="field"><span class="lbl">Color</span><div class="swatches">${COLORS.map((c) => `<button class="swatch ${c === color ? 'on' : ''}" style="--c:${c}" data-c="${c}" aria-label="Color ${c}"></button>`).join('')}</div></div>
       <div class="field"><span class="lbl">Unidades</span><div class="chips"><button class="chip ${units === 'kmh' ? 'on' : ''}" data-u="kmh">KM/H</button><button class="chip ${units === 'mph' ? 'on' : ''}" data-u="mph">MPH</button></div></div>
-      ${first ? '<div style="color:var(--dim);font-size:17px">Fija el móvil en el manillar. La app se arma y cronometra sola: no hace falta tocarla en marcha.</div>' : ''}
+      ${first ? `<div class="tip">Cuando el móvil pregunte, elige <b>Permitir mientras se usa la app</b> para la ubicación y <b>Permitir</b> para el movimiento: así no vuelve a preguntar.${isIOS() && !isStandalone() ? ' En iPhone, añádela a la pantalla de inicio (Compartir → Añadir a pantalla de inicio) para que recuerde los permisos.' : ''}</div>` : ''}
       <div class="actions"><button class="btn" data-k="ok">${first ? '¡A RODAR!' : 'GUARDAR'}</button></div>
     </div>`,
   )

@@ -1,8 +1,9 @@
 // DASH: velocímetro grande, barra de velocidad, datos del viaje, inclinación y fuerza G.
-import { T } from '../core/telemetry.js'
+import { T, zeroLean } from '../core/telemetry.js'
+import { sfx } from '../core/audio.js'
 import { totals, settings } from '../core/store.js'
 import { compassPoint } from '../core/geo.js'
-import { $, setter, segPad, toSpeed, speedUnit, toDist, fmtClock } from './util.js'
+import { $, setter, segPad, toSpeed, speedUnit, toDist, fmtClock, toast } from './util.js'
 import { pixelSvg } from './pixel.js'
 
 const SEGS = 40
@@ -56,8 +57,10 @@ function gDial() {
 export function mountDash(el) {
   el.innerHTML = `
     <div class="panel speedbox">
-      <div class="max"><span class="lbl">Punta</span><b data-k="max">0</b></div>
-      <div class="gear"><span class="lbl">G long</span><b data-k="glong">0.00</b></div>
+      <div class="sb-top">
+        <div class="max"><span class="lbl">Punta</span><b data-k="max">0</b></div>
+        <div class="gear"><span class="lbl">G long</span><b data-k="glong">0.00</b></div>
+      </div>
       <div class="readout">
         <span class="seg num" data-ghost="888" data-k="speed">!!0</span>
         <span class="unit" data-k="unit">KM/H</span>
@@ -76,10 +79,10 @@ export function mountDash(el) {
       <div class="panel stat"><span class="lbl">Total</span><b data-k="odo">0</b></div>
     </div>
     <div class="gauges">
-      <div class="panel gauge">
+      <div class="panel gauge" data-k="leanbox">
         <span class="lbl">Inclinacion</span>
         ${leanDial()}
-        <div class="foot"><span>IZQ <b data-k="maxL">0°</b></span><span>MAX</span><span><b data-k="maxR">0°</b> DER</span></div>
+        <div class="foot"><span>IZQ <b data-k="maxL">0°</b></span><span class="mid">MAX</span><span><b data-k="maxR">0°</b> DER</span></div>
       </div>
       <div class="panel gauge">
         <span class="lbl">Fuerza G</span>
@@ -95,6 +98,26 @@ export function mountDash(el) {
   const bars = [...el.querySelectorAll('.speedbar i')]
   const leanSegs = [...el.querySelectorAll('polygon[data-i]')]
   const set = setter()
+
+  // Poner el inclinómetro a cero: mantener pulsado (un toque corto solo explica cómo)
+  const leanBox = k('leanbox')
+  let press = null
+  leanBox.addEventListener('pointerdown', () => {
+    press = setTimeout(() => {
+      press = null
+      const ok = zeroLean()
+      if (ok) sfx.armed()
+      else sfx.error()
+      toast(ok ? 'INCLINOMETRO A 0' : 'SIN SENSOR DE MOVIMIENTO')
+    }, 700)
+  })
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel'])
+    leanBox.addEventListener(ev, () => {
+      if (!press) return
+      clearTimeout(press)
+      press = null
+      if (ev === 'pointerup') toast('MANTEN PULSADO CON LA MOTO RECTA PARA PONERLO A 0')
+    })
   let lit = -1
   let units = null
   const trail = []

@@ -2,7 +2,8 @@ import '@fontsource/press-start-2p'
 import '@fontsource/vt323'
 import './style.css'
 import { settings, onSetting, saveTotals } from './core/store.js'
-import { T, useSource, createRealGps, tick, requestMotion, signalBars } from './core/telemetry.js'
+import { T, useSource, createRealGps, tick, requestMotion, motionNeedsTap, signalBars } from './core/telemetry.js'
+import { geoPermission, isStandalone } from './core/device.js'
 import { createSimGps } from './core/sim.js'
 import { unlockAudio, sfx } from './core/audio.js'
 import { startLobby, stopLobby, lobby } from './core/lobby.js'
@@ -175,13 +176,32 @@ onSetting((key, val) => {
 setupIncoming()
 requestAnimationFrame(frame)
 
-showTitle(() => {
+// Lo que no necesita un toque: GPS, radar, pantalla encendida y (fuera de iPhone) el acelerómetro
+let started = false
+function start() {
+  if (started) return
+  started = true
+  applySource()
+  if (settings.visible) startLobby()
+  keepAwake()
+  if (!motionNeedsTap()) requestMotion()
+}
+// Lo que el navegador solo permite tras un toque: sonido, acelerómetro en iPhone y pantalla completa
+function firstTouch() {
+  document.removeEventListener('pointerdown', firstTouch, true)
   unlockAudio()
   requestMotion()
   keepAwake()
-  if (matchMedia('(pointer: coarse)').matches) document.documentElement.requestFullscreen?.().catch(() => {})
-  applySource()
-  if (settings.visible) startLobby()
+  if (matchMedia('(pointer: coarse)').matches && !isStandalone()) document.documentElement.requestFullscreen?.().catch(() => {})
+}
+document.addEventListener('pointerdown', firstTouch, true)
+
+// Si ya diste permiso de ubicación, la app arranca sola: el título solo saluda un momento
+geoPermission().then((geo) => {
+  if (settings.onboarded && (geo === 'granted' || settings.source === 'sim')) {
+    start()
+    showTitle(null, { auto: 1200 })
+  } else showTitle(() => start())
 })
 
 // Ganchos para probar desde la consola

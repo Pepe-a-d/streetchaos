@@ -114,3 +114,24 @@ describe('inclinación parado (gravedad)', () => {
     expect(tel.T.lean).toBeLessThan(0.2)
   })
 })
+
+describe('cero del inclinómetro', () => {
+  const rot = (deg, base = 0) => {
+    // Gravedad aparente de un móvil girado `deg` grados (sentido horario visto de frente) sobre la postura `base`
+    const a = ((deg + base) * Math.PI) / 180
+    return { x: -G * Math.sin(a), y: G * Math.cos(a), z: 0 }
+  }
+  it('el cero calibrado en vertical sigue valiendo en horizontal', () => {
+    // Soporte torcido 5° y moto recta: se calibra
+    motion(200, rot(5))
+    expect(tel.zeroLean()).toBe(true)
+    motion(200, rot(5))
+    expect(Math.abs(tel.T.lean)).toBeLessThan(0.02)
+    // Mismo soporte girado 90° (móvil en horizontal) y moto recta: sigue a cero
+    motion(1500, rot(5, 90))
+    expect(Math.abs(tel.T.lean)).toBeLessThan(0.02)
+    // Moto tumbada 10° a la derecha con el móvil en horizontal
+    motion(1500, rot(15, 90))
+    expect(tel.T.lean).toBeGreaterThan(0.15)
+  })
+})

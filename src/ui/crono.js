@@ -1,7 +1,7 @@
 // CRONO: pasadas desde parado. Se arma solo al parar y cronometra al salir.
 import { RunRecorder, marksFor, MARKS } from '../core/perf.js'
 import { T, onSample, onHint, signalBars } from '../core/telemetry.js'
-import { settings, setSetting, addRun, bests } from '../core/store.js'
+import { settings, setSetting, addRun, deleteRun, bests } from '../core/store.js'
 import { sfx } from '../core/audio.js'
 import { $, $$, setter, segPad, toSpeed, speedUnit, fmtT, toast } from './util.js'
 
@@ -21,6 +21,11 @@ export function mountCrono(el) {
 
   function onEvent(e, data) {
     if (e === 'armed') sfx.armed()
+    if (e === 'aborted') {
+      sfx.error()
+      toast('PASADA CANCELADA')
+      renderBoard()
+    }
     if (e === 'launch') {
       sfx.launch()
       shown = null
@@ -35,8 +40,7 @@ export function mountCrono(el) {
       if (!data.valid) return
       const before = bests()
       records = new Set(Object.keys(data.marks).filter((id) => !before[id] || data.marks[id].t < before[id].t))
-      addRun(data)
-      shown = data
+      shown = addRun(data)
       if (records.has(mode())) sfx.record()
       else sfx.done()
       renderBoard()
@@ -57,6 +61,7 @@ export function mountCrono(el) {
       <span class="seg timer" data-k="timer" data-ghost="88.88" hidden>!0.00</span>
       <div class="live" data-k="live" hidden><span><b data-k="lv">0</b><small data-k="lvu">KM/H</small></span><span><b data-k="ld">0</b><small>M</small></span></div>
       <div class="record" data-k="record" hidden>¡NUEVO RECORD!</div>
+      <button class="btn ghost small discard" data-k="discard" hidden>DESCARTAR PASADA</button>
     </div>
     <div class="panel board"></div>`
 
@@ -115,6 +120,24 @@ export function mountCrono(el) {
     if (m) m.textContent = parts.join(' · ')
   }
 
+  // Salida en falso: un toque en cualquier parte de la pantalla cancela la pasada en marcha
+  el.addEventListener('pointerdown', (e) => {
+    if (rec.state !== 'running') return
+    e.preventDefault()
+    e.stopPropagation()
+    rec.abort()
+  }, true)
+  // Ya terminada (y guardada): se puede tirar a la basura para que no cuente en récords
+  k('discard').addEventListener('click', () => {
+    if (!shown?.id) return
+    deleteRun(shown.id)
+    shown = null
+    records = new Set()
+    sfx.click()
+    toast('PASADA DESCARTADA')
+    renderBoard()
+  })
+
   renderModes()
   renderBoard()
 
@@ -151,6 +174,8 @@ export function mountCrono(el) {
       } else if (s === 'armed') {
         big = '¡LISTO!'
         sub = shown?.marks[mode()] ? `Última ${MARKS[mode()].label}: ${fmtT(shown.marks[mode()].t)} s · sal cuando quieras` : 'Sal cuando quieras'
+      } else if (s === 'running') {
+        sub = 'Toca la pantalla para cancelar'
       } else if (s === 'done') {
         const h = shown?.marks[mode()]
         big = h ? `${MARKS[mode()].label}` : 'PASADA INCOMPLETA'
@@ -168,6 +193,7 @@ export function mountCrono(el) {
       timer.hidden = !showTimer
       k('live').hidden = s !== 'running'
       k('record').hidden = !(s === 'done' && records.has(mode()))
+      k('discard').hidden = !shown || s === 'running' || s === 'nogps'
       if (s === 'running' && live) {
         set(timer, segPad(live.elapsed.toFixed(2), 5))
         set(k('lv'), String(Math.round(toSpeed(T.vDisp))))

@@ -344,10 +344,26 @@ main {
   grid-area: speed;
   container-type: size;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   padding: 8px 10px 10px;
 }
+.sb-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.sb-top .gear { text-align: right; }
+.sb-top b {
+  display: block;
+  font-family: var(--seg);
+  font-style: italic;
+  font-size: clamp(13px, min(9cqh, 6cqw), 34px);
+  color: var(--yellow);
+  margin-top: 4px;
+}
+/* La lectura es su propio contenedor: los dígitos ocupan el hueco que quede, sin pisar nada */
 .speedbox .readout {
+  container-type: size;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -355,37 +371,17 @@ main {
   min-height: 0;
 }
 .speedbox .num {
-  font-size: min(56cqh, 30cqw);
+  font-size: min(92cqh, 30cqw);
   color: var(--cyan);
   text-shadow: 0 0 18px #22e3ff66;
 }
 .speedbox .unit {
   font-family: var(--pixel);
-  font-size: min(6cqh, 4cqw);
+  font-size: clamp(9px, min(12cqh, 4.2cqw), 22px);
   color: var(--pink);
   white-space: nowrap;
   /* A la altura de la base de los dígitos */
-  transform: translateY(calc(min(56cqh, 30cqw) * 0.4 - 50%));
-}
-.speedbox .max {
-  position: absolute;
-  top: 8px;
-  left: 10px;
-}
-.speedbox .gear {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  text-align: right;
-}
-.speedbox .max b,
-.speedbox .gear b {
-  display: block;
-  font-family: var(--seg);
-  font-style: italic;
-  font-size: min(9cqh, 6cqw);
-  color: var(--yellow);
-  margin-top: 4px;
+  transform: translateY(calc(min(92cqh, 30cqw) * 0.4 - 50%));
 }
 .speedbar {
   display: grid;
@@ -705,92 +701,142 @@ main {
   }
 }
 
-/* ---------- GARAJE ---------- */
-#garage {
-  display: none;
-  align-content: start;
-  gap: 12px;
-  padding-bottom: 24px;
-}
-#garage.on { display: grid; }
-.card { padding: 10px; }
-.card h3 {
-  margin: 0 0 10px;
-  font-family: var(--pixel);
-  font-size: 10px;
-  color: var(--yellow);
-}
+/* ---------- GARAJE (menú) ---------- */
+#garage.on { display: block; }
+.g-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-height: 100%; align-content: start; }
+.g-side { display: grid; gap: 12px; align-content: start; }
+/* En vertical: o el menú o el apartado */
+.g-wrap.in-sub .g-side { display: none; }
 .me-card {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) auto;
+  grid-template-columns: clamp(64px, 22vmin, 104px) minmax(0, 1fr);
   gap: 12px;
   align-items: center;
+  padding: 10px;
 }
-.me-card .sprite { width: 96px; height: auto; }
-.me-card b {
+.me-card .sprite { width: 100%; height: auto; }
+.me-who { min-width: 0; display: grid; gap: 6px; justify-items: start; }
+.me-who b {
   font-family: var(--pixel);
-  font-size: 13px;
-  display: block;
-  margin-bottom: 6px;
+  font-size: clamp(11px, 3.4vmin, 15px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.me-who span { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu { display: grid; padding: 6px; }
+.mi {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-areas: 'cur t' 'cur s';
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 4px;
+  padding: 12px 10px;
+  text-align: left;
+  border-bottom: 2px dashed #241a4e;
+}
+.mi:last-child { border-bottom: 0; }
+.mi .cur { grid-area: cur; color: var(--pink); visibility: hidden; }
+.mi-t { grid-area: t; font-family: var(--pixel); font-size: clamp(11px, 3.2vmin, 14px); color: var(--ink); }
+.mi-s { grid-area: s; color: var(--dim); font-size: clamp(16px, 4.4vmin, 20px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mi:active, .mi.on { background: #1d1342; }
+.mi:active .cur, .mi.on .cur { visibility: visible; animation: blink 0.8s steps(1) infinite; }
+.mi.on .mi-t { color: var(--yellow); }
+@media (hover: hover) {
+  .mi:hover .cur { visibility: visible; }
+}
+.px-arrow { width: 10px; height: 14px; display: block; }
+.g-safe { margin: 0; text-align: center; color: var(--faint); font-size: 16px; }
+.g-page { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+.g-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 3px solid var(--line);
+  background: #0d0822;
+}
+.g-head h3 { margin: 0; font-family: var(--pixel); font-size: clamp(11px, 3.2vmin, 14px); color: var(--yellow); }
+.back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--cyan);
+  padding: 8px 10px 8px 8px;
+  border: 3px solid var(--line);
+  background: var(--panel2);
+}
+.g-body { padding: 12px; }
+.group + .group { margin-top: 14px; }
+.group h4 { margin: 0 0 2px; color: var(--pink); }
 .records {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(140px, 42%), 1fr));
   gap: 8px;
 }
 .rec {
   padding: 7px 8px;
   background: var(--panel2);
   border: 3px solid #000;
+  min-width: 0;
 }
 .rec b {
   display: block;
   font-family: var(--seg);
   font-style: italic;
-  font-size: 18px;
+  font-size: clamp(16px, 4.6vmin, 22px);
   margin-top: 4px;
   color: var(--green);
+  white-space: nowrap;
 }
 .rec span:not(.lbl) { font-size: 16px; color: var(--dim); }
-.hist {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.hist button {
+.hist { display: flex; flex-direction: column; gap: 6px; }
+.hist button,
+.hist .hist-row {
   display: flex;
   justify-content: space-between;
   gap: 8px;
   align-items: center;
   text-align: left;
-  padding: 8px;
+  padding: 8px 10px;
   background: var(--panel2);
   border: 3px solid #000;
   font-size: 18px;
 }
-.hist .lbl { font-size: 7px; }
-.hist b { font-family: var(--seg); font-style: italic; font-size: 15px; color: var(--cyan); white-space: nowrap; }
+.hist b { font-family: var(--seg); font-style: italic; font-size: clamp(14px, 4vmin, 18px); color: var(--cyan); white-space: nowrap; }
 .set {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 8px 0;
+  gap: 12px;
+  padding: 10px 0;
   border-bottom: 2px dashed #241a4e;
 }
 .set:last-child { border-bottom: 0; }
-.set > span { font-size: 19px; }
-.set small { display: block; font-size: 15px; color: var(--dim); }
-.wl { display: flex; gap: 14px; font-family: var(--pixel); font-size: 10px; margin-bottom: 8px; }
+.set > span:first-child { font-size: clamp(18px, 4.8vmin, 22px); min-width: 0; flex: 1; }
+.set > :last-child:not(:first-child) { flex-shrink: 0; }
+.set small { display: block; font-size: clamp(15px, 4vmin, 18px); color: var(--dim); line-height: 1.1; margin-top: 2px; }
+.set .chips { flex-wrap: nowrap; }
+.wl { display: flex; gap: 14px; font-family: var(--pixel); font-size: 11px; margin-bottom: 10px; }
 .wl .w { color: var(--green); }
 .wl .l { color: var(--red); }
+.empty-note { color: var(--dim); margin: 4px 0 10px; }
+.empty-note b { color: var(--ink); font-weight: normal; }
+.steps { margin: 6px 0 0; padding-left: 22px; color: var(--dim); display: grid; gap: 8px; line-height: 1.15; }
+.steps b { color: var(--ink); font-weight: normal; }
 
+/* Horizontal: menú a la izquierda y apartado a la derecha */
 @media (orientation: landscape) {
-  #garage.on {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: start;
-  }
-  #garage .span2 { grid-column: 1 / -1; }
+  .g-wrap { grid-template-columns: minmax(250px, 0.9fr) minmax(0, 1.4fr); align-items: start; }
+  .g-wrap.in-sub .g-side { display: grid; }
+  .back { display: none; }
+  .g-side { position: sticky; top: 0; }
+}
+@media (orientation: portrait) {
+  .g-wrap.has-page:not(.in-sub) .g-page { display: none; }
 }
 
 /* ---------- Capas (título, retos, carrera, tickets) ---------- */
@@ -1128,7 +1174,6 @@ main {
 }
 
 /* Las filas automáticas no deben encogerse por debajo del contenido (los paneles llevan min-height: 0) */
-#garage.on,
 .vs-body {
   grid-auto-rows: max-content;
 }
@@ -1161,3 +1206,54 @@ body[data-tab='vs']:not(.racing) .simpad {
 .simpad { opacity: 0.85; }
 .simpad button { width: 46px; height: 46px; font-size: 8px; }
 .simpad .gas { width: 58px; height: 58px; }
+
+.layer.titlescreen.out { opacity: 0; transition: opacity 0.25s steps(4); }
+.tip {
+  color: var(--dim);
+  font-size: 17px;
+  line-height: 1.2;
+  text-align: left;
+}
+.tip b { color: var(--ink); font-weight: normal; }
+
+/* Pantallas bajas en vertical: solo la primera fila de datos para que el velocímetro respire */
+@media (orientation: portrait) and (max-height: 700px) {
+  .stats .stat:nth-child(n + 4) { display: none; }
+}
+
+/* Tarjetas de la CPU en fila: moto a la izquierda, nombre a la derecha (ocupan la mitad de alto) */
+.cpu-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); }
+.cpu-card {
+  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  justify-items: start;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 8px 10px;
+  text-align: left;
+}
+.cpu-card .sprite { width: 56px; grid-row: 1 / 3; }
+.cpu-card small { line-height: 1; }
+
+/* Pie del inclinómetro: si el hueco es estrecho, sin la palabra del medio */
+@container (max-width: 210px) {
+  .gauge .foot .mid { display: none; }
+}
+
+/* Texto que crece con la pantalla (en móviles grandes y tablets los rótulos de 8 px se quedaban cortos) */
+.lbl { font-size: clamp(8px, 2.2vmin, 12px); }
+.chip { font-size: clamp(9px, 2.5vmin, 13px); padding: clamp(8px, 1.8vmin, 12px) clamp(9px, 2vmin, 14px); }
+.btn { font-size: clamp(10px, 2.8vmin, 14px); }
+.btn.small { font-size: clamp(9px, 2.4vmin, 12px); }
+.tab span { font-size: clamp(8px, 2.1vmin, 11px); }
+.row .lbl { font-size: clamp(8px, 2.3vmin, 12px); }
+.row b { font-size: clamp(15px, 4.3vmin, 24px); }
+.row b small { font-size: clamp(7px, 1.9vmin, 10px); }
+.board .meta { font-size: clamp(7px, 1.9vmin, 10px); }
+.stat b { font-size: clamp(16px, 5vmin, 30px); }
+.topbar { font-size: clamp(9px, 2.3vmin, 12px); }
+.topbar .clock { font-size: clamp(13px, 3.4vmin, 18px); }
+@media (orientation: landscape) and (max-height: 430px) {
+  .stat b { font-size: clamp(14px, 4.2vmin, 20px); }
+}

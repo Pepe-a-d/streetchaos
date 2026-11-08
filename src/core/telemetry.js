@@ -129,17 +129,22 @@ export function tick(dt) {
 // Signo del giroscopio. Con el estándar (gravedad aparente hacia ARRIBA en reposo y giros por la
 // regla de la mano derecha) una curva a derecha da w < 0, así que se empieza en -1. Si este móvil
 // usa el convenio contrario, alignGyro() lo descubre en la primera curva y lo guarda.
-const M = { grav: null, lin: null, last: 0, theta0: settings.leanZero, tilt: 0, yaw: 0, yawSum: 0, yawN: 0, sign: settings.gyroSign ?? -1, corr: 0, over: null, cool: 0 }
+const M = { grav: null, lin: null, last: 0, offset: leanOffset(settings.leanZero), tilt: 0, yaw: 0, yawSum: 0, yawN: 0, sign: settings.gyroSign ?? -1, corr: 0, over: null, cool: 0 }
 
+/** iPhone y iPad piden permiso para el acelerómetro, y solo dentro de un toque. */
+export const motionNeedsTap = () => typeof window.DeviceMotionEvent?.requestPermission === 'function'
+
+let motionOn = false
 export async function requestMotion() {
   try {
     const DM = window.DeviceMotionEvent
     if (!DM) return false
-    if (typeof DM.requestPermission === 'function') {
+    if (motionNeedsTap()) {
       const r = await DM.requestPermission()
       if (r !== 'granted') return false
     }
-    window.addEventListener('devicemotion', onMotion)
+    if (!motionOn) window.addEventListener('devicemotion', onMotion)
+    motionOn = true
     return true
   } catch {
     return false
@@ -157,9 +162,9 @@ function onMotion(e) {
   M.grav = M.grav ? { x: ema(M.grav.x, g.x, dt, 0.4), y: ema(M.grav.y, g.y, dt, 0.4), z: ema(M.grav.z, g.z, dt, 0.4) } : g
 
   // Inclinación estática respecto al cero calibrado (sirve parado o muy despacio)
-  const theta = Math.atan2(M.grav.x, M.grav.y)
-  if (M.theta0 == null) M.theta0 = Math.round(theta / (Math.PI / 2)) * (Math.PI / 2)
-  M.tilt = -wrap(theta - M.theta0)
+  // El cero se guarda como desviación respecto a la orientación más cercana (vertical u horizontal),
+  // así sigue valiendo si cambias el móvil de postura en el soporte.
+  M.tilt = -quarterRest(Math.atan2(M.grav.x, M.grav.y) - M.offset)
 
   // Giro alrededor del eje vertical de la moto (la gravedad aparente ya va por ese eje al tumbar)
   const rr = e.rotationRate
@@ -188,6 +193,13 @@ function onMotion(e) {
 }
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a))
+const QUARTER = Math.PI / 2
+/** Lo que sobra de un ángulo respecto al múltiplo de 90° más cercano (entre -45° y 45°). */
+const quarterRest = (a) => a - Math.round(a / QUARTER) * QUARTER
+/** Los ajustes antiguos guardaban el ángulo absoluto: se convierte a desviación. */
+function leanOffset(saved) {
+  return Number.isFinite(saved) ? quarterRest(saved) : 0
+}
 
 /** El signo del giroscopio depende del móvil: se alinea con el giro que marca el GPS. */
 function alignGyro() {
@@ -234,8 +246,8 @@ function updateLean(dt) {
 /** Pone a cero la inclinación con la moto recta. */
 export function zeroLean() {
   if (!M.grav) return false
-  M.theta0 = Math.atan2(M.grav.x, M.grav.y)
-  setSetting('leanZero', M.theta0)
+  M.offset = quarterRest(Math.atan2(M.grav.x, M.grav.y))
+  setSetting('leanZero', M.offset)
   return true
 }
 

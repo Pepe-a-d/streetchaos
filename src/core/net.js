@@ -9,6 +9,16 @@ const KEY = import.meta.env.VITE_SUPABASE_KEY
 const forceLocal = new URLSearchParams(location.search).has('local')
 
 let transport = null
+let client = null
+
+/** Cliente de Supabase compartido (null si la app no tiene servidor configurado). */
+export function supabaseClient() {
+  if (!URL || !KEY) return Promise.resolve(null)
+  client ??= import('@supabase/supabase-js')
+    .then(({ createClient }) => createClient(URL, KEY, { auth: { persistSession: false }, realtime: { params: { eventsPerSecond: 20 } } }))
+    .catch(() => null)
+  return client
+}
 
 export function getTransport() {
   if (transport) return transport
@@ -18,11 +28,9 @@ export function getTransport() {
 
 function supabaseTransport() {
   let sb = null
-  const loading = import('@supabase/supabase-js').then(({ createClient }) => {
-    sb = createClient(URL, KEY, { auth: { persistSession: false }, realtime: { params: { eventsPerSecond: 20 } } })
-    t.status = 'ok'
-  }).catch(() => {
-    t.status = 'error'
+  const loading = supabaseClient().then((c) => {
+    sb = c
+    t.status = c ? 'ok' : 'error'
   })
   const t = {
     kind: 'online',

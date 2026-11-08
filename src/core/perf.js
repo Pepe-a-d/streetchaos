@@ -179,6 +179,14 @@ export class RunRecorder {
     this.maxV = 0
   }
 
+  /** Cancela la pasada en curso sin guardarla (salida en falso). */
+  abort() {
+    if (this.state !== 'running') return false
+    this.reset()
+    this.onEvent('aborted')
+    return true
+  }
+
   /** Tirón detectado por el acelerómetro (segundos, mismo reloj que las muestras). */
   hint(t) {
     if (this.state === 'armed') this.hintT = t
@@ -288,6 +296,9 @@ export class RunRecorder {
       accMax: Math.max(...real.map((s) => s.acc ?? 0)),
       slope,
       trace: pts.map((p) => [round3(p.t - this.tStart), round3(p.v), round3(p.d)]),
+      // Muestras GPS tal cual llegaron, para analizar la calidad: [t, v, precisión, altitud]
+      raw: [this.lastStill, ...real].filter(Boolean).map((s) => [round3(s.t - this.tStart), round3(s.v), Math.round(s.acc ?? 0), Number.isFinite(s.alt) ? Math.round(s.alt * 10) / 10 : null]),
+      hint: this.hintT != null,
     }
     this.state = 'done'
     this.stillSince = null
