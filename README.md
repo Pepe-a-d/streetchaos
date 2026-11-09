@@ -30,13 +30,15 @@ Sin moverte: **Garaje → Fuente GPS → Simulador**. Aparecen los mandos GAS / 
 
 Los móviles dan GPS a ~1 Hz, así que el motor (`src/core/perf.js`) no espera a "la muestra que pasa de 100":
 
-- interpola la velocidad entre muestras y resuelve el cruce exacto de cada velocidad;
+- interpola la velocidad entre muestras y resuelve el cruce exacto de cada velocidad; si el acelerómetro ya sabe dónde es «delante», entre muestra y muestra la velocidad sigue su forma (se ven los cambios de marcha) y pasa justo por las del GPS;
 - integra la distancia con esa misma curva y resuelve el cruce de cada distancia (ecuación de segundo grado);
-- extrapola el instante de salida con la aceleración de las dos primeras muestras, o con el tirón del acelerómetro si lo hay.
+- la salida es el tirón del acelerómetro, llevado atrás hasta donde empezó a subir la aceleración; sin acelerómetro, se extrapola con las dos primeras muestras.
+
+El GPS del iPhone llega ~1 s tarde respecto a los sensores: la app se lo descuenta a cada muestra (`gpsLag` en `src/core/telemetry.js`) para que el tirón y la velocidad vayan en el mismo reloj. Si el móvil no da velocidad (parado o muy despacio), no se inventa con las posiciones: con 15-25 m de error eso daba saltos falsos de 130 km/h.
 
 Con una moto simulada muestreada a 1 Hz con ruido, el error peor ronda **0,08 s** en 0-100, 1/8 y 1/4 (`npm test`). Con un GPS externo de 10 Hz mejoraría, pero no hace falta para jugar.
 
-La inclinación sale de la física del giro: `sen(ángulo) = velocidad × giro / g`, con el giroscopio (su signo se alinea solo con el rumbo del GPS) o con el rumbo del GPS si no hay giroscopio. Parado usa la gravedad. «Poner a 0» en Garaje calibra con la moto recta.
+La inclinación sale de la **gravedad que calcula el propio móvil** con el acelerómetro y el giroscopio: el giro de la vertical alrededor del eje de avance de la moto, a cualquier velocidad y sin saltos (de −180° a 180°). La postura del móvil en el soporte se aprende sola y se guarda (`src/core/mount.js`, ajuste `mount`): la vertical al empezar y afinada en recta, el «delante» acelerando y frenando, y el sentido con la primera curva clara del GPS (hasta entonces no hay récords de inclinación). El lateral no sigue a la pantalla en marcha: si el iPhone gira la pantalla al tumbar, el inclinómetro no cambia de sentido. «Poner a 0» (Garaje, o mantener pulsado el inclinómetro) la calibra al momento con la moto recta. Sin esa gravedad, se usa la física del giro (`sen φ = v·giro/g`) con el giroscopio, y sin sensores el rumbo del GPS. El iPhone da la gravedad al revés y los ejes del giroscopio cambiados respecto al estándar: la app lo sabe y además lo comprueba con los giros del GPS. Los récords que se midieron mal antes de esto se rehacen una vez con la caja negra (`src/core/recalc.js`).
 
 ## Duelos online
 
@@ -54,28 +56,32 @@ Privacidad: en el radar se comparte la posición redondeada a ~10 m, solo mientr
 **Caja negra**: la app guarda sola, solo en el móvil (IndexedDB), la telemetría en bruto de cada salida en moto: cada fix del GPS con posición, todos los eventos del acelerómetro y el giroscopio, lo que calcula la app a 10 Hz (velocidad, G, inclinación) y eventos como las pasadas del crono. No se enseña en la app: es para analizarla en el ordenador. Empieza al pasar de 9 km/h (con los 30 s de antes) y acaba tras 3 minutos parado. Se apaga en Garaje → Ajustes. Formato y cómo leerlo: [`docs/telemetria.md`](docs/telemetria.md).
 
 **Garaje → Datos**:
-- **Subir a la nube** y **Abrir en el ordenador**: ver «Blackbox» más abajo.
+- **Subir a la nube**, **Vincular el ordenador** y **Enlace al ordenador**: ver «Blackbox» más abajo.
 - **Exportar**: un `.json` con la telemetría, las pasadas y los duelos, para pasarlo al ordenador (AirDrop, Drive, correo).
 - **Enviar para análisis**: solo las pasadas y los duelos, sin posición ni telemetría, a la tabla `analysis_uploads` de Supabase (ver `supabase/migrations/`: la app solo puede insertar, nadie puede leerlos con la clave pública). Cada pasada lleva los parciales, la traza desde la salida y las muestras GPS en bruto (tiempo, velocidad, precisión y altitud).
 - **Borrar** la telemetría (para liberar espacio después de exportarla) o el historial.
 
 ## Blackbox: el analizador
 
-En **`/blackbox`** (https://pepe-a-d.github.io/streetchaos/blackbox/) hay un analizador para el ordenador. Sueltas el `.json` exportado y se queda guardado en ese navegador. Para cada salida:
+Es la parte del ordenador: abriendo la dirección de la app (https://pepe-a-d.github.io/streetchaos/) en un ordenador se va sola a **`/blackbox`** (con `?app` se queda en la app, para probarla). En el iPhone, abierta en Safari en vez de desde la pantalla de inicio, la app solo enseña cómo añadirla a inicio.
+
+**Vincular**: en el móvil, Garaje → Datos → **Vincular el ordenador** da un código de 6 letras (10 minutos, un solo uso) que se escribe en el Blackbox. Desde entonces llegan solas las salidas que sube el móvil (mira cada minuto mientras está abierto y al volver a la pestaña) y el **perfil** del piloto: nombre, moto, nivel, logros, récords y mejores tiempos del crono, y su **tema de colores**, que el Blackbox usa también (mapa claro con los temas claros). Sigue valiendo importar el `.json` exportado (botón o soltándolo en cualquier parte) y el enlace con la clave larga.
+
+El **inicio** enseña el perfil y las últimas salidas (sin vincular, los tres pasos para hacerlo); la barra de la izquierda, la ficha del piloto, el estado del móvil vinculado y las salidas por días. Para cada salida:
 
 - **Mapa** con la traza coloreada por velocidad, inclinación, G longitudinal, G lateral o altitud, y las curvas numeradas.
 - **Gráficas apiladas** (velocidad, inclinación, G, altitud, giro, vibración, precisión del GPS) con el cursor sincronizado con el mapa, eje de tiempo o distancia, zoom arrastrando y una tira de vista general. Se puede superponer lo que calculó el móvil en marcha.
-- **Pestañas**: estadísticas del tramo elegido, diagrama G-G con su envolvente e histograma de inclinación, curvas (inclinación y velocidades de entrada, mínima y salida), frenadas, pasadas del crono y calidad de los datos.
+- **Pestañas**: resumen de la salida o del tramo elegido en tarjetas (las que tienen borde llevan a ese momento; ★ si iguala o mejora tu récord del móvil), diagrama G-G con su envolvente e histograma de inclinación, curvas (inclinación y velocidades de entrada, mínima y salida), frenadas, pasadas del crono y calidad de los datos.
 - **CSV** con los canales a 10 Hz.
 - **Comparar**: eliges un tramo, busca otras pasadas por él (vueltas de la misma salida u otras salidas) y las alinea por distancia: diferencia de tiempo metro a metro, velocidad, inclinación y G de las dos, y en el mapa la otra en verde donde gana y en rojo donde pierde. Las pasadas del crono se comparan desde la salida.
 - **Tramos**: guardas un tramo y se cronometra solo en todas tus salidas (en un circuito cerrado cuenta vueltas). Los tramos marcados como circuito cerrado se pueden compartir y tienen clasificación entre pilotos; los de carretera abierta se quedan en tu navegador, solo con tus tiempos.
 - **Potencia** (banco virtual): con la masa de moto y piloto y la aerodinámica, cada tirón a fondo da una curva de potencia en rueda frente a la velocidad. Es una estimación para comparar antes y después de tocar la moto.
 
-**Nube**: el móvil sube solo cada salida al terminarla (Garaje → Datos → Subir a la nube; se puede apagar) a un almacén privado de Supabase. Solo la lee quien tenga la clave de sincronización de ese móvil: **Garaje → Datos → Abrir en el ordenador** comparte un enlace al Blackbox con la clave (tras `#`, no llega a ningún servidor) y el Blackbox baja solo lo nuevo. La función `supabase/functions/caja-negra` reparte URLs firmadas de subida y bajada y guarda cada móvil en la carpeta de la huella de su clave; la tabla `bb_cloud` no se puede leer con la clave pública. Unos 6-9 MB por hora de moto; el plan gratis de Supabase da 1 GB.
+**Nube**: el móvil sube solo cada salida al terminarla (Garaje → Datos → Subir a la nube; se puede apagar) a un almacén privado de Supabase. Solo la lee quien tenga la clave de sincronización de ese móvil (o un código de vincular aún sin usar). La función `supabase/functions/caja-negra` reparte URLs firmadas de subida y bajada, guarda cada móvil en la carpeta de la huella de su clave, guarda el perfil (`bb_profile`) y cambia los códigos de 6 letras por la clave (`bb_pair`); ninguna de esas tablas se puede leer con la clave pública. Unos 6-9 MB por hora de moto; el plan gratis de Supabase da 1 GB.
 
 Comparar y tramos usan `src/blackbox/align.js` (proyecta una salida sobre el trazado de otra con una rejilla, encuentra las pasadas de principio a fin en el mismo sentido y las alinea por la distancia que recorre cada moto); la potencia, `src/blackbox/dyno.js`.
 
-El análisis (`src/blackbox/process.js`) es offline y por eso más fino que el del móvil: traza la curva entre fixes de GPS con un spline que respeta su rumbo y velocidad, saca la postura del móvil en el soporte (arriba = gravedad media, adelante = la dirección del acelerómetro que mejor explica lo que acelera el GPS), da la G longitudinal del acelerómetro calibrado, y la inclinación de `sen φ = v·giro/g` fusionada con el giro de alabeo del giroscopio, sin retraso. `src/blackbox/synth.js` inventa salidas con física y ruido realistas para probarlo (`tests/analysis.test.js`: error medio de inclinación < 2,5°) y para la demo (`node scripts/demo-telemetry.mjs` → `public/demo/`).
+El análisis (`src/blackbox/process.js`) es offline y por eso más fino que el del móvil: traza la curva entre fixes de GPS con un spline que respeta su rumbo y velocidad, saca la postura del móvil en el soporte (arriba = gravedad media, adelante = la dirección del acelerómetro que mejor explica lo que acelera el GPS), da la G longitudinal del acelerómetro calibrado, mide el retraso del GPS respecto a los sensores y lo descuenta, prueba las dos asignaciones de ejes del giroscopio (estándar e iPhone), y saca la inclinación de la gravedad del propio móvil (o, si no la da, de `sen φ = v·giro/g` fusionada con el giro de alabeo, sin retraso). La velocidad es solo la del GPS: los huecos se rellenan entre vecinos o a 0, nunca con saltos de posición. `src/blackbox/synth.js` inventa salidas con física y ruido realistas para probarlo (`tests/analysis.test.js`: error medio de inclinación < 2,5°) y para la demo (`node scripts/demo-telemetry.mjs` → `public/demo/`).
 
 No se guarda para usar sin conexión: la app del móvil (PWA) deja fuera sus archivos (`bb-*`).
 

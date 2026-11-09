@@ -1,11 +1,13 @@
 // Gráficas apiladas con el eje X compartido (tiempo o distancia): cursor sincronizado entre ellas y
 // con el mapa, zoom arrastrando o con la rueda, y una tira de vista general para moverse por la sesión.
+import { pal, contrast } from './palette.js'
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import { CHANNELS, toDist, distUnit, fmt, fmtElapsed } from './channels.js'
 
-const GRID = '#241a4d'
-const AXIS = '#8a80c4'
+// Colores del tema (palette.js): se leen al construir las gráficas
+const GRID = () => pal('grid')
+const AXIS = () => pal('dim')
 const FONT = '11px ui-monospace, SFMono-Regular, Menlo, monospace'
 
 const nulls = (A, fn) => {
@@ -45,8 +47,8 @@ export function createCharts(el, { onCursor, onRange }) {
 
   function axes(last) {
     return [
-      { stroke: AXIS, font: FONT, grid: { stroke: GRID, width: 1 }, ticks: { stroke: GRID, width: 1, size: 4 }, size: last ? 26 : 6, values: last ? (u, vals) => vals.map(xFmt) : (u, vals) => vals.map(() => '') },
-      { stroke: AXIS, font: FONT, grid: { stroke: GRID, width: 1 }, ticks: { stroke: GRID, width: 1, size: 4 }, size: 54 },
+      { stroke: AXIS(), font: FONT, grid: { stroke: GRID(), width: 1 }, ticks: { stroke: GRID(), width: 1, size: 4 }, size: last ? 26 : 6, values: last ? (u, vals) => vals.map(xFmt) : (u, vals) => vals.map(() => '') },
+      { stroke: AXIS(), font: FONT, grid: { stroke: GRID(), width: 1 }, ticks: { stroke: GRID(), width: 1, size: 4 }, size: 54 },
     ]
   }
 
@@ -72,7 +74,7 @@ export function createCharts(el, { onCursor, onRange }) {
       const series = [{}, { stroke: ch.color, width: 1.5, fill: ch.color + '1a', points: { show: false } }]
       const data = [xs, nulls(A, (i) => ch.get(A, i))]
       if (showApp && ch.app) {
-        series.push({ stroke: '#f4f1ff', width: 1, dash: [4, 4], points: { show: false } })
+        series.push({ stroke: pal('ink'), width: 1, dash: [4, 4], points: { show: false } })
         data.push(nulls(A, (i) => ch.app(A, i)))
       }
       const u = new uPlot(
@@ -81,7 +83,7 @@ export function createCharts(el, { onCursor, onRange }) {
           height: last ? 150 : 124,
           legend: { show: false },
           scales: { x: { time: false }, y: { range: (u, mn, mx) => padRange(id, mn, mx) } },
-          cursor: { sync: { key: 'bb', setSeries: false }, drag: { x: true, y: false, setScale: false }, points: { size: 7, fill: '#fff' } },
+          cursor: { sync: { key: 'bb', setSeries: false }, drag: { x: true, y: false, setScale: false }, points: { size: 7, fill: contrast() } },
           select: { show: true },
           axes: axes(last),
           series,
@@ -141,7 +143,7 @@ export function createCharts(el, { onCursor, onRange }) {
         cursor: { drag: { x: true, y: false, setScale: false }, points: { show: false }, y: false },
         select: { show: true },
         axes: [{ show: false }, { show: false }],
-        series: [{}, { stroke: '#22e3ff', width: 1, fill: '#22e3ff22', points: { show: false } }],
+        series: [{}, { stroke: pal('cyan'), width: 1, fill: pal('cyan') + '22', points: { show: false } }],
         hooks: {
           draw: [
             (u) => {
@@ -150,10 +152,10 @@ export function createCharts(el, { onCursor, onRange }) {
               const r = u.valToPos(xs[range[1]], 'x', true)
               const { top, height, left, width: w } = u.bbox
               ctx.save()
-              ctx.fillStyle = 'rgba(5, 2, 15, 0.62)'
+              ctx.fillStyle = pal('bg') + '9e'
               ctx.fillRect(left, top, l - left, height)
               ctx.fillRect(r, top, left + w - r, height)
-              ctx.strokeStyle = '#ffd23f'
+              ctx.strokeStyle = pal('yellow')
               ctx.lineWidth = 2 * devicePixelRatio
               ctx.strokeRect(l, top + 1, Math.max(2, r - l), height - 2)
               ctx.restore()

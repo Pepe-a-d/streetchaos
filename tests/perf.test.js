@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { RunRecorder, buildTrace, crossSpeed, crossDist, scoreRace, KMH, MILE } from '../src/core/perf.js'
+import { RunRecorder, launchOnset, buildTrace, crossSpeed, crossDist, scoreRace, KMH, MILE } from '../src/core/perf.js'
 import { BIKES, fullThrottleTrace } from '../src/core/physics.js'
 import { geohash, geohashNeighborhood, haversine } from '../src/core/geo.js'
 
@@ -111,3 +111,40 @@ describe('geo', () => {
     expect(haversine(0, 0, 0, 1)).toBeCloseTo(111195, -2)
   })
 })
+
+describe('traza con el acelerómetro entre muestras', () => {
+  // Salida real con cambio de marcha: 4 m/s² hasta 1,5 s y luego 1 m/s². El GPS a 1 Hz no lo ve.
+  const vTrue = (t) => (t < 1.5 ? 4 * t : 6 + (t - 1.5))
+  const samples = [1, 2, 3, 4].map((t) => ({ t, v: vTrue(t) }))
+  const accel = []
+  for (let t = 0; t <= 4.001; t += 0.1) accel.push([t, t < 1.5 ? 4 : 1])
+
+  it('sin acelerómetro, la recta entre muestras llega tarde a los 6 m/s', () => {
+    expect(crossSpeed(buildTrace(0, samples), 6)).toBeCloseTo(1.8, 2)
+  })
+  it('con acelerómetro cae donde toca y pasa justo por las muestras del GPS', () => {
+    const pts = buildTrace(0, samples, accel)
+    expect(Math.abs(crossSpeed(pts, 6) - 1.5)).toBeLessThan(0.1) // la recta daba 1,8
+    for (const s of samples) expect(pts.find((p) => p.t === s.t).v).toBeCloseTo(s.v, 6)
+    // Distancia a los 4 s: 4,5 m hasta 1,5 s y 6·2,5 + 2,5²/2 después
+    expect(pts.at(-1).d).toBeCloseTo(4.5 + 15 + 3.125, 0)
+  })
+  it('con un hueco en el acelerómetro, ese tramo va en recta', () => {
+    const holed = accel.filter(([t]) => t < 1.2 || t > 2.6)
+    const pts = buildTrace(0, samples, holed)
+    expect(pts.some((p) => p.t > 1 && p.t < 2)).toBe(false)
+  })
+})
+
+describe('arranque con el acelerómetro', () => {
+  it('busca hacia atrás dónde empezó a acelerar, sin pasar de 1 s', () => {
+    // Quieto, embrague suave desde 10,0 s, tirón detectado a 10,4 s
+    const acc = []
+    for (let t = 8; t <= 11; t += 0.1) acc.push([Math.round(t * 10) / 10, t < 9.95 ? 0.1 : t < 10.35 ? 1 : 3])
+    expect(launchOnset(10.4, acc)).toBeCloseTo(10, 6)
+    expect(launchOnset(10.4, [])).toBe(10.4)
+    const long = acc.map(([t]) => [t, 2])
+    expect(launchOnset(10.4, long)).toBeCloseTo(9.4, 6)
+  })
+})
+

@@ -1,6 +1,6 @@
 // Conecta la caja negra (blackbox.js) con la app: GPS, sensores, ajustes y eventos.
 import { createLogger, idbStore } from './blackbox.js'
-import { T, onSample, onRawMotion } from './telemetry.js'
+import { T, onSample, onRawMotion, calibration } from './telemetry.js'
 import { settings, onSetting } from './store.js'
 import { isStandalone } from './device.js'
 
@@ -21,7 +21,7 @@ export function initLogger() {
     context: () => ({
       source: settings.source,
       sim: settings.source === 'sim' ? { hz: settings.simHz, bike: settings.simBike } : null,
-      calib: { leanZero: settings.leanZero, gyroSign: settings.gyroSign },
+      calib: calibration(),
       rider: { bike: settings.bike, units: settings.units },
       device: {
         ua: navigator.userAgent,
@@ -41,7 +41,7 @@ export function initLogger() {
   onSetting((key, val) => {
     if (key === 'logTelemetry' && !val) L.end()
     if (key === 'source' || key === 'simHz' || key === 'simBike') L.end()
-    if (key === 'leanZero' || key === 'gyroSign') L.event('calib', { [key]: val })
+    if (['mount', 'leanSign', 'gyroAxes', 'yawSign', 'gpsLag'].includes(key)) L.event('calib', { [key]: val })
   })
   // En segundo plano el móvil corta GPS y sensores: se apunta y se guarda lo pendiente ya
   document.addEventListener('visibilitychange', () => {

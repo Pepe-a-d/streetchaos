@@ -1497,3 +1497,76 @@ svg.medal.big { width: 72px; height: 81px; }
 
 /* Voz */
 .vsel { max-width: 52%; font: 15px var(--term); color: var(--ink); background: var(--deep); border: 2px solid var(--line); padding: 6px; }
+
+/* ---------- Alto real de la pantalla ----------
+   En el iPhone, instalada y con la barra de estado transparente, iOS da una ventana más baja que la
+   pantalla y quedaba una franja vacía abajo. fitScreen() (core/device.js) pone en --app-h el alto que
+   se ve de verdad, y todo lo que ocupa la pantalla entera lo usa. */
+#app,
+.layer,
+.blackout,
+.crt::after {
+  bottom: auto;
+  height: var(--app-h, 100%);
+}
+
+/* ---------- Instálala (iPhone en Safari) ---------- */
+body.gate #app { display: block; overflow-y: auto; }
+.install {
+  min-height: 100%;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 16px;
+  padding: calc(24px + var(--safe-t)) calc(20px + var(--safe-r)) calc(64px + var(--safe-b)) calc(20px + var(--safe-l));
+  text-align: center;
+}
+.install .ins-icon { width: 96px; height: 96px; border: 3px solid #000; box-shadow: var(--shadow); image-rendering: pixelated; }
+.install h1 { margin: 0; font-family: var(--pixel); font-size: 15px; line-height: 1.6; color: var(--pink); text-shadow: 2px 2px 0 #000; max-width: 20ch; }
+.install .ins-why { margin: 0; max-width: 34ch; font-size: 22px; line-height: 1.1; color: var(--ink); }
+.install .ins-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; width: min(100%, 420px); text-align: left; }
+.install .ins-steps li {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 3px solid var(--line);
+  box-shadow: var(--shadow);
+  font-size: 22px;
+  line-height: 1.05;
+}
+.install b { color: var(--yellow); font-weight: normal; }
+.install .ins-ico { width: 44px; height: 44px; display: grid; place-items: center; color: var(--cyan); background: var(--deep); border: 2px solid var(--line); }
+.install .ins-ico svg { width: 26px; height: 26px; }
+.install .ins-num { font-family: var(--pixel); font-size: 16px; color: var(--yellow); }
+.install .ins-inline { display: inline-grid; vertical-align: middle; width: 22px; height: 22px; color: var(--cyan); }
+.install .ins-inline svg { width: 22px; height: 22px; }
+.install .ins-note { margin: 0; max-width: 34ch; font-size: 19px; color: var(--dim); }
+.install .ins-arrow {
+  position: fixed;
+  left: 50%;
+  bottom: calc(6px + var(--safe-b));
+  transform: translateX(-50%);
+  font-family: var(--pixel);
+  font-size: 22px;
+  color: var(--yellow);
+  text-shadow: 2px 2px 0 #000;
+  animation: insArrow 0.8s steps(2) infinite;
+}
+@keyframes insArrow { 50% { transform: translate(-50%, 6px); } }
+
+/* Código para vincular el ordenador */
+.pair .pair-code {
+  font-family: var(--pixel);
+  font-size: 34px;
+  letter-spacing: 4px;
+  text-align: center;
+  color: var(--yellow);
+  text-shadow: 3px 3px 0 #000;
+  padding: 14px 0;
+  background: var(--deep);
+  border: 3px solid var(--line);
+}
+

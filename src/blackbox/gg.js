@@ -1,10 +1,10 @@
 // Diagrama G-G (círculo de fricción) con su envolvente, e histograma de inclinación, del tramo elegido.
+import { pal, contrast, halo } from './palette.js'
 import { rampColor, toSpeed, speedUnit } from './channels.js'
 
-const SPEED = [[0, '#3a2a7a'], [0.25, '#22e3ff'], [0.5, '#3dff7a'], [0.75, '#ffd23f'], [1, '#ff2e88']]
-const LEAN = [[0, '#3a2a7a'], [0.3, '#22e3ff'], [0.55, '#3dff7a'], [0.75, '#ffd23f'], [1, '#ff3b3b']]
-const INK = '#8a80c4'
-const GRID = '#2a1f5c'
+// Colores del tema (palette.js)
+const SPEED = () => [[0, pal('line')], [0.25, pal('cyan')], [0.5, pal('green')], [0.75, pal('yellow')], [1, pal('pink')]]
+const LEAN = () => [[0, pal('line')], [0.3, pal('cyan')], [0.55, pal('green')], [0.75, pal('yellow')], [1, pal('red')]]
 
 function setup(canvas) {
   const dpr = devicePixelRatio || 1
@@ -32,8 +32,8 @@ export function drawGG(canvas, A, i0, i1, cur) {
   const R = size / 2 - 22
   const k = R / gmax
 
-  ctx.strokeStyle = GRID
-  ctx.fillStyle = INK
+  ctx.strokeStyle = pal('grid')
+  ctx.fillStyle = pal('dim')
   ctx.font = '10px ui-monospace, Menlo, monospace'
   ctx.lineWidth = 1
   for (let g = 0.25; g <= gmax + 1e-6; g += 0.25) {
@@ -70,7 +70,7 @@ export function drawGG(canvas, A, i0, i1, cur) {
     const x = A.gLat[i]
     const y = A.gLong[i]
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue
-    ctx.fillStyle = rampColor(SPEED, A.v[i] / vTop)
+    ctx.fillStyle = rampColor(SPEED(), A.v[i] / vTop)
     ctx.fillRect(cx + x * k - 1.5, cy - y * k - 1.5, 3, 3)
   }
   for (let i = i0; i <= i1; i++) {
@@ -83,7 +83,7 @@ export function drawGG(canvas, A, i0, i1, cur) {
   }
   ctx.globalAlpha = 1
   // Envolvente: lo máximo que has usado en cada dirección
-  ctx.strokeStyle = '#f4f1ff'
+  ctx.strokeStyle = pal('ink')
   ctx.lineWidth = 1.5
   ctx.beginPath()
   for (let s = 0; s <= SECT; s++) {
@@ -98,17 +98,17 @@ export function drawGG(canvas, A, i0, i1, cur) {
   if (cur != null && A.valid[cur]) {
     const x = cx + A.gLat[cur] * k
     const y = cy - A.gLong[cur] * k
-    ctx.strokeStyle = '#000'
+    ctx.strokeStyle = halo()
     ctx.lineWidth = 4
     ctx.beginPath()
     ctx.arc(x, y, 7, 0, Math.PI * 2)
     ctx.stroke()
-    ctx.strokeStyle = '#fff'
+    ctx.strokeStyle = contrast()
     ctx.lineWidth = 2
     ctx.stroke()
   }
   ctx.textAlign = 'left'
-  ctx.fillStyle = INK
+  ctx.fillStyle = pal('dim')
   ctx.fillText(`color: ${speedUnit()} (0-${Math.round(toSpeed(vTop))})`, 4, h - 4)
 }
 
@@ -129,10 +129,10 @@ export function drawLeanHist(canvas, A, i0, i1) {
   for (let b = 0; b < B; b++) {
     const mid = Math.abs(b * 5 - 60 + 2.5)
     const bh = (bins[b] / max) * (bottom - 14)
-    ctx.fillStyle = rampColor(LEAN, mid / 55)
+    ctx.fillStyle = rampColor(LEAN(), mid / 55)
     ctx.fillRect(left + b * bw + 1, bottom - bh, bw - 2, bh)
   }
-  ctx.fillStyle = INK
+  ctx.fillStyle = pal('dim')
   ctx.font = '10px ui-monospace, Menlo, monospace'
   ctx.textAlign = 'center'
   for (const deg of [-60, -40, -20, 0, 20, 40, 60]) ctx.fillText(`${Math.abs(deg)}`, left + ((deg + 60) / 5) * bw, h - 3)

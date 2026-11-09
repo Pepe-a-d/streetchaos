@@ -52,18 +52,61 @@ const MAX_RUN_S = 90
 const ROLLOUT_M = FOOT
 
 /**
- * Construye la traza desde la salida: primer punto sintético en (t0, v=0, d=0)
- * y distancia integrada con velocidad lineal por tramos.
+ * Construye la traza desde la salida: primer punto sintético en (t0, v=0, d=0), la velocidad de cada
+ * muestra del GPS y la distancia integrada con esa velocidad.
+ * Entre dos muestras (el GPS va a 1 Hz), si llega la aceleración hacia delante del acelerómetro
+ * (`accel`: [[t, m/s²], ...], ~10 por segundo, mismo reloj), la velocidad sigue su forma, corregida
+ * para pasar justo por las dos muestras: se ven los cambios de marcha y el 60 ft o el 0-50 caen donde
+ * tocan. Sin acelerómetro, en línea recta (aceleración constante en el tramo).
  */
-export function buildTrace(t0, samples) {
+export function buildTrace(t0, samples, accel = null) {
   const pts = [{ t: t0, v: 0, d: 0 }]
+  const add = (t, v) => {
+    const p = pts[pts.length - 1]
+    pts.push({ t, v, d: p.d + ((p.v + v) / 2) * (t - p.t) })
+  }
   for (const s of samples) {
     if (s.t <= t0) continue
     const p = pts[pts.length - 1]
     const v = Math.max(0, s.v)
-    pts.push({ t: s.t, v, d: p.d + ((p.v + v) / 2) * (s.t - p.t) })
+    const mid = accel?.length ? shapeSegment(p, s.t, v, accel) : null
+    if (mid) for (const m of mid) add(m.t, m.v)
+    add(s.t, v)
   }
   return pts
+}
+
+const SHAPE_STEP = 0.1
+/** Velocidades intermedias (cada ~0,1 s) entre a y (tb, vb) con la forma del acelerómetro, o null. */
+function shapeSegment(a, tb, vb, accel) {
+  const dt = tb - a.t
+  if (dt < 0.25 || dt > 2.5) return null
+  // Hacen falta datos que cubran el tramo (sin huecos de más de 0,3 s)
+  let i = accel.findIndex(([t]) => t >= a.t - 0.15)
+  if (i < 0) return null
+  let last = a.t
+  let count = 0
+  for (let j = i; j < accel.length && accel[j][0] <= tb + 0.15; j++) {
+    if (accel[j][0] - last > 0.3) return null
+    last = accel[j][0]
+    count++
+  }
+  if (tb - last > 0.3 || count < dt / SHAPE_STEP / 2) return null
+  const aAt = (t) => {
+    while (i < accel.length - 1 && accel[i + 1][0] <= t) i++
+    const [t1, a1] = accel[i]
+    const nx = accel[i + 1]
+    if (!nx || t <= t1) return a1
+    return a1 + ((nx[1] - a1) * (t - t1)) / (nx[0] - t1)
+  }
+  const n = Math.max(2, Math.round(dt / SHAPE_STEP))
+  const h = dt / n
+  const raw = [a.v]
+  for (let k = 1; k <= n; k++) raw.push(raw[k - 1] + aAt(a.t + (k - 0.5) * h) * h)
+  const err = vb - raw[n]
+  const out = []
+  for (let k = 1; k < n; k++) out.push({ t: a.t + k * h, v: Math.max(0, raw[k] + (err * k) / n) })
+  return out
 }
 
 /** Primer instante en que la velocidad alcanza V (subiendo). */
@@ -142,13 +185,33 @@ export function computeMarks(pts, { rollout = false } = {}) {
 export function estimateLaunch(a, b, c, hint) {
   const lo = a ? a.t : b.t - 1.5
   const hi = b.t - 0.02
-  if (hint != null && hint >= lo - 0.3 && hint <= b.t) return Math.min(hi, Math.max(lo, hint))
+  // El tirón del acelerómetro manda si cae entre la última muestra parada y la primera en marcha (con
+  // margen: con el retraso del GPS descontado los dos van en el mismo reloj, pero no al milisegundo, y
+  // «parado» para el GPS es por debajo de 2,5 km/h)
+  if (hint != null && hint >= lo - 0.6 && hint <= b.t) return Math.min(hi, hint)
   let acc = 6 // m/s² supuesta mientras no hay segunda muestra
   if (c && c.t > b.t) {
     const a1 = (c.v - b.v) / (c.t - b.t)
     if (a1 > 0.5) acc = Math.min(15, a1)
   }
   return Math.min(hi, Math.max(lo, b.t - b.v / acc))
+}
+
+/**
+ * El tirón se detecta pasado un umbral (~0,18 G); la moto empieza a moverse un poco antes, al soltar el
+ * embrague. Con la aceleración guardada se busca hacia atrás (hasta 1 s) dónde empezó a subir.
+ */
+export function launchOnset(hint, accel, { floor = 0.6, maxBack = 1 } = {}) {
+  if (!accel?.length) return hint
+  let i = accel.length - 1
+  while (i > 0 && accel[i][0] > hint) i--
+  if (accel[i][0] > hint) return hint
+  let t = hint
+  for (; i >= 0 && accel[i][0] >= hint - maxBack; i--) {
+    if (accel[i][1] < floor) break
+    t = accel[i][0]
+  }
+  return Math.min(t, hint)
 }
 
 /**
@@ -177,6 +240,15 @@ export class RunRecorder {
     this.hintT = null
     this.marks = {}
     this.maxV = 0
+    this.acc = []
+  }
+
+  /** Aceleración hacia delante del acelerómetro (t en s, mismo reloj que las muestras; a en m/s²). */
+  accel(t, a) {
+    if (this.state !== 'armed' && this.state !== 'running') return
+    this.acc.push([t, a])
+    // Armado solo hacen falta los últimos segundos
+    if (this.state === 'armed' && this.acc.length > 60) this.acc.splice(0, this.acc.length - 60)
   }
 
   /** Cancela la pasada en curso sin guardarla (salida en falso). */
@@ -207,6 +279,7 @@ export class RunRecorder {
       if (s.t - this.stillSince >= STILL_S) {
         this.state = 'armed'
         this.pre = []
+        this.acc = []
         this.hintT = null
         this.onEvent('armed')
       }
@@ -245,8 +318,8 @@ export class RunRecorder {
 
   #update() {
     const [b, c] = this.samples
-    this.t0 = estimateLaunch(this.lastStill, b, c, this.hintT)
-    this.pts = buildTrace(this.t0, this.samples)
+    this.t0 = estimateLaunch(this.lastStill, b, c, this.hintT == null ? null : launchOnset(this.hintT, this.acc))
+    this.pts = buildTrace(this.t0, this.samples, this.acc)
     const { tStart, marks } = computeMarks(this.pts, { rollout: this.rollout })
     this.tStart = tStart ?? this.t0
     for (const id of Object.keys(marks)) if (!this.marks[id]) this.onEvent('mark', { id, ...marks[id] })
@@ -295,7 +368,9 @@ export class RunRecorder {
       hz: span > 0 ? (real.length - 1) / span : 0,
       accMax: Math.max(...real.map((s) => s.acc ?? 0)),
       slope,
-      trace: pts.map((p) => [round3(p.t - this.tStart), round3(p.v), round3(p.d)]),
+      // Cada medio segundo como mucho (con el acelerómetro hay un punto cada 0,1 s) y siempre los del GPS
+      trace: thin(pts, real).map((p) => [round3(p.t - this.tStart), round3(p.v), round3(p.d)]),
+      shaped: pts.length > real.length + 2,
       // Muestras GPS tal cual llegaron, para analizar la calidad: [t, v, precisión, altitud]
       raw: [this.lastStill, ...real].filter(Boolean).map((s) => [round3(s.t - this.tStart), round3(s.v), Math.round(s.acc ?? 0), Number.isFinite(s.alt) ? Math.round(s.alt * 10) / 10 : null]),
       hint: this.hintT != null,
@@ -318,6 +393,16 @@ export class RunRecorder {
 }
 
 const round3 = (x) => Math.round(x * 1000) / 1000
+
+function thin(pts, real) {
+  const keep = new Set(real.map((s) => s.t))
+  const out = []
+  for (const p of pts) {
+    const l = out[out.length - 1]
+    if (!l || keep.has(p.t) || p.t - l.t >= 0.5 || p === pts[pts.length - 1]) out.push(p)
+  }
+  return out
+}
 
 /** Reproduce una traza guardada ([t, v, d] relativos a la salida). */
 export function traceFromSaved(trace) {

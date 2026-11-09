@@ -117,6 +117,19 @@ export function checkAchievements() {
   return fresh
 }
 
+/**
+ * Quita los logros de esas categorías que ya no se cumplen (cuando un dato se corrige a la baja,
+ * p. ej. la inclinación que se medía mal). Devuelve los quitados.
+ */
+export function revokeAchievements(cats) {
+  const s = stats()
+  const out = ACHIEVEMENTS.filter((a) => cats.includes(a.cat) && unlocked[a.id] && !progress(a, s)[2])
+  for (const a of out) delete unlocked[a.id]
+  if (out.length) save('achievements', unlocked)
+  lastLevel = level().n
+  return out
+}
+
 /** Para los tests y para empezar de cero. */
 export function resetAchievements() {
   for (const k of Object.keys(unlocked)) delete unlocked[k]

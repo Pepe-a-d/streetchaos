@@ -16,7 +16,7 @@ function payload() {
       screen: [screen.width, screen.height, devicePixelRatio],
       viewport: [innerWidth, innerHeight],
     },
-    settings: { units: settings.units, rollout: settings.rollout, source: settings.source, bike: settings.bike, leanZero: settings.leanZero, gyroSign: settings.gyroSign },
+    settings: { units: settings.units, rollout: settings.rollout, source: settings.source, bike: settings.bike, mount: settings.mount, leanSign: settings.leanSign, gyroAxes: settings.gyroAxes, gpsLag: settings.gpsLag },
     totals,
     runs,
     races,

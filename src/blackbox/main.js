@@ -1,13 +1,17 @@
-// BLACKBOX: analizador de la telemetría que graba la app (pensado para el ordenador).
-// Carga los .json que exporta el móvil, los guarda en este navegador y enseña cada salida con
-// mapa, gráficas sincronizadas, G-G, curvas, frenadas, pasadas y calidad de los datos.
+// BLACKBOX: analizador de la telemetría que graba la app (pensado para el ordenador; la dirección de
+// la app abre esto en un ordenador). Se vincula con el móvil con un código de 6 letras: baja solo las
+// salidas que sube el móvil y su perfil (nombre, moto, nivel, récords y tema de colores, que se usa
+// aquí también). También importa los .json que exporta el móvil. Cada salida: mapa, gráficas
+// sincronizadas, resumen, G-G, curvas, frenadas, pasadas, potencia y calidad de los datos.
 import '@fontsource/press-start-2p'
 import './style.css'
 import { onDbBlocked, listSessions, addSessions, loadSession, deleteSession, parseExport, deviceSessions, listSegments, saveSegment, deleteSegment, getEfforts, putEfforts, updateMeta, gpsBbox } from './library.js'
 import { analyze, rangeStats, DT } from './process.js'
 import { makePath, findPasses, compare, pathPoints, runPass, bboxHit } from './align.js'
 import { findPulls, pullCurve, envelope, DYNO, CDA_PRESETS } from './dyno.js'
-import { cloudAvailable, getKey, setKey, keyFromUrl, validKey, normKey, listRemote, fetchRemote, deleteRemote, sharedCircuits, sharedCircuit, shareCircuit, ranking, publishEffort } from './cloud.js'
+import { cloudAvailable, getKey, setKey, keyFromUrl, validKey, normKey, listRemote, fetchRemote, deleteRemote, sharedCircuits, sharedCircuit, shareCircuit, ranking, publishEffort, fetchProfile, claimCode, normCode } from './cloud.js'
+import { savedProfile, saveProfile, applyProfileTheme } from './theme.js'
+import { pal } from './palette.js'
 import { createCompareView, gainColors, fmtLap } from './compare-view.js'
 import { esc, toast, modal } from './ui.js'
 import uPlot from 'uplot'
@@ -30,47 +34,53 @@ const savePrefs = () => {
 }
 units.speed = prefs.units
 
-const S = { list: [], segs: [], id: null, A: null, range: [0, 0], cur: 0, map: null, charts: null, cmp: null, cmpView: null }
+const S = { list: [], segs: [], id: null, A: null, range: [0, 0], cur: 0, map: null, charts: null, cmp: null, cmpView: null, profile: savedProfile(), fresh: new Set() }
+// Con el tema del móvil desde el primer momento (el perfil guardado de la última vez)
+applyProfileTheme(S.profile)
+if (S.profile?.units && !localStorage.getItem(PREFS)) prefs.units = units.speed = S.profile.units === 'mph' ? 'mph' : 'kmh'
 
 // ---------- Estructura ----------
+const TABS = [
+  ['tramo', 'RESUMEN', 'Las cifras de la salida o del tramo que elijas en las gráficas'],
+  ['gg', 'G-G', 'Fuerzas de frenada, aceleración y curva, y cuánto tiempo vas a cada inclinación'],
+  ['curvas', 'CURVAS', 'Cada curva: inclinación, velocidad de entrada, mínima y salida'],
+  ['frenadas', 'FRENADAS', 'Cada frenada: de qué velocidad a cuál, cuánto y con qué fuerza'],
+  ['pasadas', 'PASADAS', 'Las pasadas del crono de esta salida, para compararlas'],
+  ['potencia', 'POTENCIA', 'Banco de potencia virtual con tus aceleraciones'],
+  ['calidad', 'CALIDAD', 'De dónde sale cada dato y cómo de fiable es'],
+]
 const root = document.getElementById('bb')
 root.innerHTML = `
   <header class="top">
-    <a class="logo" href="../" title="Volver a la app">STREET<span>CHAOS</span></a>
+    <button class="logo" data-act="home" title="Inicio: tu perfil y tus salidas">STREET<span>CHAOS</span></button>
     <b class="tag">BLACKBOX</b>
     <div class="title" data-k="title">Analizador de telemetría</div>
-    <div class="seg" data-k="xmode"><button data-x="t">TIEMPO</button><button data-x="d">DISTANCIA</button></div>
+    <button class="sync" data-k="sync" data-act="syncPill"></button>
+    <div class="seg" data-k="xmode" title="Eje de las gráficas"><button data-x="t">TIEMPO</button><button data-x="d">DISTANCIA</button></div>
     <div class="seg" data-k="units"><button data-u="kmh">KM/H</button><button data-u="mph">MPH</button></div>
     <button class="btn ghost" data-act="csv" disabled title="Canales a 10 Hz para Excel u otras herramientas">CSV</button>
+    <a class="btn ghost" href="../?app" title="Abrir la app del móvil en este ordenador (para probarla)">APP</a>
   </header>
   <aside class="lib">
-    <label class="drop" data-k="drop">
-      <b>IMPORTAR</b>
-      <span>Suelta aquí el .json de <i>Garaje → Datos → Exportar</i> o haz clic</span>
+    <div class="rider" data-k="rider"></div>
+    <div class="cloud" data-k="cloud"></div>
+    <h3 class="h">SALIDAS <span class="h-n" data-k="count"></span></h3>
+    <div class="list" data-k="list"></div>
+    <label class="drop" data-k="drop" title="También puedes soltar el archivo en cualquier parte de la página">
+      <b>+ IMPORTAR</b>
+      <span>.json de <i>Garaje → Datos → Exportar</i></span>
       <input type="file" accept=".json,application/json" multiple hidden>
     </label>
     <div class="lib-btns">
-      <button class="btn ghost small" data-act="demo">VER DEMO</button>
+      <button class="btn ghost small" data-act="demo" title="Dos salidas inventadas por Oleiros para probarlo todo">VER DEMO</button>
       <button class="btn ghost small" data-act="device" hidden>DE ESTE MOVIL</button>
     </div>
-    <h3 class="h">NUBE</h3>
-    <div class="cloud" data-k="cloud"></div>
-    <h3 class="h">SALIDAS</h3>
-    <div class="list" data-k="list"></div>
     <h3 class="h">TRAMOS</h3>
     <div class="list" data-k="segs"></div>
-    <button class="btn ghost small" data-act="shared">CIRCUITOS COMPARTIDOS</button>
+    <button class="btn ghost small" data-act="shared" title="Circuitos cerrados con clasificación entre pilotos">CIRCUITOS COMPARTIDOS</button>
   </aside>
   <main class="main">
-    <section class="empty" data-k="empty">
-      <h2>CAJA NEGRA</h2>
-      <p>Aquí se analiza lo que graba la app en cada salida: el GPS y los sensores en bruto.</p>
-      <ol>
-        <li>En el móvil: <b>Garaje → Datos → Exportar</b> y pásate el archivo (AirDrop, Drive, correo).</li>
-        <li>Suéltalo en esta página. Se queda guardado en este navegador.</li>
-      </ol>
-      <p>¿Aún sin datos? <button class="btn small" data-act="demo">VER DEMO</button> <small>(dos salidas inventadas por Oleiros)</small></p>
-    </section>
+    <section class="empty" data-k="empty"></section>
     <section class="work" data-k="work" hidden>
       <div class="row1">
         <div class="panel mapbox">
@@ -83,7 +93,7 @@ root.innerHTML = `
         <div class="panel side">
           <div class="readout" data-k="readout"></div>
           <nav class="tabs" data-k="tabs">
-            ${[['tramo', 'TRAMO'], ['gg', 'G-G'], ['curvas', 'CURVAS'], ['frenadas', 'FRENADAS'], ['pasadas', 'PASADAS'], ['potencia', 'POTENCIA'], ['calidad', 'CALIDAD']].map(([id, l]) => `<button data-tab="${id}">${l}</button>`).join('')}
+            ${TABS.map(([id, l, tip]) => `<button data-tab="${id}" title="${tip}">${l}</button>`).join('')}
           </nav>
           <div class="tab-body" data-k="tabbody"></div>
         </div>
@@ -114,23 +124,45 @@ const fileInput = $('input[type=file]', K('drop'))
 // ---------- Biblioteca ----------
 const SRC = { real: ['REAL', 'real'], sim: ['SIM', 'sim'], demo: ['DEMO', 'demo'] }
 
+/** «HOY», «AYER» o la fecha, para agrupar la lista. */
+function dayLabel(ms) {
+  const d = new Date(ms)
+  const today = new Date()
+  const k = (x) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`
+  const y = new Date(today)
+  y.setDate(today.getDate() - 1)
+  if (k(d) === k(today)) return 'HOY'
+  if (k(d) === k(y)) return 'AYER'
+  return d.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' }).toUpperCase()
+}
+// La punta que guardó el móvil antes de 2026-11-09 podía ser falsa (velocidad sacada de posiciones):
+// en cuanto se analiza una salida, se apunta la del análisis (vmaxBB) y es la que se enseña
+const vmaxOf = (m) => m.vmaxBB ?? m.vmax ?? 0
+
 async function refreshList() {
   S.list = await listSessions()
+  K('count').textContent = S.list.length ? String(S.list.length) : ''
+  let day = null
   K('list').innerHTML = S.list.length
     ? S.list
         .map((m) => {
           const [txt, cls] = SRC[m.source] || ['?', '']
-          return `<div class="sess ${m.id === S.id ? 'on' : ''}" data-id="${esc(m.id)}">
-            <button class="sess-open" data-open="${esc(m.id)}">
-              <b>${fmtDateTime(m.start)}</b>
-              <span>${toDist(m.dist || 0).toFixed(1)} ${distUnit()} · ${fmtDur((m.end - m.start) / 1000)} · ${Math.round(toSpeed(m.vmax || 0))} ${speedUnit()}</span>
+          const d = dayLabel(m.start)
+          const head = d !== day ? `<h4 class="day">${d}</h4>` : ''
+          day = d
+          const tag = m.source !== 'real' || m.state === 'rec' ? `<i class="src ${cls}">${txt}${m.state === 'rec' ? ' · A MEDIAS' : ''}</i>` : ''
+          return `${head}<div class="sess ${m.id === S.id ? 'on' : ''}" data-id="${esc(m.id)}">
+            <button class="sess-open" data-open="${esc(m.id)}" title="${fmtDateTime(m.start)}">
+              <b>${fmtClock(m.start).slice(0, 5)}${S.fresh.has(m.id) ? ' <em class="new">NUEVA</em>' : ''}</b>
+              <span>${toDist(m.dist || 0).toFixed(1)} ${distUnit()} · ${fmtDur((m.end - m.start) / 1000)} · ${Math.round(toSpeed(vmaxOf(m)))} ${speedUnit()}</span>
             </button>
-            <i class="src ${cls}">${txt}${m.state === 'rec' ? ' · A MEDIAS' : ''}</i>
+            ${tag}
             <button class="del" data-del="${esc(m.id)}" title="Borrar de este navegador" aria-label="Borrar">×</button>
           </div>`
         })
         .join('')
-    : '<p class="note">Todavía no hay ninguna salida en este navegador.</p>'
+    : '<p class="note">Aún no hay salidas en este navegador.</p>'
+  if (!S.id) renderHome()
 }
 
 async function importText(text, from) {
@@ -233,6 +265,10 @@ async function open(id, { range, cur } = {}) {
     history.replaceState(null, '', `#s=${encodeURIComponent(id)}`)
     K('empty').hidden = true
     K('work').hidden = false
+    // La punta del análisis (la que guardó el móvil antes podía ser falsa)
+    const lm = S.list.find((x) => x.id === id)
+    if (lm && Number.isFinite(A.stats.vMax) && Math.abs((lm.vmaxBB ?? -1) - A.stats.vMax) > 0.05) updateMeta({ ...lm, vmaxBB: A.stats.vMax }).catch(() => {})
+    S.fresh.delete(id)
     root.querySelector('[data-act="csv"]').disabled = false
     ensureViews()
     const m = A.meta
@@ -283,12 +319,12 @@ function marks(A) {
   const out = []
   const first = A.valid.indexOf(1)
   const last = A.valid.lastIndexOf(1)
-  out.push({ i: first, label: 'SALIDA', color: '#3dff7a', kind: 'start' }, { i: last, label: 'FIN', color: '#f4f1ff', kind: 'end' })
+  out.push({ i: first, label: 'SALIDA', color: pal('green'), kind: 'start' }, { i: last, label: 'FIN', color: pal('ink'), kind: 'end' })
   for (const r of A.runs) {
     const head = r.marks?.['k0-100'] ?? r.marks?.['m0-60']
-    out.push({ i: r.i, label: head != null ? `PASADA ${head.toFixed(2)} s` : 'PASADA', color: '#ffd23f', kind: 'run' })
+    out.push({ i: r.i, label: head != null ? `PASADA ${head.toFixed(2)} s` : 'PASADA', color: pal('yellow'), kind: 'run' })
   }
-  for (const c of A.corners) out.push({ i: c.apex, label: `${c.n}`, color: '#ffd23f', kind: 'corner' })
+  for (const c of A.corners) out.push({ i: c.apex, label: `${c.n}`, color: pal('yellow'), kind: 'corner' })
   return out
 }
 
@@ -394,25 +430,38 @@ function renderTab() {
   const T = {
     tramo() {
       const s = rangeStats(A, i0, i1)
-      const sp = (v) => `${toSpeed(v).toFixed(0)} ${speedUnit()}`
-      return `<table class="kv">
-        ${row('Distancia', `${toDist(s.dist).toFixed(2)} ${distUnit()}`)}
-        ${row('Tiempo', fmtDur(s.dur))}
-        ${row('En marcha', fmtDur(s.moving))}
-        ${row('Media en marcha', sp(s.vAvg))}
-        ${row('Punta', sp(s.vMax), s.iVMax)}
-        ${row('Inclinación máx. IZQ', `${s.leanL.toFixed(1)}°`, s.iLeanL)}
-        ${row('Inclinación máx. DER', `${s.leanR.toFixed(1)}°`, s.iLeanR)}
-        ${row('Tumbado más de 30°', fmtDur(s.leaned30))}
-        ${row('Frenada máx.', `${s.brake.toFixed(2)} g`, s.iBrake)}
-        ${row('Aceleración máx.', `${s.accel.toFixed(2)} g`, s.iAccel)}
+      const full = i0 === 0 && i1 === A.n - 1
+      const sp = (v) => `${toSpeed(v).toFixed(0)}<small> ${speedUnit()}</small>`
+      // Tarjeta; con i, al pulsarla lleva el cursor a ese momento
+      const card = (label, val, i, cls = '') => `<div class="stat ${cls} ${i != null && i >= 0 ? 'link' : ''}" ${i != null && i >= 0 ? `data-i="${i}" title="Ver dónde"` : ''}><span>${label}</span><b>${val}</b></div>`
+      const nC = A.corners.filter((c) => c.i0 >= i0 && c.i1 <= i1).length
+      const nB = A.brakes.filter((c) => c.i0 >= i0 && c.i1 <= i1).length
+      const p = getKey() ? S.profile?.totals : null
+      // ¿Récord de tu móvil? (comparado con lo que tenía guardado)
+      const pr = (v, best) => (p && Number.isFinite(best) && best > 0 && v >= best - 0.01 ? ' best' : '')
+      return `<p class="scope">${full ? 'TODA LA SALIDA' : `TRAMO ELEGIDO · ${fmtElapsed(A.t[i0] - A.t[0])} → ${fmtElapsed(A.t[i1] - A.t[0])}`}${full ? '' : ' <button class="linkish" data-act="all">ver toda</button>'}</p>
+      <div class="stats">
+        ${card('DISTANCIA', `${toDist(s.dist).toFixed(2)}<small> ${distUnit()}</small>`)}
+        ${card('EN MARCHA', fmtDur(s.moving))}
+        ${card('MEDIA', sp(s.vAvg))}
+        ${card('PUNTA', sp(s.vMax), s.iVMax, 'cyan' + pr(s.vMax, p?.maxV))}
+        ${card('INCL. IZQ', `${s.leanL.toFixed(0)}°`, s.iLeanL, 'yellow' + pr(s.leanL, p?.maxLeanL))}
+        ${card('INCL. DER', `${s.leanR.toFixed(0)}°`, s.iLeanR, 'yellow' + pr(s.leanR, p?.maxLeanR))}
+        ${card('FRENADA', `${s.brake.toFixed(2)}<small> g</small>`, s.iBrake, 'red')}
+        ${card('ACELERON', `${s.accel.toFixed(2)}<small> g</small>`, s.iAccel, 'green')}
+        ${card('G COMBINADA', `${s.gTot.toFixed(2)}<small> g</small>`, null, 'pink' + pr(s.gTot, p?.maxG))}
+        ${card('CURVAS', `${nC}`, null)}
+        ${card('FRENADAS', `${nB}`, null)}
+        ${card('TUMBADO +30°', fmtDur(s.leaned30))}
+      </div>
+      <table class="kv">
+        ${row('Tiempo total', fmtDur(s.dur))}
         ${row('G lateral máx.', `${s.gLat.toFixed(2)} g`)}
-        ${row('G combinada máx.', `${s.gTot.toFixed(2)} g`)}
         ${row('Altitud', Number.isFinite(s.altMin) ? `${Math.round(s.altMin)}–${Math.round(s.altMax)} m` : '—')}
         ${row('Sube / baja', `${Math.round(s.climb)} / ${Math.round(s.descent)} m`)}
         ${row('Vibración media', Number.isFinite(s.vib) ? `${s.vib.toFixed(2)} m/s²` : '—')}
-        ${row('Curvas · frenadas', `${A.corners.filter((c) => c.i0 >= i0 && c.i1 <= i1).length} · ${A.brakes.filter((c) => c.i0 >= i0 && c.i1 <= i1).length}`)}
-      </table>`
+      </table>
+      <p class="note">Pulsa una tarjeta con borde para ir a ese momento. Arrastra sobre las gráficas para ver solo un tramo.${p ? ' <b class="rec-dot">★</b> = igual o mejor que tu récord del móvil.' : ''}</p>`
     },
     gg() {
       return `<canvas class="gg" data-k="gg"></canvas><h4 class="h">TIEMPO A CADA INCLINACION</h4><canvas class="hist" data-k="hist"></canvas>`
@@ -526,9 +575,19 @@ root.addEventListener('click', async (e) => {
   if (d.seg) return openSegment(d.seg)
   if (d.act === 'shared') return sharedDialog()
   if (d.act === 'link') return linkDialog()
+  if (d.act === 'home') return goHome()
+  if (d.act === 'syncPill') return getKey() ? cloudSync() : linkDialog()
+  if (d.act === 'claim') return claim(root.querySelector(`[data-k="${d.from}"]`)?.value)
   if (d.act === 'cloudSync') return cloudSync()
   if (d.act === 'unlink') {
-    if (confirm('¿Desvincular este navegador de tu móvil? Las salidas ya bajadas se quedan.')) (setKey(''), renderCloud())
+    if (confirm('¿Desvincular este navegador de tu móvil? Las salidas ya bajadas se quedan.')) {
+      setKey('')
+      S.profile = null
+      saveProfile(null)
+      applyProfileTheme(null)
+      renderCloud()
+      if (!S.id) renderHome()
+    }
     return
   }
   if (d.del) {
@@ -540,7 +599,7 @@ root.addEventListener('click', async (e) => {
     await deleteSession(d.del)
     if (d.del === S.id) location.hash = ''
     await refreshList()
-    if (d.del === S.id) location.reload()
+    if (d.del === S.id) goHome()
     return
   }
   if (d.act === 'demo') return loadDemo()
@@ -615,6 +674,16 @@ root.addEventListener('change', (e) => {
   prefs.dyno[k] = e.target.type === 'checkbox' ? e.target.checked : Math.max(1, Number(e.target.value) || DYNO[k])
   savePrefs()
   renderTab()
+})
+
+root.addEventListener('keydown', (e) => {
+  const k = e.target.dataset?.k
+  if (e.key === 'Enter' && (k === 'codeHome' || k === 'codeSide')) claim(e.target.value)
+})
+root.addEventListener('change', (e) => {
+  if (e.target.dataset?.k !== 'homeFile') return
+  importFiles([...e.target.files])
+  e.target.value = ''
 })
 
 K('showApp').addEventListener('change', (e) => {
@@ -1039,22 +1108,147 @@ function drawDyno(body) {
   )
 }
 
-// ---------- Nube ----------
-function renderCloud(status = '') {
+// ---------- Móvil vinculado, perfil e inicio ----------
+const codeInput = (k = 'code') => `<div class="code-in"><input data-k="${k}" maxlength="7" placeholder="ABC 123" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Código de 6 letras"><button class="btn small" data-act="claim" data-from="${k}">VINCULAR</button></div>`
+const recName = (p) => (p?.name ? esc(p.name) : 'Tu móvil')
+
+/** Píldora de arriba: vinculado y al día, bajando, o sin vincular. */
+function renderSync(status = '', state = '') {
+  const k = getKey()
+  const el = K('sync')
+  if (!cloudAvailable()) return (el.hidden = true)
+  el.className = `sync ${!k ? 'off' : state}`
+  el.textContent = !k ? 'VINCULAR MOVIL' : state === 'busy' ? 'BAJANDO…' : state === 'err' ? 'SIN CONEXION' : 'AL DIA'
+  el.title = !k ? 'Vincula este ordenador con tu móvil para que lleguen solas tus salidas' : status || 'Vinculado: las salidas que sube tu móvil llegan solas'
+}
+
+function renderCloud(status = '', state = '') {
+  renderSync(status, state)
   const k = getKey()
   K('cloud').innerHTML = !cloudAvailable()
-    ? '<p class="note">Esta versión no tiene servidor.</p>'
+    ? ''
     : k
-      ? `<p class="note">Vinculado con tu móvil <code>${k.slice(0, 4)}…${k.slice(-4)}</code>${status ? `<br>${esc(status)}` : ''}</p><div class="lib-btns"><button class="btn ghost small" data-act="cloudSync">ACTUALIZAR</button><button class="btn ghost small" data-act="unlink">DESVINCULAR</button></div>`
-      : `<p class="note">Para ver aquí lo que sube tu móvil, abre en este ordenador el enlace de <b>Garaje → Datos → Abrir en el ordenador</b>, o pega su clave.</p><button class="btn ghost small" data-act="link">VINCULAR</button>`
+      ? `<div class="linked"><span><b>${recName(S.profile)}</b> · vinculado</span><small>${esc(status || 'Las salidas que sube tu móvil llegan solas')}</small><div class="lib-btns"><button class="btn ghost small" data-act="cloudSync" title="Mirar ya si hay salidas nuevas">ACTUALIZAR</button><button class="btn ghost small" data-act="unlink">DESVINCULAR</button></div></div>`
+      : `<div class="linked off"><b>Vincula tu móvil</b><small>En la app: Garaje → Datos → Vincular el ordenador, y escribe aquí el código</small>${codeInput('codeSide')}<button class="linkish" data-act="link">tengo la clave larga</button></div>`
+  renderRider()
+}
+
+/** Ficha corta del piloto en la barra de la izquierda. */
+function renderRider() {
+  const p = S.profile
+  const el = K('rider')
+  if (!p || !getKey()) return (el.innerHTML = '')
+  const lv = p.level || {}
+  el.innerHTML = `<button class="rider-card" data-act="home" title="Ver tu perfil">
+    <span class="av">${esc((p.name || '?').trim().charAt(0).toUpperCase() || '?')}</span>
+    <span class="who"><b>${esc(p.name || 'PILOTO')}</b><small>${esc(p.bike || 'Sin moto')} · NIVEL ${lv.n ?? 1}</small></span>
+    <i class="xp"><i style="width:${Math.round((lv.frac ?? 0) * 100)}%"></i></i>
+  </button>`
+}
+
+const MARK_LABEL = { 'k0-50': '0-50', 'k0-100': '0-100', 'k100-200': '100-200', 'm0-30': '0-30', 'm0-60': '0-60', 'm60-130': '60-130', '60ft': '60 FT', '330ft': '330 FT', '1/8': '1/8', '1000ft': '1000 FT', '1/4': '1/4' }
+const HOME_MARKS = { kmh: ['k0-50', 'k0-100', '60ft', '1/8', '1/4'], mph: ['m0-30', 'm0-60', '60ft', '1/8', '1/4'] }
+
+/** Inicio: sin vincular, cómo empezar; vinculado, tu perfil, tus récords y tus últimas salidas. */
+function renderHome() {
+  if (S.id) return
+  const el = K('empty')
+  el.hidden = false
+  K('work').hidden = true
+  K('title').innerHTML = S.profile?.name && getKey() ? `Hola, <b>${esc(S.profile.name)}</b>` : 'Analizador de telemetría'
+  const linked = !!getKey()
+  const p = linked ? S.profile : null
+  const recent = S.list.slice(0, 6)
+  const rideCards = recent.length
+    ? `<div class="ride-cards">${recent
+        .map(
+          (m) => `<button class="ride-card" data-open="${esc(m.id)}">
+            <span class="rc-day">${dayLabel(m.start)} · ${fmtClock(m.start).slice(0, 5)}${S.fresh.has(m.id) ? ' <em class="new">NUEVA</em>' : ''}</span>
+            <b>${toDist(m.dist || 0).toFixed(1)} <small>${distUnit()}</small></b>
+            <span>${fmtDur((m.end - m.start) / 1000)} · punta ${Math.round(toSpeed(vmaxOf(m)))} ${speedUnit()}</span>
+          </button>`,
+        )
+        .join('')}</div>`
+    : ''
+  const onboarding = `<section class="onboard">
+      <h2>TU CAJA NEGRA</h2>
+      <p>Cada salida que graba tu móvil aparece aquí sola: el recorrido en el mapa, gráficas, curvas, frenadas, pasadas y potencia.</p>
+      <ol class="steps">
+        <li><b>1</b><span>En el móvil, abre Street Chaos: <i>Garaje → Datos → Vincular el ordenador</i>.</span></li>
+        <li><b>2</b><span>Escribe aquí el código de 6 letras que te sale:</span>${codeInput('codeHome')}</li>
+        <li><b>3</b><span>Listo: tus salidas, tus récords y tu tema de colores llegan solos.</span></li>
+      </ol>
+      <p class="alt">Otras formas: <button class="linkish" data-act="link">pegar la clave larga</button> · <label class="linkish">importar un archivo .json<input type="file" accept=".json,application/json" multiple hidden data-k="homeFile"></label> · <button class="linkish" data-act="demo">ver la demo</button></p>
+    </section>`
+  if (!p) {
+    el.innerHTML = `${linked ? `<section class="onboard"><h2>VINCULADO</h2><p>${S.list.length ? 'Tus salidas llegan solas. Elige una a la izquierda o aquí abajo.' : 'Aún no ha llegado nada: el móvil sube cada salida al terminarla (con conexión). Si acabas de vincularlo, abre la app en el móvil un momento.'}</p></section>` : onboarding}${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : ''}`
+    return
+  }
+  const t = p.totals || {}
+  const lv = p.level || {}
+  const sp = (v) => (Number.isFinite(v) && v > 0 ? `${Math.round(toSpeed(v))} <small>${speedUnit()}</small>` : '—')
+  const marks = (HOME_MARKS[prefs.units] || HOME_MARKS.kmh).filter((id) => p.bests?.[id]?.t)
+  const rec = (label, val, sub = '') => `<div class="rec"><span>${label}</span><b>${val}</b>${sub ? `<small>${sub}</small>` : ''}</div>`
+  el.innerHTML = `<section class="profile">
+      <div class="pf-head">
+        <span class="av big">${esc((p.name || '?').trim().charAt(0).toUpperCase() || '?')}</span>
+        <div><h2>${esc(p.name || 'PILOTO')}</h2><p>${esc(p.bike || 'Sin moto')} · <b>NIVEL ${lv.n ?? 1}</b> ${esc(lv.rank || '')} · ${p.achievements?.got ?? 0}/${p.achievements?.total ?? 0} logros</p><i class="xp big"><i style="width:${Math.round((lv.frac ?? 0) * 100)}%"></i></i></div>
+      </div>
+      <div class="recs">
+        ${rec('PUNTA', sp(t.maxV))}
+        ${rec('INCLINACION', Number.isFinite(t.maxLeanL) ? `${Math.round(t.maxLeanL)}° · ${Math.round(t.maxLeanR)}°` : '—', 'izq · der')}
+        ${rec('G MAXIMA', Number.isFinite(t.maxG) && t.maxG > 0 ? `${t.maxG.toFixed(2)} <small>g</small>` : '—')}
+        ${rec('RECORRIDO', `${toDist(t.odo || 0).toFixed(0)} <small>${distUnit()}</small>`, `${t.sessions || 0} salidas`)}
+        ${marks.map((id) => rec(MARK_LABEL[id] || id, `${p.bests[id].t.toFixed(2)} <small>s</small>`, new Date(p.bests[id].date).toLocaleDateString('es', { day: 'numeric', month: 'short' }))).join('')}
+      </div>
+      <p class="note">Datos de tu móvil${p.updatedAt ? ` · ${new Date(p.updatedAt).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}. Pulsa una salida para analizarla.</p>
+    </section>
+    ${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : '<p class="note">Aún no ha llegado ninguna salida: el móvil sube cada una al terminarla.</p>'}`
+}
+
+/** Vuelve al inicio (perfil y salidas). */
+function goHome() {
+  if (S.cmp) exitCompare()
+  S.id = null
+  S.A = null
+  history.replaceState(null, '', location.pathname + location.search)
+  root.querySelector('[data-act="csv"]').disabled = true
+  refreshList()
+}
+
+async function claim(raw) {
+  const code = normCode(raw)
+  if (code.length !== 6) return toast('El código tiene 6 letras y números (míralo en el móvil)')
+  try {
+    await claimCode(code)
+    toast('¡Vinculado! Bajando tus salidas…')
+    await cloudSync()
+  } catch (e) {
+    toast(e.message, 6000)
+  }
 }
 
 function linkDialog() {
-  const el = modal(`<h2>VINCULAR CON TU MOVIL</h2><p class="note">La clave está en la app: Garaje → Datos → Abrir en el ordenador.</p><label class="field">Clave <input data-k="key" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" autocapitalize="characters" spellcheck="false"></label><div class="actions"><button class="btn ghost small" data-close>CANCELAR</button><button class="btn small" data-k="ok">VINCULAR</button></div>`)
-  const input = el.querySelector('[data-k="key"]')
-  input.focus()
+  const el = modal(`<h2>VINCULAR CON TU MOVIL</h2>
+    <p class="note">Lo más fácil: en la app, <b>Garaje → Datos → Vincular el ordenador</b>, y escribe el código de 6 letras.</p>
+    ${codeInput('codeModal')}
+    <details><summary class="note">Tengo la clave larga</summary><p class="note">Está en Garaje → Datos → Enlace al ordenador.</p><label class="field">Clave <input data-k="key" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" autocapitalize="characters" spellcheck="false"></label><div class="actions"><button class="btn small ghost" data-k="ok">USAR LA CLAVE</button></div></details>
+    <div class="actions"><button class="btn ghost small" data-close>CANCELAR</button></div>`)
+  el.querySelector('[data-k="codeModal"]').focus()
+  el.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act="claim"]')
+    if (b) {
+      await claim(el.querySelector('[data-k="codeModal"]').value)
+      if (getKey()) el.close()
+    }
+  })
+  el.querySelector('[data-k="codeModal"]').addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter') return
+    await claim(e.target.value)
+    if (getKey()) el.close()
+  })
   el.querySelector('[data-k="ok"]').onclick = () => {
-    const k = normKey(input.value)
+    const k = normKey(el.querySelector('[data-k="key"]').value)
     if (!validKey(k)) return toast('Esa clave no tiene el formato bueno')
     setKey(k)
     el.close()
@@ -1062,12 +1256,29 @@ function linkDialog() {
   }
 }
 
+/** Perfil del móvil: se guarda, se pinta con su tema y se refresca lo que dependa de los colores. */
+async function syncProfile() {
+  const p = await fetchProfile().catch(() => undefined)
+  if (p === undefined) return
+  const changed = JSON.stringify(p) !== JSON.stringify(S.profile)
+  S.profile = p
+  saveProfile(p)
+  if (applyProfileTheme(p)) {
+    // El fondo del mapa se tiñe al crearlo: con otro tema se recarga (vuelve a la misma salida)
+    if (S.map) return location.reload()
+    // Lo dibujado en canvas lleva los colores dentro: se vuelve a dibujar
+    if (S.A) (buildCharts(), renderAll())
+  }
+  if (changed) renderCloud()
+}
+
 let syncing = null
 function cloudSync() {
   syncing ??= (async () => {
     if (!getKey() || !cloudAvailable()) return renderCloud()
-    renderCloud('Buscando salidas nuevas…')
+    renderCloud('Mirando si hay salidas nuevas…', 'busy')
     try {
+      await syncProfile()
       const remote = await listRemote()
       const have = new Map(S.list.map((m) => [m.id, m]))
       const todo = remote.filter((r) => {
@@ -1076,20 +1287,27 @@ function cloudSync() {
       })
       let n = 0
       for (const r of todo) {
-        renderCloud(`Bajando ${++n} de ${todo.length}…`)
+        renderCloud(`Bajando ${++n} de ${todo.length}…`, 'busy')
         const sess = await fetchRemote(r.id)
         await addSessions([sess], 'nube')
+        if (!have.has(r.id)) S.fresh.add(r.id)
         cache.delete(r.id)
       }
       await refreshList()
-      renderCloud(todo.length ? `${todo.length} ${todo.length === 1 ? 'salida nueva' : 'salidas nuevas'} de la nube` : `Al día · ${remote.length} en la nube`)
-      if (todo.length && !S.id && S.list[0]) open(S.list[0].id)
+      lastSync = Date.now()
+      renderCloud(todo.length ? `${todo.length} ${todo.length === 1 ? 'salida nueva' : 'salidas nuevas'}` : `Al día · ${remote.length} en la nube · ${fmtClock(lastSync).slice(0, 5)}`)
+      if (todo.length) toast(`${todo.length === 1 ? 'Ha llegado una salida nueva' : `Han llegado ${todo.length} salidas nuevas`} de tu móvil`)
     } catch (e) {
-      renderCloud(`No se pudo: ${e.message}`)
+      renderCloud(`No se pudo: ${e.message}`, 'err')
     }
   })().finally(() => (syncing = null))
   return syncing
 }
+
+// Sola: cada minuto mientras se ve la página, y al volver a ella
+let lastSync = 0
+setInterval(() => document.visibilityState === 'visible' && getKey() && cloudSync(), 60000)
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && getKey() && Date.now() - lastSync > 15000 && cloudSync())
 
 // ---------- CSV ----------
 function exportCsv() {
@@ -1118,7 +1336,8 @@ await refreshList()
 refreshSegs()
 checkDevice()
 cloudSync()
+// Con un enlace a una salida (#s=…) se abre; si no, el inicio (perfil y últimas salidas)
 const want = decodeURIComponent((location.hash.match(/s=([^&]+)/) || [])[1] || '')
 if (want && S.list.some((m) => m.id === want)) open(want)
-else if (S.list.length) open(S.list[0].id)
+else renderHome()
 window.__bb = { S, prefs, open, setRange, setCursor }

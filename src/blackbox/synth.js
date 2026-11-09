@@ -33,9 +33,14 @@ const movAvg = (a, w) => a.map((_, i) => {
  * @param {boolean} [o.drag]   empieza con una pasada a fondo en una recta de 400 m antes del recorrido
  * @param {number} [o.tilt]    grados que el móvil va inclinado hacia atrás en el soporte
  * @param {boolean} [o.invert] signo del acelerómetro al revés (como algunos navegadores)
+ * @param {boolean} [o.ios]    como un iPhone: gravedad al revés y giroscopio con alpha = x, beta = y, gamma = z
+ * @param {number} [o.gpsLag]  s que el GPS llega tarde (el iPhone, ~1)
+ * @param {boolean} [o.sys]    da la aceleración sin gravedad (la del sistema)
+ * @param {boolean} [o.speedGaps] como el iPhone parado: sin velocidad del GPS y con saltos de posición
+ *   (y la velocidad que la app antigua se inventaba con ellos en `v`)
  * @param {boolean} [o.imu]    con sensores (sin ellos, como el simulador o un ordenador)
  */
-export function synthRide({ path, seed = 7, start = Date.UTC(2026, 10, 9, 9, 30), imuHz = 60, tilt = 15, invert = false, imu = true, drag = true, vRoad = 24, aLat = 0.6 } = {}) {
+export function synthRide({ path, seed = 7, start = Date.UTC(2026, 10, 9, 9, 30), imuHz = 60, tilt = 15, invert = false, imu = true, drag = true, vRoad = 24, aLat = 0.6, ios = false, gpsLag = 0, sys = true, speedGaps = false } = {}) {
   const R = rng(seed)
   const [lat0, lon0] = path[0]
   const kx = Math.cos(lat0 * RAD) * R_EARTH * RAD
@@ -160,20 +165,32 @@ export function synthRide({ path, seed = 7, start = Date.UTC(2026, 10, 9, 9, 30)
   const gps = []
   let ex = 0
   let ey = 0
+  let still = 0
   for (let tau = 0; tau <= tEnd; tau += 1) {
     const S = at(tau)
     ex = ex * 0.9 + R.gauss() * 0.5
     ey = ey * 0.9 + R.gauss() * 0.5
     const v = Math.max(0, S.v + R.gauss() * 0.08)
     const hdg = S.v > 1 ? ((((S.psi / RAD + R.gauss() * 0.8) % 360) + 360) % 360) : NaN
-    gps.push(tau, start + tau * 1000, lat0 + (S.y + ey) / ky, lon0 + (S.x + ex) / kx, 3.5 + R.uni() * 1.5, S.alt + R.gauss() * 1.2, 4, v, hdg, v, hdg)
+    // El GPS llega `gpsLag` s tarde: cada fix lleva la hora a la que llega, con el estado de antes
+    const tg = tau + gpsLag
+    let lat = lat0 + (S.y + ey) / ky
+    let lon = lon0 + (S.x + ex) / kx
+    if (speedGaps && S.v < 1) {
+      // Parado, el iPhone no da velocidad y la posición salta; la app vieja sacaba de ahí 35 m/s
+      const jump = still++ % 7 === 3 ? 35 : 0
+      lat += jump / ky
+      gps.push(tg, start + tg * 1000, lat, lon, 18 + R.uni() * 4, S.alt + R.gauss() * 1.2, 4, NaN, NaN, jump ? 35 : 0, NaN)
+      continue
+    }
+    gps.push(tg, start + tg * 1000, lat, lon, 3.5 + R.uni() * 1.5, S.alt + R.gauss() * 1.2, 4, v, hdg, v, hdg)
   }
 
   // Sensores: fuerza específica, aceleración sin gravedad y giro en ejes de la moto (adelante F,
   // derecha R, arriba U) pasados a los del móvil: x = R, y = cosθ·U + senθ·F, z = −cosθ·F + senθ·U
   const th = tilt * RAD
   const toPhone = ([f, r, u]) => [r, Math.cos(th) * u + Math.sin(th) * f, -Math.cos(th) * f + Math.sin(th) * u]
-  const sgn = invert ? -1 : 1
+  const sgn = invert || ios ? -1 : 1
   const bias = [R.gauss() * 0.4, R.gauss() * 0.4, R.gauss() * 0.4]
   const imuRows = []
   if (imu) {
@@ -187,17 +204,21 @@ export function synthRide({ path, seed = 7, start = Date.UTC(2026, 10, 9, 9, 30)
       const sf = toPhone([S.a, 0, G / Math.cos(S.lean)])
       const lin = toPhone([S.a, yawRate * Math.cos(S.lean) * S.v, yawRate * Math.sin(S.lean) * S.v])
       const w = toPhone([phiDot, yawRate * Math.sin(S.lean), -yawRate * Math.cos(S.lean)]).map((x) => x / RAD)
+      // La vibración entra igual en las dos aceleraciones: el sistema calcula la gravedad con el
+      // giroscopio (suave) y todo el ruido se lo queda la aceleración sin gravedad
+      const nz = [R.gauss() * vibA, R.gauss() * vibA, R.gauss() * vibA]
       imuRows.push(
         tau,
-        sgn * sf[0] + R.gauss() * vibA,
-        sgn * sf[1] + R.gauss() * vibA,
-        sgn * sf[2] + R.gauss() * vibA,
-        sgn * lin[0] + R.gauss() * vibA,
-        sgn * lin[1] + R.gauss() * vibA,
-        sgn * lin[2] + R.gauss() * vibA,
-        w[2] + bias[2] + R.gauss() * 0.6,
-        w[0] + bias[0] + R.gauss() * 0.6,
-        w[1] + bias[1] + R.gauss() * 0.6,
+        sgn * sf[0] + nz[0],
+        sgn * sf[1] + nz[1],
+        sgn * sf[2] + nz[2],
+        sys ? sgn * lin[0] + nz[0] + R.gauss() * 0.05 : NaN,
+        sys ? sgn * lin[1] + nz[1] + R.gauss() * 0.05 : NaN,
+        sys ? sgn * lin[2] + nz[2] + R.gauss() * 0.05 : NaN,
+        // alpha, beta, gamma: el estándar da z, x, y; el iPhone x, y, z
+        (ios ? w[0] + bias[0] : w[2] + bias[2]) + R.gauss() * 0.6,
+        (ios ? w[1] + bias[1] : w[0] + bias[0]) + R.gauss() * 0.6,
+        (ios ? w[2] + bias[2] : w[1] + bias[1]) + R.gauss() * 0.6,
       )
     }
   }
@@ -236,7 +257,7 @@ export function synthRide({ path, seed = 7, start = Date.UTC(2026, 10, 9, 9, 30)
   const im = new Float32Array(imuRows)
   const ca = new Float32Array(calc)
   const meta = {
-    id: `demo-${seed}${invert ? 'i' : ''}${imu ? '' : 'g'}`,
+    id: `demo-${seed}${invert ? 'i' : ''}${ios ? 'p' : ''}${imu ? '' : 'g'}`,
     format: FORMAT,
     state: 'done',
     start,

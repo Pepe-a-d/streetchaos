@@ -1,12 +1,14 @@
 // Vista de comparación: dos pasadas por el mismo sitio alineadas por distancia. Arriba la diferencia
 // de tiempo (+ = la otra va por detrás, − = va por delante); debajo velocidad, inclinación y G de las dos.
+import { pal } from './palette.js'
 import uPlot from 'uplot'
 import { toSpeed, speedUnit } from './channels.js'
 
-const REF = '#22e3ff'
-const CMP = '#ff2e88'
-const GRID = '#241a4d'
-const AXIS = '#8a80c4'
+// Colores del tema (palette.js)
+const REF = () => pal('cyan')
+const CMP = () => pal('pink')
+const GRID = () => pal('grid')
+const AXIS = () => pal('dim')
 const FONT = '11px ui-monospace, SFMono-Regular, Menlo, monospace'
 
 const fmtS = (x) => `${x > 0 ? '+' : x < 0 ? '−' : '±'}${Math.abs(x).toFixed(2)} s`
@@ -25,7 +27,7 @@ export function gainColors(C) {
     const a = Math.max(0, k - w)
     const b = Math.min(C.n - 1, k + w)
     const slope = (C.delta[b] - C.delta[a]) / Math.max(1e-6, C.s[b] - C.s[a])
-    out[k] = slope < -0.0015 ? '#3dff7a' : slope > 0.0015 ? '#ff3b3b' : '#f4f1ff'
+    out[k] = slope < -0.0015 ? pal('green') : slope > 0.0015 ? pal('red') : pal('ink')
   }
   return out
 }
@@ -55,8 +57,8 @@ export function createCompareView(el, { onCursor, onExit }) {
     const end = C.delta[C.n - 1]
     el.innerHTML = `
       <div class="cmp-head">
-        <span class="cmp-ref"><i style="background:${REF}"></i>${refLabel} · <b>${fmtLap(C.timeA)}</b></span>
-        <span class="cmp-cmp"><i style="background:${CMP}"></i>${cmpLabel} · <b>${fmtLap(C.timeB)}</b></span>
+        <span class="cmp-ref"><i style="background:${REF()}"></i>${refLabel} · <b>${fmtLap(C.timeA)}</b></span>
+        <span class="cmp-cmp"><i style="background:${CMP()}"></i>${cmpLabel} · <b>${fmtLap(C.timeB)}</b></span>
         <span class="cmp-delta ${end < 0 ? 'gain' : 'loss'}">${fmtS(end)}</span>
         <span class="grow"></span>
         <button class="btn ghost small" data-cmp="all">VER TODO</button>
@@ -71,16 +73,16 @@ export function createCompareView(el, { onCursor, onExit }) {
     full = [xs[0], xs[xs.length - 1]]
     const val = (S, idx, fn) => Array.from(idx, (i) => nul(fn(S, i)))
     const charts = [
-      { id: 'delta', label: 'Diferencia', unit: 's', data: [Array.from(C.delta, nul)], colors: ['#ffd23f'], fmt: (v) => fmtS(v), sym: true },
-      { id: 'v', label: 'Velocidad', unit: speedUnit(), data: [val(A, C.iA, (S, i) => toSpeed(S.v[i])), val(B, C.iB, (S, i) => toSpeed(S.v[i]))], colors: [REF, CMP], fmt: (v) => `${v.toFixed(0)}` },
-      { id: 'lean', label: 'Inclinación', unit: '°', data: [val(A, C.iA, (S, i) => S.lean[i]), val(B, C.iB, (S, i) => S.lean[i])], colors: [REF, CMP], fmt: (v) => `${Math.abs(v).toFixed(0)}° ${v < 0 ? 'I' : 'D'}`, sym: true },
-      { id: 'g', label: 'G longitudinal', unit: 'g', data: [val(A, C.iA, (S, i) => S.gLong[i]), val(B, C.iB, (S, i) => S.gLong[i])], colors: [REF, CMP], fmt: (v) => v.toFixed(2), sym: true },
+      { id: 'delta', label: 'Diferencia', unit: 's', data: [Array.from(C.delta, nul)], colors: [pal('yellow')], fmt: (v) => fmtS(v), sym: true },
+      { id: 'v', label: 'Velocidad', unit: speedUnit(), data: [val(A, C.iA, (S, i) => toSpeed(S.v[i])), val(B, C.iB, (S, i) => toSpeed(S.v[i]))], colors: [REF(), CMP()], fmt: (v) => `${v.toFixed(0)}` },
+      { id: 'lean', label: 'Inclinación', unit: '°', data: [val(A, C.iA, (S, i) => S.lean[i]), val(B, C.iB, (S, i) => S.lean[i])], colors: [REF(), CMP()], fmt: (v) => `${Math.abs(v).toFixed(0)}° ${v < 0 ? 'I' : 'D'}`, sym: true },
+      { id: 'g', label: 'G longitudinal', unit: 'g', data: [val(A, C.iA, (S, i) => S.gLong[i]), val(B, C.iB, (S, i) => S.gLong[i])], colors: [REF(), CMP()], fmt: (v) => v.toFixed(2), sym: true },
     ]
     charts.forEach((ch, k) => {
       const last = k === charts.length - 1
       const box = document.createElement('div')
       box.className = 'chart'
-      box.innerHTML = `<div class="ch-head"><span class="ch-name" style="color:${ch.colors.length > 1 ? '#efeaff' : ch.colors[0]}">${ch.label}</span><span class="ch-val" data-k="val">—</span></div><div class="ch-plot"></div>`
+      box.innerHTML = `<div class="ch-head"><span class="ch-name" style="color:${ch.colors.length > 1 ? pal('ink') : ch.colors[0]}">${ch.label}</span><span class="ch-val" data-k="val">—</span></div><div class="ch-plot"></div>`
       stack.append(box)
       const u = new uPlot(
         {
@@ -104,8 +106,8 @@ export function createCompareView(el, { onCursor, onExit }) {
           cursor: { sync: { key: 'cmp', setSeries: false }, drag: { x: true, y: false, setScale: false }, points: { size: 7 } },
           select: { show: true },
           axes: [
-            { stroke: AXIS, font: FONT, grid: { stroke: GRID }, ticks: { stroke: GRID, size: 4 }, size: last ? 26 : 6, values: last ? (u, v) => v.map(xFmt) : (u, v) => v.map(() => '') },
-            { stroke: AXIS, font: FONT, grid: { stroke: GRID }, ticks: { stroke: GRID, size: 4 }, size: 54 },
+            { stroke: AXIS(), font: FONT, grid: { stroke: GRID() }, ticks: { stroke: GRID(), size: 4 }, size: last ? 26 : 6, values: last ? (u, v) => v.map(xFmt) : (u, v) => v.map(() => '') },
+            { stroke: AXIS(), font: FONT, grid: { stroke: GRID() }, ticks: { stroke: GRID(), size: 4 }, size: 54 },
           ],
           series: [{}, ...ch.colors.map((c, j) => ({ stroke: c, width: j ? 1.5 : 1.8, fill: ch.colors.length === 1 ? c + '22' : undefined, points: { show: false } }))],
           hooks: {

@@ -1,6 +1,6 @@
 // CRONO: pasadas desde parado. Se arma solo al parar y cronometra al salir.
 import { RunRecorder, marksFor, MARKS } from '../core/perf.js'
-import { T, onSample, onHint, signalBars } from '../core/telemetry.js'
+import { T, onSample, onHint, onAccel, signalBars } from '../core/telemetry.js'
 import { settings, setSetting, addRun, deleteRun, bests } from '../core/store.js'
 import { sfx } from '../core/audio.js'
 import { $, $$, setter, segPad, toSpeed, speedUnit, fmtT, toast } from './util.js'
@@ -22,6 +22,7 @@ export function mountCrono(el) {
     if (visible || rec.state === 'running') rec.feed(s)
   })
   onHint((t) => rec.hint(t))
+  onAccel((t, a) => rec.accel(t, a))
 
   function onEvent(e, data) {
     if (e === 'armed') {

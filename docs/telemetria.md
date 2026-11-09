@@ -22,7 +22,7 @@ Garaje → Datos → **EXPORTAR** genera `streetchaos-AAAA-MM-DD-HHMM.json` con 
   "id": "…",                 // id del móvil (el mismo en todas las exportaciones)
   "exportedAt": "2026-11-09T10:00:00.000Z",
   "device": { "ua": "…", "screen": [w, h, dpr], "viewport": [w, h] },
-  "settings": { "units", "rollout", "source", "bike", "leanZero", "gyroSign" },
+  "settings": { "units", "rollout", "source", "bike", "mount", "leanSign", "gyroAxes", "gpsLag" },
   "totals": { "odo", "maxV", "maxLeanL", "maxLeanR", "maxG" },
   "runs": [ … ],             // pasadas del crono, como las guarda la app (con traza y muestras GPS en bruto)
   "races": [ … ],            // duelos
@@ -45,13 +45,24 @@ Se exporta todo cada vez: la app de escritorio debe deduplicar por `id` de sesi�
 | `state` | `done` cerrada, `rec` aún grabando al exportar |
 | `start`, `end` | Hora real (ms desde 1970) de `t = 0` y de la última muestra |
 | `source` | `real` o `sim` (simulador; `sim` lleva `{hz, bike}`) |
-| `calib` | `leanZero` (rad, cero del inclinómetro) y `gyroSign` (±1, signo aprendido del giroscopio) al empezar |
+| `calib` | Calibración de la app al empezar (ver abajo). Las sesiones de antes del 2026-11-09 traen `leanZero` y `gyroSign`, que ya no se usan |
 | `rider` | Moto y unidades del piloto |
 | `device` | Navegador (`ua`), pantalla, orientación al empezar, si estaba instalada |
 | `rows` | Filas de cada flujo y número de eventos |
 | `dist`, `moving`, `vmax` | Metros, segundos en marcha y m/s máximos (resumen rápido) |
-| `imuInterval` | Intervalo que declara el navegador para los sensores (ms) |
+| `imuInterval` | Intervalo que declara el navegador para los sensores, tal cual. **Ojo**: el iPhone lo da en **segundos** (0,0167); el estándar dice milisegundos |
 | `resumed` | Veces que siguió tras cerrarse la app |
+
+`calib` (desde el 2026-11-09, `calibration()` en `src/core/telemetry.js`):
+
+| Campo | Qué es |
+| --- | --- |
+| `conv` | +1 si el móvil da la gravedad hacia arriba (estándar), −1 si hacia abajo (iPhone) |
+| `axes` | Asignación del giroscopio: `w3c` (alpha = z, beta = x, gamma = y) o `xyz` (iPhone: alpha = x, beta = y, gamma = z) |
+| `yawSign`, `leanSign` | Signos aprendidos con los giros del GPS (giro sobre la vertical e inclinación) |
+| `gpsLag` | Segundos de retraso del GPS que la app ya ha descontado en `t` (1 en iPhone, 0 en el resto) |
+| `up`, `right`, `fwd` | Postura del móvil en el soporte (vectores unitarios en ejes del móvil, sentido físico): vertical de la moto, lateral (+ derecha) y avance; `fwd` es `null` hasta que lo aprende acelerando y frenando |
+| `sys` | Si el navegador da la aceleración sin gravedad (y por tanto su gravedad, que es con la que se mide la inclinación) |
 
 ### Flujos
 
@@ -61,13 +72,13 @@ Cada flujo es un array de números en **base64**, **little-endian**, fila tras f
 
 | Campo | Unidad | Qué es |
 | --- | --- | --- |
-| `t` | s | Hora del fix (la de llegada menos la antigüedad que declara el móvil) |
+| `t` | s | Hora del fix: la de llegada, menos la antigüedad que declara el móvil, menos el retraso del GPS (`calib.gpsLag`, desde el 2026-11-09). Las posiciones viejas que llegan al volver de segundo plano se descartan |
 | `ts` | ms desde 1970 | Hora del fix según el móvil |
 | `lat`, `lon` | grados WGS84 | Posición |
 | `acc` | m | Precisión horizontal |
 | `alt`, `altAcc` | m | Altitud y su precisión (`NaN` si no hay) |
 | `speed`, `heading` | m/s, ° desde el norte | Lo que da el móvil, sin tocar |
-| `v`, `hdg` | m/s, ° | Lo que usó la app: si el móvil no da velocidad, sale de las posiciones; si no da rumbo, del rumbo entre fixes |
+| `v`, `hdg` | m/s, ° | Lo que usó la app. Si el móvil no da velocidad (el iPhone, parado o muy despacio, ~1 de cada 6 fixes), desde el 2026-11-09 `v` es la última un momento (si ibas a más de 3 m/s) o 0, nunca la de las posiciones; antes salía de las posiciones y con 15-25 m de error daba saltos falsos de hasta 130 km/h. Si no da rumbo, del rumbo entre fixes |
 
 **`imu`** (`float32`, cada evento `devicemotion`: 60 Hz en iPhone, 60-200 Hz en Android):
 
@@ -76,9 +87,11 @@ Cada flujo es un array de números en **base64**, **little-endian**, fila tras f
 | `t` | s | Hora del evento |
 | `ax`, `ay`, `az` | m/s² | Aceleración **con** gravedad (`accelerationIncludingGravity`) |
 | `lx`, `ly`, `lz` | m/s² | Aceleración **sin** gravedad (`acceleration`), si el navegador la da |
-| `ra`, `rb`, `rg` | °/s | Giro (`rotationRate`): `alpha` sobre z, `beta` sobre x, `gamma` sobre y |
+| `ra`, `rb`, `rg` | °/s | Giro (`rotationRate`) tal cual: `alpha`, `beta`, `gamma`. El estándar dice alpha sobre z, beta sobre x y gamma sobre y; **Safari en iPhone da alpha sobre x, beta sobre y y gamma sobre z** (comprobado con la primera salida real: con los ejes del estándar el giroscopio y los giros del GPS apenas se parecían) |
 
-Ejes del móvil (W3C): x hacia la derecha de la pantalla, y hacia arriba de la pantalla, z saliendo de la pantalla. Cada navegador tiene sus manías de signo: compruébalo con la gravedad en reposo (el eje que apunta arriba debería leer +9,8) y con `ua`. La postura del móvil en el soporte no se conoce: hay que sacarla de la gravedad media con la moto parada y recta.
+Ejes del móvil (W3C): x hacia la derecha de la pantalla, y hacia arriba de la pantalla, z saliendo de la pantalla, fijos al aparato aunque gire la pantalla. Manías vistas: el iPhone da la gravedad **hacia abajo** (−9,8 en el eje que mira al cielo; el estándar, +9,8) y los ejes del giroscopio cambiados como arriba. `ax − lx` (y lo mismo en y, z) es la gravedad que calcula el propio móvil combinando acelerómetro y giroscopio: con ella la inclinación sale directa (giro de la vertical alrededor del eje de avance). La postura del móvil en el soporte va en `calib`; si no, se saca de la gravedad media en recta.
+
+El GPS del iPhone llega **~1 s tarde** respecto a los sensores (las sesiones nuevas ya lo traen descontado en `t`; el Blackbox lo mide en cada sesión y lo enseña).
 
 **`calc`** (`float32`, 10 Hz): lo que calculaba y enseñaba la app en ese momento, para comparar sus algoritmos con los del escritorio.
 
@@ -86,9 +99,9 @@ Ejes del móvil (W3C): x hacia la derecha de la pantalla, y hacia arriba de la p
 | --- | --- | --- |
 | `t` | s | |
 | `v` | m/s | Velocidad suavizada del velocímetro |
-| `gLong` | g | Longitudinal (+ acelera, − frena), de la velocidad del GPS |
-| `gLat` | g | Lateral (+ curva a derecha), de velocidad × giro |
-| `lean` | ° | Inclinación (+ derecha) |
+| `gLong` | g | Longitudinal (+ acelera, − frena): del acelerómetro cuando ya sabe dónde es delante; si no, de la velocidad del GPS |
+| `gLat` | g | Lateral (+ curva a derecha): tan(inclinación), solo en marcha |
+| `lean` | ° | Inclinación (+ derecha). Antes del 2026-11-09, en iPhone estaba mal (ejes del giroscopio cambiados): picos de 70° donde había 35° |
 
 ### Eventos
 
@@ -100,7 +113,7 @@ Ejes del móvil (W3C): x hacia la derecha de la pantalla, y hacia arriba de la p
 | `run` | Pasada válida: `id` (la de `runs`), `marks` (parcial → segundos), `maxV` (m/s). `t` es el instante de salida |
 | `abort` | Pasada cancelada con un toque |
 | `race` | Duelo terminado: `mode`, `opp` (`cpu`, `ghost` u `online`), `win`, `me`, `them` |
-| `calib` | Cambió `leanZero` (rad) o `gyroSign` |
+| `calib` | Cambió la calibración: `mount` (postura), `leanSign`, `gyroAxes`, `yawSign` o `gpsLag` (antes `leanZero` o `gyroSign`) |
 | `hidden`, `visible` | La app pasó a segundo plano o volvió |
 | `orientation` | El móvil giró la pantalla (`type`) |
 | `resume` | Siguió tras cerrarse la app (`gap` en s) |

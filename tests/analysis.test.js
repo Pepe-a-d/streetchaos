@@ -61,16 +61,21 @@ function compare(A, truth) {
 const path = testPath()
 
 describe('analizador', () => {
-  for (const [name, opts] of [
-    ['móvil normal', {}],
-    ['acelerómetro con el signo al revés', { invert: true }],
-    ['móvil más tumbado en el soporte', { tilt: 40 }],
+  for (const [name, opts, leanFrom] of [
+    ['móvil normal', {}, 'gravity'],
+    ['acelerómetro con el signo al revés', { invert: true }, 'gravity'],
+    ['móvil más tumbado en el soporte', { tilt: 40 }, 'gravity'],
+    ['sin la gravedad del sistema', { sys: false }, 'gyro+roll'],
+    // Como el de la primera salida real: casi plano, gravedad al revés, alpha = x, beta = y, gamma = z, GPS 1 s tarde
+    ['iPhone', { ios: true, gpsLag: 1, tilt: 22 }, 'gravity'],
   ]) {
     it(`recupera postura, inclinación y G (${name})`, () => {
       const ride = synthRide({ path, ...opts })
       const A = analyze(ride)
       expect(A.info.longFrom).toBe('imu')
-      expect(A.info.leanFrom).toBe('gyro+roll')
+      expect(A.info.leanFrom).toBe(leanFrom)
+      expect(A.info.gyroAxes).toBe(opts.ios ? 'xyz' : 'w3c')
+      expect(Math.abs(A.info.gpsLag - (opts.gpsLag ?? 0))).toBeLessThan(0.25)
       // «Adelante» en ejes del móvil
       const th = (opts.tilt ?? 15) * RAD
       const trueFwd = [0, Math.sin(th), -Math.cos(th)]
@@ -91,6 +96,14 @@ describe('analizador', () => {
       expect(S.brake).toBeLessThan(1.05)
     })
   }
+
+  it('parado sin velocidad del GPS y con saltos de posición no salen puntas falsas', () => {
+    const ride = synthRide({ path, speedGaps: true })
+    const A = analyze(ride)
+    expect(A.info.doppler).toBeLessThan(1)
+    expect(Math.abs(A.stats.vMax - ride.truth.vmax) * 3.6).toBeLessThan(2)
+    expect(Math.max(A.stats.leanL, A.stats.leanR)).toBeLessThan(45)
+  })
 
   it('encuentra las dos curvas, a su lado, y las frenadas', () => {
     const A = analyze(synthRide({ path }))

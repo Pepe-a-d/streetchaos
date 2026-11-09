@@ -55,6 +55,19 @@ export async function fetchRemote(id) {
 
 export const deleteRemote = (id) => call({ action: 'del', id })
 
+/** Perfil que sube el móvil: nombre, moto, tema, nivel y récords (o null si aún no ha subido ninguno). */
+export const fetchProfile = async () => (await call({ action: 'profile-get' })).profile || null
+
+/** Vincula con el código de 6 letras que da el móvil (Garaje → Datos → Vincular el ordenador). */
+export async function claimCode(code) {
+  const r = await fetch(`${URL}/functions/v1/caja-negra`, { method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'pair-claim', code }) })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok || !validKey(j.key || '')) throw new Error(j.error || `HTTP ${r.status}`)
+  setKey(j.key)
+  return j.key
+}
+export const normCode = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
+
 // ---------- Circuitos compartidos ----------
 
 async function rest(path, { method = 'GET', body } = {}) {

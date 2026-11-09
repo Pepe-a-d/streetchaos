@@ -6,6 +6,30 @@ import { settings } from './store.js'
 
 export const voiceAvailable = () => typeof window !== 'undefined' && 'speechSynthesis' in window
 
+// Con la música del móvil. Por defecto, en cuanto una web suena (voz o pitidos), iOS le da el audio
+// a ella y Apple Music se para. Con la Audio Session API (Safari/iOS 16.4+) la web dice qué clase de
+// sonido es: 'transient' suena encima y baja la música un momento, 'transient-solo' la pausa y la
+// reanuda al acabar, 'ambient' se mezcla sin bajarla. Ojo: con el móvil en silencio, iOS puede callar
+// estos sonidos (son de los que respetan el interruptor).
+export const MUSIC_MODES = {
+  duck: ['transient', 'BAJARLA', 'Baja la música mientras habla'],
+  pause: ['transient-solo', 'PAUSARLA', 'La para y la vuelve a poner al acabar'],
+  mix: ['ambient', 'ENCIMA', 'Habla encima sin bajarla'],
+}
+export const audioSessionAvailable = () => typeof navigator !== 'undefined' && !!navigator.audioSession
+
+/** Le dice al móvil cómo tiene que convivir el sonido de la app con la música. Llamar antes de sonar. */
+export function applyAudioSession() {
+  if (!audioSessionAvailable()) return false
+  const type = (MUSIC_MODES[settings.voiceMusic] || MUSIC_MODES.duck)[0]
+  try {
+    if (navigator.audioSession.type !== type) navigator.audioSession.type = type
+    return true
+  } catch {
+    return false
+  }
+}
+
 // Qué dice (cada uno se puede apagar en Garaje → Voz)
 export const VOICE_EVENTS = [
   ['crono', 'Pasadas del crono', 'El tiempo al terminar, y si es récord'],
@@ -40,6 +64,7 @@ let unlocked = false
 export function unlockVoice() {
   if (unlocked || !voiceAvailable()) return
   unlocked = true
+  applyAudioSession()
   const u = new SpeechSynthesisUtterance(' ')
   u.volume = 0
   speechSynthesis.speak(u)
@@ -52,6 +77,7 @@ export function unlockVoice() {
 export function say(text, { kind = null, urgent = false, force = false } = {}) {
   if (!voiceAvailable() || (!settings.voice && !force)) return false
   if (kind && !force && (settings.voiceEvents?.[kind] ?? VOICE_DEFAULTS[kind]) === false) return false
+  applyAudioSession()
   const u = new SpeechSynthesisUtterance(text)
   u.lang = 'es-ES'
   const v = pickVoice()

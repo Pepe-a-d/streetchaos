@@ -10,14 +10,14 @@ import { sfx } from '../core/audio.js'
 import { geoPermission, isIOS, isStandalone } from '../core/device.js'
 import { sendForAnalysis, buildExport, shareFile } from '../core/share.js'
 import { logger } from '../core/logger.js'
-import { cloud, cloudAvailable, syncNow, syncKey, blackboxLink, onCloud } from '../core/cloud.js'
+import { cloud, cloudAvailable, syncNow, syncKey, blackboxLink, onCloud, pairCode } from '../core/cloud.js'
 import { $, esc, layer, toast, toSpeed, speedUnit, toDist, distUnit, fmtT, fmtDate, fmtBytes, markLabel } from './util.js'
 import { bikeSvg, pixelSvg } from './pixel.js'
 import { editRider } from './title.js'
 import { RACE_MODES } from '../core/race.js'
 import { THEMES, DIGITS, themeOf, themeStyle } from './themes.js'
 import { ACHIEVEMENTS, TIERS, unlocked, progress, stats, level } from '../core/achievements.js'
-import { voiceAvailable, spanishVoices, VOICE_EVENTS, VOICE_DEFAULTS, SPEED_STEPS, say } from '../core/voice.js'
+import { voiceAvailable, spanishVoices, VOICE_EVENTS, VOICE_DEFAULTS, SPEED_STEPS, say, MUSIC_MODES, audioSessionAvailable } from '../core/voice.js'
 import { medalSvg } from './medals.js'
 
 const ARROW = pixelSvg(['X....', 'XX...', 'XXX..', 'XXXX.', 'XXX..', 'XX...', 'X....'], { X: 'currentColor' }, { className: 'px-arrow' })
@@ -272,6 +272,14 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
               [1.05, 'NORMAL'],
               [1.25, 'RAPIDA'],
             ]) +
+            (audioSessionAvailable()
+              ? pick(
+                  'voiceMusic',
+                  'Con música',
+                  Object.entries(MUSIC_MODES).map(([k, [, l]]) => [k, l]),
+                  `${(MUSIC_MODES[settings.voiceMusic] || MUSIC_MODES.duck)[2]}. Con el móvil en silencio, iOS puede callarla`,
+                )
+              : '') +
             `<div class="set"><span>Probar<small>Si no oyes nada, sube el volumen del móvil o del casco</small></span><button class="btn small cyan" data-act="voiceTest">PROBAR</button></div>`,
         ),
         group('QUE DICE', VOICE_EVENTS.map(([k, label, small]) => `<div class="set"><span>${label}<small>${small}</small></span><button class="chip ${ev[k] ? 'on' : ''}" data-vev="${k}">${ev[k] ? 'SI' : 'NO'}</button></div>`).join('')),
@@ -347,9 +355,10 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
         ${group(
           'TELEMETRIA',
           `<div class="set"><span>Caja negra<small data-k="tele">Mirando lo guardado…</small></span><span data-k="teleState">${settings.logTelemetry ? state('EN ESPERA', '') : state('APAGADA', 'off')}</span></div>
-           <div class="set"><span>Exportar todo<small>Archivo .json con la telemetría, las pasadas y los duelos. Pásalo al ordenador (AirDrop, Drive, correo) y ábrelo en <b>${esc(location.host + import.meta.env.BASE_URL)}blackbox</b></small></span><button class="btn small cyan" data-act="export">EXPORTAR</button></div>
+           <div class="set"><span>Exportar todo<small>Archivo .json con la telemetría, las pasadas y los duelos. Pásalo al ordenador (AirDrop, Drive, correo) y suéltalo en <b>${esc(location.host + import.meta.env.BASE_URL)}</b> abierto en el ordenador</small></span><button class="btn small cyan" data-act="export">EXPORTAR</button></div>
            <div class="set"><span>Subir a la nube<small data-k="cloud">…</small></span><button class="chip ${settings.cloudSync ? 'on' : ''}" data-toggle="cloudSync">${settings.cloudSync ? 'SI' : 'NO'}</button></div>
-           ${cloudAvailable() ? `<div class="set"><span>Abrir en el ordenador<small>Enlace al Blackbox con la clave de este móvil (${esc(syncKey())}). Quien lo tenga puede ver tus salidas.</small></span><button class="btn small cyan" data-act="bbLink">ENLACE</button></div>` : ''}
+           ${cloudAvailable() ? `<div class="set"><span>Vincular el ordenador<small>Abre ${esc(location.host + import.meta.env.BASE_URL)} en el ordenador y escribe el código que sale aquí: verás tus salidas, tus récords y tu tema. Quien tenga el código o la clave puede ver tus salidas.</small></span><button class="btn small cyan" data-act="bbPair">VINCULAR</button></div>
+           <div class="set"><span>Enlace al ordenador<small>Otra forma: mándate el enlace con la clave de este móvil (${esc(syncKey())}) por AirDrop o correo</small></span><button class="btn small ghost" data-act="bbLink">ENLACE</button></div>` : ''}
            <div class="set"><span>Borrar telemetría<small>Del móvil (lo subido sigue en la nube). Para liberar espacio</small></span><button class="btn small ghost" data-act="wipeTele">BORRAR</button></div>`,
         )}
         ${group(
@@ -440,6 +449,9 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
         sfx.error()
         toast(`NO SE PUDO EXPORTAR: ${err?.message || err}`, 4000)
       }
+    } else if (b.dataset.act === 'bbPair') {
+      pairDialog()
+      return
     } else if (b.dataset.act === 'bbLink') {
       const url = blackboxLink()
       try {
@@ -482,6 +494,40 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
     },
     frame() {},
   }
+}
+
+/** Código para vincular el ordenador, en grande y con lo que le queda. */
+function pairDialog() {
+  const el = layer(
+    `<div class="panel modal pair">
+      <h2 class="title">VINCULAR ORDENADOR</h2>
+      <p class="tip" style="text-align:center">En el ordenador abre <b>${esc(location.host + import.meta.env.BASE_URL)}</b> y escribe:</p>
+      <div class="pair-code" data-k="code">······</div>
+      <p class="tip" style="text-align:center" data-k="left">Pidiendo código…</p>
+      <div class="actions"><button class="btn small" data-k="close">LISTO</button></div>
+    </div>`,
+  )
+  let timer = null
+  const close = () => (clearInterval(timer), el.remove())
+  $(el, '[data-k="close"]').onclick = () => (sfx.click(), close())
+  pairCode()
+    .then(({ code, expires }) => {
+      if (!el.isConnected) return
+      $(el, '[data-k="code"]').textContent = `${code.slice(0, 3)} ${code.slice(3)}`
+      const end = new Date(expires).getTime()
+      const tickLeft = () => {
+        const s = Math.max(0, Math.round((end - Date.now()) / 1000))
+        $(el, '[data-k="left"]').textContent = s ? `Vale ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} y una sola vez` : 'Caducado: vuelve a pedirlo'
+        if (!s) clearInterval(timer)
+      }
+      tickLeft()
+      timer = setInterval(tickLeft, 1000)
+    })
+    .catch((err) => {
+      if (!el.isConnected) return
+      sfx.error()
+      $(el, '[data-k="left"]').textContent = navigator.onLine ? `No se pudo: ${err?.message || err}` : 'Sin conexión: conéctate y vuelve a probar'
+    })
 }
 
 function exportReady(file) {

@@ -5,7 +5,7 @@
 // calcula la diferencia de relojes con pings (se queda con el de menor ida y vuelta).
 
 import { RunRecorder, traceAt, crossDist, crossSpeed, scoreRace, traceFromSaved, MILE, KMH } from './perf.js'
-import { onSample, onHint } from './telemetry.js'
+import { onSample, onHint, onAccel } from './telemetry.js'
 import { fullThrottleTrace, BIKES } from './physics.js'
 import { netId } from './store.js'
 import { sfx } from './audio.js'
@@ -81,7 +81,7 @@ export class Race {
       stopAtSpeed: mode.kind === 'speed' ? mode.target : null,
       onEvent: (e, data) => this.#onRec(e, data),
     })
-    this.unsubs = [onSample((s) => this.rec.feed(s)), onHint((t) => this.rec.hint(t))]
+    this.unsubs = [onSample((s) => this.rec.feed(s)), onHint((t) => this.rec.hint(t)), onAccel((t, a) => this.rec.accel(t, a))]
     if (online) {
       this.opp.synced = false
       this.ch = online.channel

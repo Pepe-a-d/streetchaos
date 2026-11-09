@@ -8,6 +8,10 @@
 //   list   → fichas de las salidas de esa clave
 //   get    → URL firmada para bajar <id>.scb (5 min)
 //   del    → borra una salida
+//   profile-put { profile } → guarda el perfil del piloto (nombre, moto, tema, récords)
+//   profile-get             → lo devuelve
+//   pair-new                → código de 6 letras para vincular un ordenador (10 min, un uso)
+//   pair-claim { code }     → (sin clave) cambia el código por la clave
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const BUCKET = 'telemetry'
@@ -17,6 +21,8 @@ const CORS = {
   'Access-Control-Allow-Headers': 'apikey, authorization, content-type, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
+const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+const PAIR_MIN = 10
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
 function secretKey() {
@@ -44,6 +50,20 @@ Deno.serve(async (req) => {
     body = await req.json()
   } catch {
     return json({ error: 'JSON no válido' }, 400)
+  }
+  // Vincular un ordenador: el código corto se cambia por la clave (es lo único que va sin clave)
+  if (body.action === 'pair-claim') {
+    const code = String(body.code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (!/^[A-Z2-9]{6}$/.test(code)) return json({ error: 'Código no válido' }, 400)
+    try {
+      await sb.from('bb_pair').delete().lt('expires_at', new Date().toISOString())
+      const { data } = await sb.from('bb_pair').select('key').eq('code', code).maybeSingle()
+      if (!data) return json({ error: 'Ese código no existe o ha caducado: pide otro en el móvil' }, 404)
+      await sb.from('bb_pair').delete().eq('code', code)
+      return json({ key: data.key })
+    } catch (e) {
+      return json({ error: String((e as Error)?.message ?? e) }, 500)
+    }
   }
   const key = String(body.key ?? '')
   if (!/^[A-Z2-9]{4}(-[A-Z2-9]{4}){4}$/.test(key)) return json({ error: 'Clave no válida' }, 400)
@@ -94,6 +114,31 @@ Deno.serve(async (req) => {
         const { error } = await sb.from('bb_cloud').delete().eq('folder', folder).eq('id', id)
         if (error) throw error
         return json({ ok: true })
+      }
+      case 'profile-put': {
+        const profile = body.profile
+        if (!profile || typeof profile !== 'object' || JSON.stringify(profile).length > 60000) return json({ error: 'Perfil no válido' }, 400)
+        const { error } = await sb.from('bb_profile').upsert({ folder, profile, updated_at: new Date().toISOString() })
+        if (error) throw error
+        return json({ ok: true })
+      }
+      case 'profile-get': {
+        const { data, error } = await sb.from('bb_profile').select('profile, updated_at').eq('folder', folder).maybeSingle()
+        if (error) throw error
+        return json({ profile: data?.profile ?? null, updated_at: data?.updated_at ?? null })
+      }
+      case 'pair-new': {
+        // Un código por móvil a la vez: los anteriores de esta clave se borran
+        await sb.from('bb_pair').delete().eq('key', key)
+        await sb.from('bb_pair').delete().lt('expires_at', new Date().toISOString())
+        for (let i = 0; i < 5; i++) {
+          const r = crypto.getRandomValues(new Uint8Array(6))
+          const code = [...r].map((b) => ALPHA[b % ALPHA.length]).join('')
+          const expires = new Date(Date.now() + PAIR_MIN * 60000).toISOString()
+          const { error } = await sb.from('bb_pair').insert({ code, key, expires_at: expires })
+          if (!error) return json({ code, expires })
+        }
+        throw new Error('No se pudo crear el código')
       }
       default:
         return json({ error: 'Acción desconocida' }, 400)

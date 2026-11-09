@@ -5,14 +5,21 @@
 // Qué hace:
 // 1. GPS: quita fixes malos, congela el baile de la posición parado y traza la curva entre fixes con
 //    un spline de Hermite que respeta el rumbo y la velocidad de cada fix (a 1 Hz la recta corta las curvas).
-// 2. Postura del móvil en el soporte: «arriba» es la gravedad aparente media (en una curva bien trazada
-//    sigue el eje vertical de la moto) y «adelante» sale de comparar el acelerómetro con lo que acelera
-//    el GPS. No hace falta saber cómo está puesto ni el signo que usa cada navegador.
-// 3. Con eso: G longitudinal del acelerómetro (calibrado con el GPS), giro del giroscopio, inclinación
-//    = asin(v·giro/g) fusionada con el giro de alabeo, velocidad GPS afinada con el acelerómetro.
-// 4. Curvas, frenadas, pasadas del crono y estadísticas de cualquier tramo.
+//    La velocidad es la del GPS (Doppler); donde el móvil no la dio, NO se saca de las posiciones (con
+//    15-25 m de error eso daba saltos de 130 km/h parado): se rellena entre vecinos o se pone a 0.
+// 2. Retraso del GPS: el del iPhone llega ~1 s tarde. Se mide comparando su aceleración con la del
+//    acelerómetro y se descuenta, para que todo vaya en el mismo reloj.
+// 3. Postura del móvil en el soporte: «arriba» es la gravedad media y «adelante» sale de comparar el
+//    acelerómetro con lo que acelera el GPS. No hace falta saber cómo está puesto ni el convenio de
+//    cada navegador (el iPhone da la gravedad y los ejes del giroscopio distintos que el estándar: se
+//    prueban las dos asignaciones y se queda la que cuadra con los giros del GPS).
+// 4. Inclinación: con la gravedad que calcula el propio móvil (acelerómetro + giroscopio) es directa;
+//    si no la hay, asin(v·giro/g) fusionada con el giro de alabeo; y si tampoco, el rumbo del GPS.
+// 5. G longitudinal del acelerómetro (calibrado con el GPS), velocidad GPS afinada con el acelerómetro.
+// 6. Curvas, frenadas, pasadas del crono y estadísticas de cualquier tramo.
 
 import { STREAMS } from '../core/blackbox.js'
+import { screenRight } from '../core/mount.js'
 
 export const G = 9.80665
 export const DT = 0.1 // s entre muestras del análisis (10 Hz)
@@ -77,41 +84,145 @@ function cleanFixes(g) {
     lastT = g.t[i]
   }
   const m = idx.length
-  const F = { n: m, t: new Float64Array(m), x: new Float64Array(m), y: new Float64Array(m), v: new Float64Array(m), hdg: new Float64Array(m), alt: new Float64Array(m), acc: new Float64Array(m), seg: new Int32Array(m) }
+  const F = { n: m, t: new Float64Array(m), x: new Float64Array(m), y: new Float64Array(m), v: new Float64Array(m), hdg: new Float64Array(m), alt: new Float64Array(m), acc: new Float64Array(m), seg: new Int32Array(m), vOk: new Uint8Array(m) }
   if (!m) return F
   F.lat0 = g.lat[idx[0]]
   F.lon0 = g.lon[idx[0]]
   F.kx = Math.cos(F.lat0 * RAD) * R_EARTH * RAD
   F.ky = R_EARTH * RAD
-  let anchor = null
   let seg = 0
+  let doppler = 0
   for (let k = 0; k < m; k++) {
     const i = idx[k]
-    let px = (g.lon[i] - F.lon0) * F.kx
-    let py = (g.lat[i] - F.lat0) * F.ky
-    const v = Number.isFinite(g.v[i]) && g.v[i] >= 0 ? g.v[i] : Number.isFinite(g.speed[i]) && g.speed[i] >= 0 ? g.speed[i] : NaN
-    const acc = Number.isFinite(g.acc[i]) ? g.acc[i] : 10
-    if (k && g.t[i] - F.t[k - 1] > GAP) (seg++, (anchor = null))
-    // Parado: la posición baila unos metros; se queda quieta en la última buena
-    if (anchor && v < 1 && Math.hypot(px - anchor[0], py - anchor[1]) < Math.max(6, acc)) [px, py] = anchor
-    else anchor = [px, py]
+    if (k && g.t[i] - F.t[k - 1] > GAP) seg++
     F.t[k] = g.t[i]
-    F.x[k] = px
-    F.y[k] = py
-    F.v[k] = v
-    F.hdg[k] = Number.isFinite(g.hdg[i]) ? g.hdg[i] : g.heading[i]
+    F.x[k] = (g.lon[i] - F.lon0) * F.kx
+    F.y[k] = (g.lat[i] - F.lat0) * F.ky
+    // La velocidad del GPS tal cual (speed); `v` es la que usó la app, que antes la inventaba con las
+    // posiciones cuando faltaba
+    const sp = Number.isFinite(g.speed[i]) && g.speed[i] >= 0 ? g.speed[i] : NaN
+    F.v[k] = sp
+    if (Number.isFinite(sp)) (doppler++, (F.vOk[k] = 1))
+    F.hdg[k] = Number.isFinite(sp) && Number.isFinite(g.heading[i]) && g.heading[i] >= 0 ? g.heading[i] : Number.isFinite(g.hdg[i]) && Number.isFinite(sp) ? g.hdg[i] : NaN
     F.alt[k] = g.alt[i]
-    F.acc[k] = acc
+    F.acc[k] = Number.isFinite(g.acc[i]) ? g.acc[i] : 10
     F.seg[k] = seg
   }
-  // Sin velocidad del móvil: la de la cuerda entre fixes
+  F.doppler = doppler / m
+  if (F.doppler > 0.3) {
+    // Huecos de velocidad: entre dos vecinos con velocidad (a menos de 3 s), en línea recta; si no, parado
+    for (let k = 0; k < m; k++) {
+      if (F.vOk[k]) continue
+      let a = k - 1
+      let b = k + 1
+      while (a >= 0 && !F.vOk[a]) a--
+      while (b < m && !F.vOk[b]) b++
+      const okA = a >= 0 && F.seg[a] === F.seg[k] && F.t[k] - F.t[a] <= 3
+      const okB = b < m && F.seg[b] === F.seg[k] && F.t[b] - F.t[k] <= 3
+      F.v[k] = okA && okB ? F.v[a] + ((F.v[b] - F.v[a]) * (F.t[k] - F.t[a])) / (F.t[b] - F.t[a]) : 0
+    }
+  } else {
+    // Un móvil que no da velocidad nunca: la de la cuerda entre fixes, sin saltos imposibles
+    for (let k = 0; k < m; k++) {
+      const a = Math.max(0, k - 1)
+      const b = Math.min(m - 1, k + 1)
+      const d = Math.hypot(F.x[b] - F.x[a], F.y[b] - F.y[a])
+      const v = b > a ? d / (F.t[b] - F.t[a]) : 0
+      F.v[k] = Number.isFinite(F.v[k]) ? F.v[k] : d < F.acc[k] ? 0 : Math.min(v, 90)
+    }
+  }
+  // Parado: la posición baila unos metros; se queda quieta en la última buena
+  let anchor = null
   for (let k = 0; k < m; k++) {
-    if (Number.isFinite(F.v[k])) continue
-    const a = Math.max(0, k - 1)
-    const b = Math.min(m - 1, k + 1)
-    F.v[k] = b > a ? Math.hypot(F.x[b] - F.x[a], F.y[b] - F.y[a]) / (F.t[b] - F.t[a]) : 0
+    if (k && F.seg[k] !== F.seg[k - 1]) anchor = null
+    if (anchor && F.v[k] < 1 && Math.hypot(F.x[k] - anchor[0], F.y[k] - anchor[1]) < Math.max(6, F.acc[k])) [F.x[k], F.y[k]] = anchor
+    else anchor = [F.x[k], F.y[k]]
   }
   return F
+}
+
+/**
+ * Retraso del GPS respecto a los sensores (s): el desfase con el que la aceleración que marca su
+ * velocidad cuadra mejor con el acelerómetro. En el iPhone sale ~1 s (la app ya lo descuenta en las
+ * sesiones nuevas, y entonces sale ~0).
+ */
+function estimateLag(F, imu) {
+  if (imu.n < 500 || F.n < 30) return { lag: 0, r2: 0 }
+  const t0 = F.t[0]
+  const n = Math.floor((F.t[F.n - 1] - t0) / DT) + 1
+  const S = [new Float64Array(n), new Float64Array(n), new Float64Array(n)]
+  const c = new Float64Array(n)
+  for (let j = 0; j < imu.n; j++) {
+    const b = Math.round((imu.t[j] - t0) / DT)
+    if (b < 0 || b >= n || !Number.isFinite(imu.ax[j]) || !Number.isFinite(imu.ay[j]) || !Number.isFinite(imu.az[j])) continue
+    S[0][b] += imu.ax[j]
+    S[1][b] += imu.ay[j]
+    S[2][b] += imu.az[j]
+    c[b]++
+  }
+  for (const a of S) for (let b = 0; b < n; b++) a[b] = c[b] ? a[b] / c[b] : NaN
+  const Q = S.map((a) => movAvg(a, 11))
+  // Aceleración y velocidad del GPS entre fixes (con velocidad de verdad)
+  const aG = new Float64Array(n).fill(NaN)
+  const vG = new Float64Array(n).fill(NaN)
+  for (let k = 1; k < F.n; k++) {
+    const dt = F.t[k] - F.t[k - 1]
+    if (!(dt > 0.3) || dt > 1.6 || !F.vOk[k] || !F.vOk[k - 1]) continue
+    for (let b = Math.ceil((F.t[k - 1] - t0) / DT); b < (F.t[k] - t0) / DT && b < n; b++) {
+      aG[b] = (F.v[k] - F.v[k - 1]) / dt
+      vG[b] = F.v[k - 1]
+    }
+  }
+  let best = { lag: 0, r2: -1 }
+  let r0 = 0
+  for (let L = -5; L <= 20; L++) {
+    const M = Array.from({ length: 4 }, () => [0, 0, 0, 0])
+    const r = [0, 0, 0, 0]
+    let cnt = 0
+    let sy = 0
+    let syy = 0
+    for (let i = 0; i < n; i++) {
+      const j = i + L
+      if (j < 0 || j >= n || !(vG[j] > 2) || !Number.isFinite(aG[j])) continue
+      const x = [1, Q[0][i], Q[1][i], Q[2][i]]
+      if (!x.every(Number.isFinite)) continue
+      for (let a = 0; a < 4; a++) {
+        r[a] += x[a] * aG[j]
+        for (let b = 0; b < 4; b++) M[a][b] += x[a] * x[b]
+      }
+      sy += aG[j]
+      syy += aG[j] * aG[j]
+      cnt++
+    }
+    if (cnt < 200) continue
+    const sol = solveN(M, r)
+    if (!sol) continue
+    let fit = 0
+    for (let a = 0; a < 4; a++) fit += sol[a] * r[a]
+    const sst = syy - (sy * sy) / cnt
+    const r2 = sst > 0 ? (fit - (sy * sy) / cnt) / sst : 0
+    if (L === 0) r0 = r2
+    if (r2 > best.r2) best = { lag: L * DT, r2 }
+  }
+  // Solo si cuadra claramente mejor que sin desfase
+  return best.r2 > 0.3 && best.r2 > r0 + 0.03 ? best : { lag: 0, r2: Math.max(0, r0) }
+}
+
+function solveN(M, r) {
+  const n = r.length
+  const A = M.map((row, i) => [...row, r[i]])
+  for (let c = 0; c < n; c++) {
+    let p = c
+    for (let q = c + 1; q < n; q++) if (Math.abs(A[q][c]) > Math.abs(A[p][c])) p = q
+    if (Math.abs(A[p][c]) < 1e-12) return null
+    ;[A[c], A[p]] = [A[p], A[c]]
+    for (let q = 0; q < n; q++) {
+      if (q === c) continue
+      const f = A[q][c] / A[c][c]
+      for (let k = c; k <= n; k++) A[q][k] -= f * A[c][k]
+    }
+  }
+  return A.map((row, i) => row[n] / row[i])
 }
 
 /** Posición y velocidad en cada instante de `t` entre fixes (spline de Hermite). */
@@ -184,8 +295,10 @@ function trajectory(F, t) {
 
 /** Medias de cada 0,1 s del acelerómetro y el giroscopio, y la vibración (desviación de |a|). */
 function binImu(imu, t0, n) {
-  const S = Array.from({ length: 6 }, () => new Float64Array(n))
+  // 0-2 aceleración con gravedad, 3-5 giroscopio tal cual (alpha, beta, gamma), 6-8 gravedad del sistema
+  const S = Array.from({ length: 9 }, () => new Float64Array(n))
   const cnt = new Float64Array(n)
+  const cntSys = new Float64Array(n)
   const m1 = new Float64Array(n)
   const m2 = new Float64Array(n)
   for (let j = 0; j < imu.n; j++) {
@@ -198,24 +311,40 @@ function binImu(imu, t0, n) {
     S[0][b] += ax
     S[1][b] += ay
     S[2][b] += az
-    // Giro en ejes del móvil: beta sobre x, gamma sobre y, alpha sobre z (°/s)
-    S[3][b] += Number.isFinite(imu.rb[j]) ? imu.rb[j] : 0
-    S[4][b] += Number.isFinite(imu.rg[j]) ? imu.rg[j] : 0
-    S[5][b] += Number.isFinite(imu.ra[j]) ? imu.ra[j] : 0
+    S[3][b] += Number.isFinite(imu.ra[j]) ? imu.ra[j] : 0
+    S[4][b] += Number.isFinite(imu.rb[j]) ? imu.rb[j] : 0
+    S[5][b] += Number.isFinite(imu.rg[j]) ? imu.rg[j] : 0
+    if (Number.isFinite(imu.lx[j]) && Number.isFinite(imu.ly[j]) && Number.isFinite(imu.lz[j])) {
+      S[6][b] += ax - imu.lx[j]
+      S[7][b] += ay - imu.ly[j]
+      S[8][b] += az - imu.lz[j]
+      cntSys[b]++
+    }
     const mag = Math.hypot(ax, ay, az)
     m1[b] += mag
     m2[b] += mag * mag
     cnt[b]++
   }
   const vib = new Float64Array(n)
+  let sysBins = 0
+  let bins = 0
   for (let b = 0; b < n; b++) {
     const c = cnt[b]
-    for (const a of S) a[b] = c ? a[b] / c : NaN
+    for (let k = 0; k < 6; k++) S[k][b] = c ? S[k][b] / c : NaN
+    for (let k = 6; k < 9; k++) S[k][b] = cntSys[b] ? S[k][b] / cntSys[b] : NaN
+    if (c) bins++
+    if (cntSys[b]) sysBins++
     vib[b] = c > 1 ? Math.sqrt(Math.max(0, m2[b] / c - (m1[b] / c) ** 2)) : NaN
   }
   // Huecos cortos (≤ 0,5 s): se rellenan en línea recta
   for (const a of [...S, vib]) fillShortGaps(a, 5)
-  return { ax: S[0], ay: S[1], az: S[2], wx: S[3], wy: S[4], wz: S[5], vib, count: cnt }
+  const [ax, ay, az, ra, rb, rg, gx, gy, gz] = S
+  return { ax, ay, az, ra, rb, rg, gx, gy, gz, sys: bins ? sysBins / bins : 0, vib, count: cnt }
+}
+
+/** Giro en ejes del móvil (°/s) con una asignación de ejes: 'w3c' (el estándar) o 'xyz' (iPhone). */
+function gyroOf(B, axes) {
+  return axes === 'xyz' ? { wx: B.ra, wy: B.rb, wz: B.rg } : { wx: B.rb, wy: B.rg, wz: B.ra }
 }
 
 function fillShortGaps(a, maxLen) {
@@ -361,6 +490,11 @@ export function analyze(session) {
   const meta = session.meta
   if (F.n < 2) return { meta, n: 0, empty: true, events: session.ev || [] }
 
+  // El GPS al mismo reloj que los sensores
+  const hasImu = imu.n > 50
+  const lagFit = hasImu ? estimateLag(F, imu) : { lag: 0, r2: 0 }
+  if (lagFit.lag) for (let k = 0; k < F.n; k++) F.t[k] -= lagFit.lag
+
   const T0 = F.t[0]
   const n = Math.floor((F.t[F.n - 1] - T0) / DT) + 1
   const t = new Float64Array(n)
@@ -406,7 +540,6 @@ export function analyze(session) {
   const aGpsS = movAvg(aGps, 5)
 
   // Sensores
-  const hasImu = imu.n > 50
   const B = hasImu ? binImu(imu, T0, n) : null
   const mount = B ? mountFrom(B, valid, P.v, aGpsS) : null
   const info = {
@@ -419,6 +552,12 @@ export function analyze(session) {
     longFrom: 'gps',
     leanFrom: 'gps',
     yawCorr: 0,
+    gpsLag: lagFit.lag,
+    gpsLagR2: lagFit.r2,
+    appLag: meta?.calib?.gpsLag ?? 0,
+    doppler: F.doppler,
+    sysGravity: B ? B.sys : 0,
+    gyroAxes: null,
   }
 
   // G longitudinal: acelerómetro calibrado si se fía de la postura; si no, la del GPS
@@ -446,11 +585,19 @@ export function analyze(session) {
       for (let i = 0; i < n; i++) if (valid[i] && P.v[i] < 0.5 && Number.isFinite(w[i])) (s += w[i]), c++
       return c > 20 ? s / c : 0
     }
-    const wUp = new Float64Array(n)
-    for (let i = 0; i < n; i++) wUp[i] = dot([B.wx[i], B.wy[i], B.wz[i]], mount.up)
-    const bU = bias(wUp)
-    for (let i = 0; i < n; i++) wUp[i] -= bU
-    const ys = corrSign(wUp, yawGps, (i) => valid[i] && v[i] > 5)
+    // Las dos asignaciones de ejes del giroscopio: se queda la que cuadra con los giros del GPS
+    let W = null
+    let ys = { corr: -1, sign: 1 }
+    for (const axes of ['w3c', 'xyz']) {
+      const w = gyroOf(B, axes)
+      const u = new Float64Array(n)
+      for (let i = 0; i < n; i++) u[i] = dot([w.wx[i], w.wy[i], w.wz[i]], mount.up)
+      const bU = bias(u)
+      for (let i = 0; i < n; i++) u[i] -= bU
+      const c = corrSign(u, yawGps, (i) => valid[i] && v[i] > 5)
+      if (c.corr > ys.corr) (ys = c), (W = { ...w, up: u }), (info.gyroAxes = axes)
+    }
+    const wUp = W.up
     info.yawCorr = ys.corr
     if (ys.corr > 0.3) {
       yaw = new Float64Array(n)
@@ -458,7 +605,7 @@ export function analyze(session) {
       info.leanFrom = 'gyro'
       if (mount.fwd) {
         roll = new Float64Array(n)
-        for (let i = 0; i < n; i++) roll[i] = dot([B.wx[i], B.wy[i], B.wz[i]], mount.fwd)
+        for (let i = 0; i < n; i++) roll[i] = dot([W.wx[i], W.wy[i], W.wz[i]], mount.fwd)
         const bR = bias(roll)
         for (let i = 0; i < n; i++) roll[i] -= bR
       }
@@ -472,7 +619,8 @@ export function analyze(session) {
     const w = Number.isFinite(yaw[i]) ? yaw[i] * RAD : 0
     const lat = (v[i] * w) / G
     const phi = info.leanFrom === 'gyro' ? Math.asin(clamp(lat, -0.97, 0.97)) : Math.atan(lat)
-    leanDyn[i] = Number.isFinite(phi) ? phi * smoothstep(2, 6, v[i]) : 0
+    // Con el rumbo del GPS, despacio el giro es ruido: solo a partir de ~15-30 km/h
+    leanDyn[i] = Number.isFinite(phi) ? phi * (info.leanFrom === 'gyro' ? smoothstep(2, 6, v[i]) : smoothstep(4, 8, v[i])) : 0
   }
   let lean = leanDyn
   if (roll) {
@@ -485,6 +633,42 @@ export function analyze(session) {
       lean = complementary(leanDyn, p, valid, 0.6)
       info.leanFrom = 'gyro+roll'
       info.rollCorr = rs.corr
+    }
+  }
+
+  // Con la gravedad que calcula el propio móvil (acelerómetro + giroscopio fusionados por el sistema),
+  // la inclinación es directa: el giro de la vertical del mundo alrededor del eje de avance. Vale a
+  // cualquier velocidad. El sentido se comprueba con los giros del GPS.
+  if (B && B.sys > 0.5 && mount) {
+    let su = [0, 0, 0]
+    let cu = 0
+    for (let pass = 0; pass < 2 && !cu; pass++)
+      for (let i = 0; i < n; i++) {
+        if (!valid[i] || !(v[i] > 8) || !Number.isFinite(B.gx[i])) continue
+        if (pass === 0 && !(Math.abs(yawGps[i]) < 3)) continue
+        const g = norm([B.gx[i], B.gy[i], B.gz[i]])
+        su = [su[0] + g[0], su[1] + g[1], su[2] + g[2]]
+        cu++
+      }
+    if (cu > 50) {
+      const U = norm(su)
+      const ortho = (a) => {
+        const d = dot(a, U)
+        return norm([a[0] - d * U[0], a[1] - d * U[1], a[2] - d * U[2]])
+      }
+      const angle = { 'landscape-primary': 90, 'portrait-secondary': 180, 'landscape-secondary': 270 }[meta?.device?.orientation] ?? 0
+      const R = mount.fwd ? norm(cross(ortho(mount.fwd), U)) : ortho(screenRight(angle))
+      const lg = new Float64Array(n).fill(NaN)
+      for (let i = 0; i < n; i++) if (Number.isFinite(B.gx[i])) lg[i] = Math.atan2(dot([B.gx[i], B.gy[i], B.gz[i]], R), dot([B.gx[i], B.gy[i], B.gz[i]], U))
+      const rs = corrSign(lg, yawGps, (i) => valid[i] && v[i] > 6 && Math.abs(yawGps[i]) > 3)
+      if (rs.corr > 0.3) {
+        const sm = movAvg(lg, 3)
+        lean = new Float64Array(n)
+        for (let i = 0; i < n; i++) lean[i] = Number.isFinite(sm[i]) ? rs.sign * sm[i] : leanDyn[i]
+        info.leanFrom = 'gravity'
+        info.leanCorr = rs.corr
+        info.mount.upSys = U
+      }
     }
   }
 
@@ -534,7 +718,8 @@ export function analyze(session) {
     A.v[i] = v[i]
     A.lean[i] = lean[i] / RAD
     A.gLong[i] = aLong[i] / G
-    A.gLat[i] = Math.tan(clamp(leanDyn[i], -1.4, 1.4)) // + derecha
+    // G lateral de la curva (+ derecha): en una curva redonda, tan φ; parado no la hay
+    A.gLat[i] = Math.tan(clamp(lean[i], -1.2, 1.2)) * smoothstep(3, 8, v[i])
     A.alt[i] = alt[i]
     A.hdg[i] = hdg[i]
     A.yaw[i] = yaw[i]

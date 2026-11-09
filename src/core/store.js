@@ -34,8 +34,15 @@ const DEFAULTS = {
   visible: true,
   timerMode: 'k0-100',
   raceMode: '1/4',
+  // Calibración del inclinómetro (core/telemetry.js). leanZero y gyroSign son de antes y ya no se usan.
   leanZero: null,
   gyroSign: null,
+  mount: null, // postura del móvil en el soporte: { up, right, angle, fwd, S, W, N }
+  leanSign: null,
+  gyroAxes: null, // 'w3c' | 'xyz'
+  yawSign: null,
+  gravConv: null,
+  gpsLag: null, // s; si no, 1 en iPhone y 0 en el resto
   onboarded: false,
   logTelemetry: true,
   cloudSync: true,
@@ -50,6 +57,7 @@ const DEFAULTS = {
   voiceRate: 1.05,
   voiceEvents: {},
   speedAlerts: [],
+  voiceMusic: 'duck', // cómo convive con la música: duck | pause | mix (core/voice.js)
 }
 
 export const settings = { ...DEFAULTS, ...load('settings', {}) }

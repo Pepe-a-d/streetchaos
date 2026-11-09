@@ -1,9 +1,12 @@
 // Sonidos chiptune generados con WebAudio (onda cuadrada, nada de archivos)
 import { settings } from './store.js'
+import { applyAudioSession } from './voice.js'
 
 let ctx = null
 
 export function unlockAudio() {
+  // Antes de crear el sonido: que no le quite el audio a la música (ver voice.js)
+  applyAudioSession()
   try {
     ctx ??= new (window.AudioContext || window.webkitAudioContext)()
     if (ctx.state === 'suspended') ctx.resume()

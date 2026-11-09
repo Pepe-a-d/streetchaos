@@ -4,12 +4,14 @@ import * as maplibregl from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { CHANNELS, rampColor } from './channels.js'
+import { pal, isLight, contrast, halo } from './palette.js'
 
 // MapLibre 6 busca su worker junto a su archivo, que Vite mueve
 maplibregl.setWorkerUrl(workerUrl)
 
-// CARTO Dark Matter (gratis, sin clave) repintado con los morados de la app
+// CARTO (gratis, sin clave): Dark Matter repintado con el tono del tema, o Positron con un tema claro
 const STYLE_URL = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+const STYLE_LIGHT = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 const BUCKETS = 32
 const FONT = ['Montserrat SemiBold', 'Open Sans Bold', 'Noto Sans Regular']
 
@@ -23,7 +25,19 @@ function parseColor(c) {
   return m ? [+m[1], +m[2], +m[3], m[4] == null ? 1 : +m[4]] : null
 }
 
-// Los grises pasan a violetas de la misma luminosidad
+/** Tono (0-360) de un color, para teñir los grises del mapa con el del tema. */
+function hueOf(c) {
+  const [r, g, b] = (parseColor(c) || [58, 42, 122]).map((x) => x / 255)
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  if (max === min) return 0
+  const d = max - min
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  return Math.round(((h * 60) + 360) % 360)
+}
+let HUE = 258
+
+// Los grises pasan al tono del tema con la misma luminosidad
 function tint(value) {
   if (typeof value === 'string') {
     const c = parseColor(value)
@@ -33,7 +47,7 @@ function tint(value) {
     const min = Math.min(r, g, b)
     if (max - min > 40) return value
     const l = (max + min) / 510
-    return `hsla(258, ${Math.round(18 + 20 * (1 - l))}%, ${(l * 92).toFixed(1)}%, ${a})`
+    return isLight() ? `hsla(${HUE}, ${Math.round(10 + 12 * l)}%, ${(l * 98).toFixed(1)}%, ${a})` : `hsla(${HUE}, ${Math.round(18 + 20 * (1 - l))}%, ${(l * 92).toFixed(1)}%, ${a})`
   }
   if (Array.isArray(value)) return value.map(tint)
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, tint(v)]))
@@ -42,16 +56,17 @@ function tint(value) {
 
 async function loadStyle() {
   try {
-    const st = await (await fetch(STYLE_URL)).json()
+    HUE = hueOf(pal('line'))
+    const st = await (await fetch(isLight() ? STYLE_LIGHT : STYLE_URL)).json()
     for (const l of st.layers) {
       if (l.paint) l.paint = tint(l.paint)
-      if (l.id === 'background') l.paint['background-color'] = '#0a0618'
-      if (l.id === 'water') l.paint['fill-color'] = '#0b0a26'
+      if (l.id === 'background') l.paint['background-color'] = pal('bg')
+      if (l.id === 'water') l.paint['fill-color'] = pal('bg2')
     }
     return st
   } catch {
     // Sin conexión: fondo liso, la traza se ve igual
-    return { version: 8, glyphs: undefined, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#0a0618' } }] }
+    return { version: 8, glyphs: undefined, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': pal('bg') } }] }
   }
 }
 
@@ -81,9 +96,9 @@ export async function createMap(el, { onHover, onPick }) {
   map.addSource('cursor', { type: 'geojson', data: empty })
   map.addSource('marks', { type: 'geojson', data: empty })
   const inside = ['case', ['get', 'in'], 1, 0.22]
-  map.addLayer({ id: 'track-case', type: 'line', source: 'track', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#000', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 16, 9], 'line-opacity': inside } })
+  map.addLayer({ id: 'track-case', type: 'line', source: 'track', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': halo(), 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 16, 9], 'line-opacity': inside } })
   map.addLayer({ id: 'track', type: 'line', source: 'track', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 16, 5.5], 'line-opacity': inside } })
-  map.addLayer({ id: 'marks-dot', type: 'circle', source: 'marks', filter: ['!=', ['get', 'kind'], 'corner'], paint: { 'circle-radius': 5, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#000', 'circle-stroke-width': 2 } })
+  map.addLayer({ id: 'marks-dot', type: 'circle', source: 'marks', filter: ['!=', ['get', 'kind'], 'corner'], paint: { 'circle-radius': 5, 'circle-color': ['get', 'color'], 'circle-stroke-color': halo(), 'circle-stroke-width': 2 } })
   if (hasGlyphs)
     map.addLayer({
       id: 'marks-label',
@@ -92,16 +107,16 @@ export async function createMap(el, { onHover, onPick }) {
       minzoom: 0,
       filter: ['any', ['!=', ['get', 'kind'], 'corner'], ['>=', ['zoom'], 13.5]],
       layout: { 'text-field': ['get', 'label'], 'text-font': FONT, 'text-size': ['case', ['==', ['get', 'kind'], 'corner'], 10, 11], 'text-offset': [0, -1.2], 'text-anchor': 'bottom', 'text-allow-overlap': false },
-      paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#000', 'text-halo-width': 1.5 },
+      paint: { 'text-color': ['get', 'color'], 'text-halo-color': halo(), 'text-halo-width': 1.5 },
     })
   // Comparación: la otra pasada encima, verde donde gana tiempo y roja donde lo pierde
   map.addSource('cmp', { type: 'geojson', data: empty, tolerance: 0 })
   map.addSource('cmp-cursor', { type: 'geojson', data: empty })
-  map.addLayer({ id: 'cmp-case', type: 'line', source: 'cmp', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#000', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 16, 7] } })
+  map.addLayer({ id: 'cmp-case', type: 'line', source: 'cmp', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': halo(), 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 16, 7] } })
   map.addLayer({ id: 'cmp', type: 'line', source: 'cmp', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.6, 16, 3.5], 'line-dasharray': [2, 1] } })
-  map.addLayer({ id: 'cmp-cursor', type: 'circle', source: 'cmp-cursor', paint: { 'circle-radius': 5, 'circle-color': '#ff2e88', 'circle-stroke-color': '#000', 'circle-stroke-width': 2 } })
-  map.addLayer({ id: 'cursor-halo', type: 'circle', source: 'cursor', paint: { 'circle-radius': 12, 'circle-color': '#fff', 'circle-opacity': 0.18 } })
-  map.addLayer({ id: 'cursor', type: 'circle', source: 'cursor', paint: { 'circle-radius': 5.5, 'circle-color': '#fff', 'circle-stroke-color': '#000', 'circle-stroke-width': 2 } })
+  map.addLayer({ id: 'cmp-cursor', type: 'circle', source: 'cmp-cursor', paint: { 'circle-radius': 5, 'circle-color': pal('pink'), 'circle-stroke-color': halo(), 'circle-stroke-width': 2 } })
+  map.addLayer({ id: 'cursor-halo', type: 'circle', source: 'cursor', paint: { 'circle-radius': 12, 'circle-color': contrast(), 'circle-opacity': 0.18 } })
+  map.addLayer({ id: 'cursor', type: 'circle', source: 'cursor', paint: { 'circle-radius': 5.5, 'circle-color': contrast(), 'circle-stroke-color': halo(), 'circle-stroke-width': 2 } })
 
   let A = null
 
