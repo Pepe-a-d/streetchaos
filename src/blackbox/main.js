@@ -201,11 +201,8 @@ async function importText(text, from) {
   const parsed = parseExport(text)
   const r = await addSessions(parsed.sessions, from)
   // Importadas a mano: ya no cuentan como borradas, y su análisis se rehace si crecieron
-  for (const x of parsed.sessions) {
-    const id = x.meta?.id
-    if (deleted.delete(id)) saveDeleted()
-    refreshAnalysis(id)
-  }
+  for (const x of parsed.sessions) if (deleted.delete(x.meta?.id)) saveDeleted()
+  for (const id of r.changed) refreshAnalysis(id, { reopen: true })
   await refreshList()
   const parts = []
   if (r.added) parts.push(`${r.added} nueva${r.added > 1 ? 's' : ''}`)
@@ -291,6 +288,7 @@ const nextFrame = () => new Promise((r) => setTimeout(r, 30))
 async function open(id, { range, cur } = {}) {
   if (S.cmp) exitCompare()
   rememberPlace()
+  if (S.staleId === id) (S.staleId = null), cache.delete(id)
   K('busy').hidden = false
   await nextFrame()
   try {
@@ -967,18 +965,26 @@ addEventListener('keydown', (e) => {
 
 // ---------- Análisis en caché (comparar y tramos miran varias salidas) ----------
 const cache = new Map()
-/** Una salida ha cambiado (más larga): fuera su análisis, y si es la abierta se vuelve a abrir donde estabas. */
-function refreshAnalysis(id) {
+/**
+ * Una salida ha cambiado (más larga): fuera su análisis. Si es la que tienes abierta, solo se vuelve a
+ * abrir si lo has pedido tú (al importarla); si llega sola de la nube, se avisa y se abre al volver a
+ * pulsarla. Antes se reabría sola y, con un fallo de tamaños, cada minuto: la página parecía recargarse.
+ */
+function refreshAnalysis(id, { reopen = false } = {}) {
   if (!id) return
   cache.delete(id)
-  if (id === S.id && S.A) {
+  if (id !== S.id || !S.A) return
+  if (reopen) {
     rememberPlace()
     S.A = null
     open(id)
+  } else if (S.staleId !== id) {
+    S.staleId = id
+    toast('Ha llegado más de esta salida: púlsala en la lista para verla entera', 6000)
   }
 }
 async function analysisOf(id) {
-  if (S.A && S.id === id) return S.A
+  if (S.A && S.id === id && S.staleId !== id) return S.A
   if (cache.has(id)) return cache.get(id)
   const data = await loadSession(id)
   if (!data) return null
@@ -1562,39 +1568,50 @@ async function syncProfile() {
 }
 
 let syncing = null
-function cloudSync() {
+function cloudSync({ quiet = false } = {}) {
   syncing ??= (async () => {
     if (!getKey() || !cloudAvailable()) return renderCloud()
-    renderCloud('Mirando si hay salidas nuevas…', 'busy')
+    // La de cada minuto va callada: no se toca la pantalla salvo que llegue algo
+    if (!quiet) renderCloud('Mirando si hay salidas nuevas…', 'busy')
     try {
       await syncProfile()
       const remote = await listRemote()
       const have = new Map(S.list.map((m) => [m.id, m]))
+      // Lo que la nube tiene de cada salida (remoteBytes) se apunta al bajarla: así no se vuelve a bajar
+      // la misma cada minuto aunque el tamaño guardado aquí no coincida con el de la ficha de la nube
       const todo = remote.filter((r) => {
         if (deleted.has(r.id)) return false
         const h = have.get(r.id)
-        return !h || (h.bytes ?? 0) < (r.meta?.bytes ?? 0)
+        return !h || (h.remoteBytes ?? h.bytes ?? 0) < (r.meta?.bytes ?? 0)
       })
       let n = 0
       let failed = 0
+      let fetched = 0
       for (const r of todo) {
         renderCloud(`Bajando ${++n} de ${todo.length}…`, 'busy')
         // Una salida rota no para las demás (antes atascaba la sincronización para siempre)
         try {
           const sess = await fetchRemote(r.id)
-          await addSessions([sess], 'nube')
-          if (!have.has(r.id)) S.fresh.add(r.id)
-          else refreshAnalysis(r.id)
-          cache.delete(r.id)
+          const res = await addSessions([sess], 'nube')
+          const meta = (await listSessions()).find((m) => m.id === r.id)
+          if (meta) await updateMeta({ ...meta, remoteBytes: r.meta?.bytes ?? 0 })
+          // Solo cuenta (y se repinta) si es nueva o ha crecido de verdad
+          if (!have.has(r.id)) (S.fresh.add(r.id), fetched++)
+          else if (res.grown) (refreshAnalysis(r.id), fetched++)
         } catch (e) {
           failed++
           console.warn('No se pudo bajar', r.id, e)
         }
       }
-      await refreshList()
+      // La lista solo se repinta si ha llegado algo (repintarla cada minuto parecía una recarga)
+      if (fetched || failed) await refreshList()
       lastSync = Date.now()
-      const ok = todo.length - failed
-      renderCloud(failed ? `${failed} no se ${failed === 1 ? 'pudo' : 'pudieron'} bajar: se reintenta en un minuto` : ok ? `${ok} ${ok === 1 ? 'salida nueva' : 'salidas nuevas'}` : `Al día · ${remote.length} en la nube · ${fmtClock(lastSync).slice(0, 5)}`)
+      const ok = fetched
+      const status = failed ? `${failed} no se ${failed === 1 ? 'pudo' : 'pudieron'} bajar: se reintenta en un minuto` : ok ? `${ok} ${ok === 1 ? 'salida nueva' : 'salidas nuevas'}` : `Al día · ${remote.length} en la nube · ${fmtClock(lastSync).slice(0, 5)}`
+      // Sin novedades, solo cambia el texto del estado (nada se repinta)
+      const small = K('cloud').querySelector('.linked small')
+      if (quiet && !ok && !failed && small) (small.textContent = status), renderSync(status)
+      else renderCloud(status)
       if (ok > 0) toast(`${ok === 1 ? 'Ha llegado una salida nueva' : `Han llegado ${ok} salidas nuevas`} de tu móvil`)
     } catch (e) {
       renderCloud(`No se pudo: ${e.message}`, 'err')
@@ -1605,8 +1622,8 @@ function cloudSync() {
 
 // Sola: cada minuto mientras se ve la página, y al volver a ella
 let lastSync = 0
-setInterval(() => document.visibilityState === 'visible' && getKey() && cloudSync(), 60000)
-document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && getKey() && Date.now() - lastSync > 15000 && cloudSync())
+setInterval(() => document.visibilityState === 'visible' && getKey() && cloudSync({ quiet: true }), 60000)
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && getKey() && Date.now() - lastSync > 15000 && cloudSync({ quiet: true }))
 
 // ---------- CSV ----------
 function exportCsv() {

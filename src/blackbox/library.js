@@ -150,18 +150,20 @@ export async function addSessions(sessions, from) {
   const have = new Map((await listSessions()).map((m) => [m.id, m]))
   let added = 0
   let grown = 0
+  const changed = []
   for (const s of sessions) {
     const old = have.get(s.meta.id)
     if (old && old.size >= size(s)) continue
     if (old) grown++
     else added++
+    changed.push(s.meta.id)
     const meta = { ...s.meta, size: size(s), from, importedAt: Date.now(), nEv: s.ev.length, nRuns: s.ev.filter((e) => e.type === 'run').length, bbox: gpsBbox(s.gps) }
     await run(['meta', 'data'], 'readwrite', (tx) => {
       tx.objectStore('meta').put(meta)
       tx.objectStore('data').put({ id: s.meta.id, gps: s.gps, imu: s.imu, calc: s.calc, ev: s.ev })
     })
   }
-  return { added, grown, skipped: sessions.length - added - grown }
+  return { added, grown, changed, skipped: sessions.length - added - grown }
 }
 
 export async function loadSession(id) {
