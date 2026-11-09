@@ -25,6 +25,14 @@ jobs:
       - name: Dependencias de la app
         working-directory: desktop
         run: npm ci
+      # La versión se crea antes: si no, el instalador y la portable la crean a la vez y salen dos
+      - name: Crear la versión en Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          V=$(node -p "require('./desktop/package.json').version")
+          gh release view "v$V" > /dev/null 2>&1 || gh release create "v$V" --title "$V" --notes "Blackbox Street Chaos $V para Windows. Descarga el instalador (se actualiza solo) o la versión portable."
       - name: Construir y publicar
         working-directory: desktop
         env:
