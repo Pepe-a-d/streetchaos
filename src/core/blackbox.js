@@ -46,7 +46,7 @@ const newId = (epoch) => epoch.toString(36) + Math.random().toString(36).slice(2
  * @param {() => object} [o.context]   datos fijos de la sesión (móvil, calibración, fuente...)
  * @param {() => number[] | null} [o.snapshot]  [v, gLong, gLat, lean°] que calcula la app ahora mismo
  */
-export function createLogger({ store, now, enabled = () => true, context = () => ({}), snapshot = () => null, onEnd = () => {}, rules = RULES }) {
+export function createLogger({ store, now, enabled = () => true, context = () => ({}), snapshot = () => null, onStart = () => {}, onEnd = () => {}, rules = RULES }) {
   const S = {
     ready: false,
     on: false,
@@ -168,6 +168,7 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
     S.lastFlush = perf
     const m = { ...S.sess, rows: { ...S.sess.rows } }
     queue(() => store.putMeta(m))
+    onStart(m)
   }
 
   function pack(k, flat) {

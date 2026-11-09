@@ -7,6 +7,8 @@ import { sfx } from '../core/audio.js'
 import { $, layer, setter, esc, segPad, toSpeed, speedUnit, fmtT } from './util.js'
 import { drawBike, BIKE_W, BIKE_H } from './pixel.js'
 import { logEvent } from '../core/logger.js'
+import { say, spoken } from '../core/voice.js'
+import { checkAchievements } from '../core/achievements.js'
 
 export function modeLabel(id) {
   const m = RACE_MODES[id]
@@ -245,6 +247,21 @@ export function openRace({ modeId, opp, online = null, onRematch = null }) {
     )
     addRace({ mode: modeId, opp: { name: opp.name, bike: opp.bike, kind: opp.kind }, me, them: op, win: r.win })
     logEvent('race', { mode: modeId, opp: opp.kind, win: r.win, me, them: op })
+    say(
+      r.win
+        ? r.why === 'their-foul'
+          ? 'Ganas. El rival salió antes de tiempo'
+          : r.why === 'dnf'
+            ? 'Ganas. El rival no llegó'
+            : `Victoria por ${spoken(r.margin)} segundos`
+        : me.foul
+          ? 'Salida nula'
+          : r.why === 'dnf'
+            ? 'No llegaste a meta'
+            : `Derrota por ${spoken(r.margin)} segundos`,
+      { kind: 'duel', urgent: true },
+    )
+    checkAchievements()
     if (race.rec.result?.valid) addRun({ ...race.rec.result, race: modeId })
     $(resultEl, '[data-k="out"]').onclick = () => (sfx.click(), close())
     const again = $(resultEl, '[data-k="again"]')

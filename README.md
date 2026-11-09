@@ -7,7 +7,7 @@ Web app (PWA) para llevar en la moto: dashboard por GPS, cronómetro de acelerac
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # tests del cronometraje, la telemetría y la caja negra
+npm test           # tests del cronometraje, la telemetría, la caja negra, el Blackbox y los logros
 npm run build      # versión de producción en dist/
 ```
 
@@ -18,6 +18,8 @@ Sin moverte: **Garaje → Fuente GPS → Simulador**. Aparecen los mandos GAS / 
 ## Pantallas
 
 - **DASH**: varias pantallas que se pasan deslizando (de fábrica CARRETERA, CIRCUITO y MINIMA), hechas con bloques: velocímetro, inclinómetro, círculo G, inclinación y G en número con barra, hora, brújula, gráficas de velocidad (1 min) y de altitud (10 min), viaje, tiempo, media, punta, máximos, altitud, rumbo, total, récords, última pasada, GPS y caja negra. **EDITAR** (abajo a la derecha) deja añadir bloques desde un catálogo con vista previa en vivo, tocar uno para cambiar su medida o quitarlo, arrastrarlo para moverlo, y en PANTALLAS renombrar, ordenar, borrar o crear pantallas desde plantillas (también VIAJE). La rejilla es de 6×8 casillas en vertical y 12×4 en horizontal; los bloques se colocan solos en orden (`src/ui/dash.js`, `src/ui/widgets.js`) y el editor avisa si algo no cabe en una orientación.
+- **Voz** (Garaje → Voz): la app habla con la voz en español del móvil, por donde suene (el intercomunicador del casco si está conectado): el tiempo de cada pasada y si es récord, el resultado de los duelos, avisos al pasar de las velocidades que elijas, GPS perdido y recuperado, cuándo empieza y guarda la caja negra, los logros y, si se activa, los grados al salir de las curvas fuertes. Cada aviso se puede apagar (`src/core/voice.js`, `src/core/announcer.js`). En iPhone la voz se desbloquea con el primer toque.
+- **Logros y nivel** (Garaje → Logros): 30 medallas pixel de bronce, plata y oro por distancia, horas en marcha, noche, velocidad, inclinación, G, crono, duelos y caja negra, con su avance. La experiencia (logros + km + pasadas + victorias) da el nivel, de NOVATO a LEYENDA; al desbloquear sale un cartel con fanfarria y voz (`src/core/achievements.js`, `src/ui/medals.js`, `src/ui/unlock.js`). Lo que ya tenías hecho se apunta sin fiesta la primera vez.
 - **Apariencia** (Garaje): temas de color para toda la app (SYNTHWAVE, LCD VERDE, AMBAR, TOKIO, CARRERAS, OCASO y SOL, claro y sin sombras para leer a pleno sol), números del DASH en LCD, PIXEL o LIMPIO, el color de tu moto como acento y el efecto CRT (`src/ui/themes.js`: cada tema redefine las variables de color de `style.css`).
 - **CRONO**: se arma solo al parar la moto y cronometra al salir. Una pasada mide a la vez 0-50/100/150/200, 100-200, 60 ft, 330 ft, 1/8 de milla, 1000 ft y 1/4 de milla con velocidad de trampa. Rollout de 1 pie opcional. Récords y ticket de cada pasada.
 - **VS**: radar de pilotos cercanos (radio 0,5 / 1,5 / 3 km), retos a 1/8, 1/4 o 0-100, y duelos contra la CPU (4 clases de moto inventadas) o contra tu fantasma (tu mejor pasada).

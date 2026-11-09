@@ -6,8 +6,11 @@ import { isStandalone } from './device.js'
 
 let L = null
 const endSubs = new Set()
+const startSubs = new Set()
 /** Cuando se cierra una sesión (para subirla). */
 export const onSessionEnd = (fn) => (endSubs.add(fn), () => endSubs.delete(fn))
+/** Cuando empieza a grabar una salida nueva. */
+export const onSessionStart = (fn) => (startSubs.add(fn), () => startSubs.delete(fn))
 
 export function initLogger() {
   if (L || typeof indexedDB === 'undefined') return L
@@ -28,6 +31,7 @@ export function initLogger() {
       },
     }),
     snapshot: () => [T.vDisp, T.gLong, T.gLat, (T.lean * 180) / Math.PI],
+    onStart: (meta) => startSubs.forEach((fn) => fn(meta)),
     onEnd: (meta) => endSubs.forEach((fn) => fn(meta)),
   })
   onSample((s) => L.gps(s))

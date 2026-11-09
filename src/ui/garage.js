@@ -16,6 +16,9 @@ import { bikeSvg, pixelSvg } from './pixel.js'
 import { editRider } from './title.js'
 import { RACE_MODES } from '../core/race.js'
 import { THEMES, DIGITS, themeOf, themeStyle } from './themes.js'
+import { ACHIEVEMENTS, TIERS, unlocked, progress, stats, level } from '../core/achievements.js'
+import { voiceAvailable, spanishVoices, VOICE_EVENTS, VOICE_DEFAULTS, SPEED_STEPS, say } from '../core/voice.js'
+import { medalSvg } from './medals.js'
 
 const ARROW = pixelSvg(['X....', 'XX...', 'XXX..', 'XXXX.', 'XXX..', 'XX...', 'X....'], { X: 'currentColor' }, { className: 'px-arrow' })
 const BACK = pixelSvg(['....X', '...XX', '..XXX', '.XXXX', '..XXX', '...XX', '....X'], { X: 'currentColor' }, { className: 'px-arrow' })
@@ -41,6 +44,15 @@ const ITEMS = [
       return races.length ? `${w} ganados · ${races.length - w} perdidos` : 'Ninguno todavía'
     },
   },
+  {
+    id: 'trophies',
+    title: 'LOGROS',
+    sub: () => {
+      const lv = level()
+      return `Nivel ${lv.n} · ${lv.rank.toLowerCase()} · ${ACHIEVEMENTS.filter((a) => unlocked[a.id]).length}/${ACHIEVEMENTS.length}`
+    },
+  },
+  { id: 'voice', title: 'VOZ', sub: () => (settings.voice ? 'Te habla por el casco' : 'Apagada') },
   { id: 'look', title: 'APARIENCIA', sub: () => `Tema ${themeOf(settings.theme).name.toLowerCase()} · pantallas del DASH` },
   { id: 'settings', title: 'AJUSTES', sub: () => 'Unidades, sonido, crono, radar' },
   { id: 'perms', title: 'PERMISOS', sub: () => (T.status === 'ok' ? 'GPS OK' : 'GPS sin señal') + (T.motion ? ' · movimiento OK' : '') },
@@ -62,7 +74,7 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
         <div class="g-side">
           <div class="panel me-card">
             ${bikeSvg(settings.color)}
-            <div class="me-who"><b>${esc(settings.name || 'PILOTO')}</b><span>${esc(settings.bike || 'Sin moto')}</span><button class="btn small" data-act="edit">EDITAR</button></div>
+            <div class="me-who"><b>${esc(settings.name || 'PILOTO')}</b><span>${esc(settings.bike || 'Sin moto')}</span>${lvBadge()}<button class="btn small" data-act="edit">EDITAR</button></div>
           </div>
           <nav class="panel menu">
             ${ITEMS.map((i) => `<button class="mi ${page === i.id ? 'on' : ''}" data-sub="${i.id}"><span class="cur">${ARROW}</span><span class="mi-t">${i.title}</span><span class="mi-s">${esc(i.sub())}</span></button>`).join('')}
@@ -123,6 +135,10 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
   // Mientras se ve la página, el estado de la subida al día
   onCloud(() => sub === 'data' && fillTele())
 
+  const lvBadge = () => {
+    const lv = level()
+    return `<button class="lv-badge" data-sub="trophies"><span>NV ${lv.n} · ${lv.rank}</span><i><b style="width:${Math.round(lv.frac * 100)}%"></b></i></button>`
+  }
   const onOff = (key, label, small = '') =>
     `<div class="set"><span>${label}${small ? `<small>${small}</small>` : ''}</span><button class="chip ${settings[key] ? 'on' : ''}" data-toggle="${key}">${settings[key] ? 'SI' : 'NO'}</button></div>`
   const pick = (key, label, opts, small = '') =>
@@ -198,6 +214,70 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
               ? pick('simHz', 'GPS simulado', [[1, '1 HZ'], [5, '5 HZ'], [10, '10 HZ']], 'Los móviles suelen dar 1 Hz') +
                 pick('simBike', 'Moto simulada', Object.values(BIKES).map((b) => [b.id, b.name.split(' ')[0]]))
               : ''),
+        ),
+      ].join('')
+    },
+    trophies() {
+      const lv = level()
+      const s = stats()
+      const got = ACHIEVEMENTS.filter((a) => unlocked[a.id]).length
+      const CATS = [
+        ['km', 'DISTANCIA'],
+        ['time', 'TIEMPO'],
+        ['night', 'NOCHE'],
+        ['speed', 'VELOCIDAD'],
+        ['lean', 'INCLINACION'],
+        ['g', 'FUERZA G'],
+        ['crono', 'CRONO'],
+        ['duel', 'DUELOS'],
+        ['box', 'CAJA NEGRA'],
+      ]
+      const fmt = (a, v) => (v == null ? '—' : a.unit === 's' ? v.toFixed(2) : a.unit === 'g' ? v.toFixed(2) : a.unit === 'h' ? v.toFixed(1) : String(Math.floor(v)))
+      const card = (a) => {
+        const [v, goal, done] = progress(a, s)
+        const frac = done ? 1 : a.less ? (v == null ? 0 : Math.max(0, Math.min(1, goal / v))) : Math.max(0, Math.min(1, (v ?? 0) / goal))
+        return `<div class="trophy ${done ? 'got' : ''} t-${a.tier}">
+          ${medalSvg(a.cat, a.tier, !done)}
+          <div class="tr-txt"><b>${esc(a.title)}</b><small>${esc(a.desc)}</small>
+          ${done ? `<span class="tr-when">${TIERS[a.tier].name} · ${fmtDate(unlocked[a.id] || Date.now())}</span>` : `<span class="tr-bar"><i style="width:${Math.round(frac * 100)}%"></i></span><span class="tr-prog">${fmt(a, v)} / ${a.less ? '<' : ''}${goal} ${a.unit}</span>`}</div>
+        </div>`
+      }
+      return `<div class="lv-card">
+          ${medalSvg('star', lv.n >= 9 ? 'g' : lv.n >= 5 ? 's' : 'b', false, 'medal big')}
+          <div><span class="lbl">NIVEL ${lv.n}</span><b>${lv.rank}</b>
+          <span class="tr-bar"><i style="width:${Math.round(lv.frac * 100)}%"></i></span>
+          <small>${lv.xp} XP${lv.to ? ` · ${lv.to - lv.xp} para el nivel ${lv.n + 1}` : ' · nivel máximo'} · ${got}/${ACHIEVEMENTS.length} logros</small></div>
+        </div>
+        <p class="tip">La experiencia sale de los logros (bronce 10, plata 25, oro 50), de cada km, de cada pasada (3) y de cada duelo ganado (8). Los de inclinación, G y crono, en circuito.</p>
+        ${CATS.map(([c, name]) => {
+          const list = ACHIEVEMENTS.filter((a) => a.cat === c)
+          return list.length ? group(name, `<div class="trophies">${list.map(card).join('')}</div>`) : ''
+        }).join('')}`
+    },
+    voice() {
+      if (!voiceAvailable()) return '<p class="empty-note">Este navegador no tiene voz.</p>'
+      const ev = { ...VOICE_DEFAULTS, ...settings.voiceEvents }
+      const voices = spanishVoices()
+      const steps = SPEED_STEPS[settings.units === 'mph' ? 'mph' : 'kmh']
+      const alerts = settings.speedAlerts || []
+      return [
+        group(
+          'VOZ',
+          onOff('voice', 'Que la app hable', 'Suena por donde suene el móvil: el intercomunicador del casco si está conectado') +
+            (voices.length > 1
+              ? `<div class="set"><span>Voz<small>Las voces en español de tu móvil</small></span><select class="vsel" data-k="voiceName">${voices.map((v) => `<option value="${esc(v.voiceURI)}" ${v.voiceURI === settings.voiceName ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select></div>`
+              : '') +
+            pick('voiceRate', 'Rapidez', [
+              [0.9, 'LENTA'],
+              [1.05, 'NORMAL'],
+              [1.25, 'RAPIDA'],
+            ]) +
+            `<div class="set"><span>Probar<small>Si no oyes nada, sube el volumen del móvil o del casco</small></span><button class="btn small cyan" data-act="voiceTest">PROBAR</button></div>`,
+        ),
+        group('QUE DICE', VOICE_EVENTS.map(([k, label, small]) => `<div class="set"><span>${label}<small>${small}</small></span><button class="chip ${ev[k] ? 'on' : ''}" data-vev="${k}">${ev[k] ? 'SI' : 'NO'}</button></div>`).join('')),
+        group(
+          'AVISOS DE VELOCIDAD',
+          `<p class="tip">Dice la velocidad al pasar de cada una que marques (sube y vuelve a avisar al bajar 5 por debajo).</p><div class="chips">${steps.map((v) => `<button class="chip ${alerts.includes(v) ? 'on' : ''}" data-alert="${v}">${v}</button>`).join('')}</div>`,
         ),
       ].join('')
     },
@@ -281,6 +361,16 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
     },
   }
 
+  // Las voces del móvil llegan un poco después de abrir la app
+  if (voiceAvailable()) speechSynthesis.addEventListener?.('voiceschanged', () => sub === 'voice' && render())
+
+  el.addEventListener('change', (e) => {
+    if (e.target.dataset.k === 'voiceName') {
+      setSetting('voiceName', e.target.value)
+      say('Así suena esta voz', { force: true, urgent: true })
+    }
+  })
+
   el.addEventListener('click', async (e) => {
     const b = e.target.closest('button')
     if (!b) return
@@ -299,6 +389,15 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
     }
     if (b.dataset.toggle) {
       setSetting(b.dataset.toggle, !settings[b.dataset.toggle])
+    } else if (b.dataset.vev) {
+      setSetting('voiceEvents', { ...VOICE_DEFAULTS, ...settings.voiceEvents, [b.dataset.vev]: !({ ...VOICE_DEFAULTS, ...settings.voiceEvents }[b.dataset.vev]) })
+    } else if (b.dataset.alert) {
+      const v = Number(b.dataset.alert)
+      const list = settings.speedAlerts || []
+      setSetting('speedAlerts', list.includes(v) ? list.filter((x) => x !== v) : [...list, v].sort((x, y) => x - y))
+    } else if (b.dataset.act === 'voiceTest') {
+      if (!say('Cero a cien en tres coma nueve segundos. ¡Récord!', { force: true, urgent: true })) toast('ESTE NAVEGADOR NO TIENE VOZ')
+      return
     } else if (b.dataset.theme) {
       setSetting('theme', b.dataset.theme)
       // Al sol, sin las líneas de tubo (se pueden volver a poner)
@@ -311,7 +410,7 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
     } else if (b.dataset.pick) {
       const key = b.dataset.pick
       const raw = b.dataset.v
-      setSetting(key, ['radius', 'simHz'].includes(key) ? Number(raw) : raw)
+      setSetting(key, ['radius', 'simHz', 'voiceRate'].includes(key) ? Number(raw) : raw)
       if (['source', 'simHz', 'simBike'].includes(key)) applySource()
     } else if (b.dataset.act === 'motion') {
       // Este clic es un toque de verdad: iOS enseña la pregunta del permiso

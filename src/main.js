@@ -7,7 +7,12 @@ import { geoPermission, isStandalone } from './core/device.js'
 import { createSimGps } from './core/sim.js'
 import { unlockAudio, sfx } from './core/audio.js'
 import { startLobby, stopLobby, lobby } from './core/lobby.js'
-import { initLogger, logger, onSessionEnd } from './core/logger.js'
+import { initLogger, logger, onSessionEnd, onSessionStart } from './core/logger.js'
+import { watch } from './core/announcer.js'
+import { say, spoken, unlockVoice } from './core/voice.js'
+import { checkAchievements } from './core/achievements.js'
+import { setupUnlocks } from './ui/unlock.js'
+import { totals } from './core/store.js'
 import { syncNow } from './core/cloud.js'
 import { mountDash } from './ui/dash.js'
 import { mountCrono } from './ui/crono.js'
@@ -164,6 +169,7 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
   tick(dt)
+  watch(dt)
   // Con la pantalla negra no se dibuja nada: la telemetría y la grabación siguen igual
   if (blackout.on) return requestAnimationFrame(frame)
   set(bars, String(signalBars()), 'data-n')
@@ -199,7 +205,19 @@ onSetting((key, val) => {
 setupIncoming()
 initLogger()
 // Subida a la nube: al cerrar cada salida, al abrir la app (lo que quedó pendiente) y al volver la conexión
-onSessionEnd(() => setTimeout(syncNow, 2000))
+onSessionEnd((meta) => {
+  setTimeout(syncNow, 2000)
+  totals.sessions = (totals.sessions || 0) + 1
+  saveTotals(true)
+  checkAchievements()
+  const mi = settings.units === 'mph'
+  say(`Salida guardada. ${spoken((meta.dist || 0) / (mi ? 1609.344 : 1000), 1)} ${mi ? 'millas' : 'kilómetros'}`, { kind: 'box' })
+})
+onSessionStart(() => say('Grabando la salida', { kind: 'box' }))
+// Logros: aviso al desbloquear y comprobación cada pocos segundos
+setupUnlocks()
+setInterval(checkAchievements, 3000)
+setTimeout(checkAchievements, 1500)
 setTimeout(syncNow, 12000)
 addEventListener('online', () => syncNow())
 onSetting((key, val) => key === 'cloudSync' && val && syncNow())
@@ -222,6 +240,7 @@ function start() {
 let fullscreenTried = false
 function onTap() {
   unlockAudio()
+  unlockVoice()
   keepAwake()
   if (!T.motion && (T.motionPerm === 'unknown' || T.motionPerm === 'tap')) requestMotion()
   if (!fullscreenTried) {

@@ -84,6 +84,7 @@ function handleSample(s) {
       T.trip += ds
       T.tripTime += dt
       totals.odo += ds
+      totals.time = (totals.time || 0) + dt
     }
     T.gLong = ema(T.gLong, (s.v - p.v) / dt / G, dt, 0.6)
     if (p.heading != null && s.heading != null && s.v > 3) {

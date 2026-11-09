@@ -5,6 +5,9 @@ import { settings, setSetting, addRun, deleteRun, bests } from '../core/store.js
 import { sfx } from '../core/audio.js'
 import { $, $$, setter, segPad, toSpeed, speedUnit, fmtT, toast } from './util.js'
 import { logEvent } from '../core/logger.js'
+import { say, spoken } from '../core/voice.js'
+import { spokenMark } from '../core/announcer.js'
+import { checkAchievements } from '../core/achievements.js'
 
 const MODES = { kmh: ['k0-100', 'k100-200', '1/8', '1/4'], mph: ['m0-60', 'm60-130', '1/8', '1/4'] }
 
@@ -21,9 +24,13 @@ export function mountCrono(el) {
   onHint((t) => rec.hint(t))
 
   function onEvent(e, data) {
-    if (e === 'armed') sfx.armed()
+    if (e === 'armed') {
+      sfx.armed()
+      say('Crono listo', { kind: 'crono' })
+    }
     if (e === 'aborted') {
       logEvent('abort')
+      say('Pasada cancelada', { kind: 'crono', urgent: true })
       sfx.error()
       toast('PASADA CANCELADA')
       renderBoard()
@@ -48,6 +55,14 @@ export function mountCrono(el) {
       if (records.has(mode())) sfx.record()
       else sfx.done()
       renderBoard()
+      // Por voz: el parcial del modo elegido (o el más largo que haya), la trampa y si es récord
+      const id = data.marks[mode()] ? mode() : Object.keys(data.marks).at(-1)
+      if (id) {
+        const m = data.marks[id]
+        const trap = id === '1/4' || id === '1/8' ? `, a ${Math.round(toSpeed(m.v ?? data.maxV))}` : ''
+        say(`${spokenMark(id)} en ${spoken(m.t)} segundos${trap}.${records.has(id) ? ' ¡Récord!' : ''}`, { kind: 'crono', urgent: true })
+      }
+      checkAchievements()
     }
   }
 

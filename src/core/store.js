@@ -45,6 +45,11 @@ const DEFAULTS = {
   accentBike: false,
   dashPages: null,
   dashPage: 0,
+  voice: true,
+  voiceName: null,
+  voiceRate: 1.05,
+  voiceEvents: {},
+  speedAlerts: [],
 }
 
 export const settings = { ...DEFAULTS, ...load('settings', {}) }
@@ -118,7 +123,7 @@ export function wipeAll() {
   for (const k of ['runs', 'races', 'totals']) localStorage.removeItem(P + k)
   runs.length = 0
   races.length = 0
-  Object.assign(totals, { odo: 0, maxV: 0, maxLeanL: 0, maxLeanR: 0, maxG: 0 })
+  Object.assign(totals, { odo: 0, maxV: 0, maxLeanL: 0, maxLeanR: 0, maxG: 0, time: 0, longTrip: 0, night: false, sessions: 0 })
 }
 
 // Identificador de esta sesión en la red (distinto por pestaña para poder probar con dos)
