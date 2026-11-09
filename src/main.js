@@ -14,7 +14,9 @@ import { mountCrono } from './ui/crono.js'
 import { mountVs, setupIncoming } from './ui/vs.js'
 import { mountGarage } from './ui/garage.js'
 import { showTitle } from './ui/title.js'
-import { ICONS } from './ui/pixel.js'
+import { ICONS, pixelSvg } from './ui/pixel.js'
+import { showBlackout, blackout } from './ui/blackout.js'
+import { applyTheme } from './ui/themes.js'
 import { $, html, setter } from './ui/util.js'
 
 const TABS = [
@@ -24,12 +26,16 @@ const TABS = [
   { id: 'garage', label: 'GARAJE' },
 ]
 
+// Luna para el botón de pantalla negra
+const MOON = pixelSvg(['..XXXX.', '.XX....', 'XX.....', 'XX.....', 'XX.....', '.XX....', '..XXXX.'], { X: 'currentColor' })
+
 const app = document.getElementById('app')
 app.innerHTML = `
   <header class="topbar">
     <div class="gps"><div class="bars" data-n="0"><i></i><i></i><i></i><i></i></div><span data-k="gps">GPS</span></div>
     <div class="grow" data-k="title">DASH</div>
     <span class="badge sim" data-k="sim" hidden>SIM</span>
+    <button class="topbtn" data-k="black" aria-label="Pantalla negra" title="Pantalla negra: sigue grabando">${MOON}</button>
     <span class="clock" data-k="clock">00:00</span>
   </header>
   <main>
@@ -40,6 +46,7 @@ app.innerHTML = `
   </nav>`
 
 document.body.classList.toggle('crt', settings.crt)
+applyTheme()
 
 // ---- Fuente de GPS ----
 let sim = null
@@ -52,10 +59,16 @@ function applySource() {
 
 // ---- Pantallas ----
 const screens = {
-  dash: mountDash(document.getElementById('dash')),
+  dash: mountDash(document.getElementById('dash'), { onTitle: (t) => current === 'dash' && ($(app, '[data-k="title"]').textContent = t) }),
   crono: mountCrono(document.getElementById('crono')),
   vs: mountVs(document.getElementById('vs')),
-  garage: mountGarage(document.getElementById('garage'), { applySource: () => applySource() }),
+  garage: mountGarage(document.getElementById('garage'), {
+    applySource: () => applySource(),
+    editDash: () => {
+      go('dash')
+      screens.dash.edit()
+    },
+  }),
 }
 let current = null
 function go(id) {
@@ -69,11 +82,15 @@ function go(id) {
   document.getElementById(id).classList.add('on')
   screens[id].show?.()
   for (const b of app.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.tab === id)
-  $(app, '[data-k="title"]').textContent = TABS.find((t) => t.id === id).label
+  $(app, '[data-k="title"]').textContent = screens[id].title?.() || TABS.find((t) => t.id === id).label
   try {
     sessionStorage.setItem('sc-tab', id)
   } catch {}
 }
+$(app, '[data-k="black"]').addEventListener('click', () => {
+  sfx.click()
+  showBlackout()
+})
 $(app, '.tabs').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]')
   if (b) (sfx.click(), go(b.dataset.tab))
@@ -147,6 +164,8 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
   tick(dt)
+  // Con la pantalla negra no se dibuja nada: la telemetría y la grabación siguen igual
+  if (blackout.on) return requestAnimationFrame(frame)
   set(bars, String(signalBars()), 'data-n')
   const txt =
     T.status === 'ok'
@@ -172,7 +191,9 @@ try {
 } catch {}
 go(TABS.some((t) => t.id === tabStart) ? tabStart : 'dash')
 onSetting((key, val) => {
-  if (key === 'units' || key === 'name' || key === 'color') screens[current].show?.()
+  if (['theme', 'digits', 'accentBike', 'color'].includes(key)) applyTheme()
+  if (key === 'crt') document.body.classList.toggle('crt', val)
+  if (['units', 'name', 'color', 'digits'].includes(key)) screens[current].show?.()
   if (key === 'visible') val ? startLobby() : stopLobby()
 })
 setupIncoming()

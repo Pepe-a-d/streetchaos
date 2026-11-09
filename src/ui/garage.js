@@ -15,6 +15,7 @@ import { $, esc, layer, toast, toSpeed, speedUnit, toDist, distUnit, fmtT, fmtDa
 import { bikeSvg, pixelSvg } from './pixel.js'
 import { editRider } from './title.js'
 import { RACE_MODES } from '../core/race.js'
+import { THEMES, DIGITS, themeOf, themeStyle } from './themes.js'
 
 const ARROW = pixelSvg(['X....', 'XX...', 'XXX..', 'XXXX.', 'XXX..', 'XX...', 'X....'], { X: 'currentColor' }, { className: 'px-arrow' })
 const BACK = pixelSvg(['....X', '...XX', '..XXX', '.XXXX', '..XXX', '...XX', '....X'], { X: 'currentColor' }, { className: 'px-arrow' })
@@ -40,12 +41,13 @@ const ITEMS = [
       return races.length ? `${w} ganados · ${races.length - w} perdidos` : 'Ninguno todavía'
     },
   },
+  { id: 'look', title: 'APARIENCIA', sub: () => `Tema ${themeOf(settings.theme).name.toLowerCase()} · pantallas del DASH` },
   { id: 'settings', title: 'AJUSTES', sub: () => 'Unidades, sonido, crono, radar' },
   { id: 'perms', title: 'PERMISOS', sub: () => (T.status === 'ok' ? 'GPS OK' : 'GPS sin señal') + (T.motion ? ' · movimiento OK' : '') },
   { id: 'data', title: 'DATOS', sub: () => (settings.logTelemetry ? 'Telemetría guardándose · exportar' : 'Telemetría apagada · exportar') },
 ]
 
-export function mountGarage(el, { applySource }) {
+export function mountGarage(el, { applySource, editDash = () => {} }) {
   let sub = null
   let geo = 'unknown'
   const landscape = matchMedia('(orientation: landscape)')
@@ -171,7 +173,7 @@ export function mountGarage(el, { applySource }) {
     },
     settings() {
       return [
-        group('PANTALLA', onOff('crt', 'Efecto CRT', 'Líneas de tubo; quítalo si cuesta leer al sol') + onOff('sound', 'Sonido', 'Pitidos del árbol y avisos')),
+        group('SONIDO', onOff('sound', 'Sonido', 'Pitidos del árbol y avisos')),
         group('UNIDADES', pick('units', 'Velocidad y distancia', [['kmh', 'KM/H'], ['mph', 'MPH']])),
         group('CRONO', onOff('rollout', 'Rollout 1 pie', 'Como en pista: el crono empieza a los 30 cm')),
         group(
@@ -196,6 +198,33 @@ export function mountGarage(el, { applySource }) {
               ? pick('simHz', 'GPS simulado', [[1, '1 HZ'], [5, '5 HZ'], [10, '10 HZ']], 'Los móviles suelen dar 1 Hz') +
                 pick('simBike', 'Moto simulada', Object.values(BIKES).map((b) => [b.id, b.name.split(' ')[0]]))
               : ''),
+        ),
+      ].join('')
+    },
+    look() {
+      const bar = '<i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="y"></i><i class="y"></i><i class="r"></i><i></i><i></i>'
+      const pages = settings.dashPages || []
+      return [
+        group(
+          'TEMA',
+          `<div class="themes">${THEMES.map(
+            (t) => `<button class="theme-card ${settings.theme === t.id ? 'on' : ''}" data-theme="${t.id}" style="${themeStyle(t)}">
+              <div class="tc-dash"><div class="tc-top"><span class="tc-speed">124</span><span class="tc-unit">KM/H</span></div><div class="tc-bar">${bar}</div><div class="tc-stats"><span>INCL <b>32°</b></span><span>G <b>0.8</b></span></div></div>
+              <span class="tc-name">${t.name}</span><span class="tc-desc">${esc(t.desc)}</span>
+            </button>`,
+          ).join('')}</div>`,
+        ),
+        group(
+          'NUMEROS DEL DASH',
+          `<div class="digit-opts">${DIGITS.map((d) => `<button class="digit-opt ${(settings.digits || 'lcd') === d.id ? 'on' : ''}" data-digits="${d.id}"><span class="sample ${d.id}">${d.id === 'pixel' ? '87' : '87'}</span><b>${d.name}</b></button>`).join('')}</div>`,
+        ),
+        group(
+          'DETALLES',
+          onOff('accentBike', 'Color de tu moto como acento', 'Los botones y rótulos con el color que elegiste en tu piloto') + onOff('crt', 'Efecto CRT', 'Líneas de tubo de televisor; quítalo si cuesta leer al sol'),
+        ),
+        group(
+          'PANTALLAS DEL DASH',
+          `<div class="set look-dash"><span>${pages.length || 3} pantallas<small>Desliza en el DASH para cambiar de una a otra. Elige qué bloques ves, su tamaño y su sitio.</small></span><button class="btn small cyan" data-act="editDash">EDITAR</button></div>`,
         ),
       ].join('')
     },
@@ -257,7 +286,15 @@ export function mountGarage(el, { applySource }) {
     }
     if (b.dataset.toggle) {
       setSetting(b.dataset.toggle, !settings[b.dataset.toggle])
-      if (b.dataset.toggle === 'crt') document.body.classList.toggle('crt', settings.crt)
+    } else if (b.dataset.theme) {
+      setSetting('theme', b.dataset.theme)
+      // Al sol, sin las líneas de tubo (se pueden volver a poner)
+      if (themeOf(b.dataset.theme).light && settings.crt) setSetting('crt', false)
+    } else if (b.dataset.digits) {
+      setSetting('digits', b.dataset.digits)
+    } else if (b.dataset.act === 'editDash') {
+      editDash()
+      return
     } else if (b.dataset.pick) {
       const key = b.dataset.pick
       const raw = b.dataset.v

@@ -40,6 +40,11 @@ const DEFAULTS = {
   logTelemetry: true,
   cloudSync: true,
   syncKey: null,
+  theme: 'synth',
+  digits: 'lcd',
+  accentBike: false,
+  dashPages: null,
+  dashPage: 0,
 }
 
 export const settings = { ...DEFAULTS, ...load('settings', {}) }

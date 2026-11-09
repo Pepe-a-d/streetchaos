@@ -17,10 +17,12 @@ Sin moverte: **Garaje → Fuente GPS → Simulador**. Aparecen los mandos GAS / 
 
 ## Pantallas
 
-- **DASH**: velocidad grande en LCD de 7 segmentos, barra de velocidad, punta, viaje, tiempo, media, altitud, rumbo, cuentakilómetros total, inclinación (con máximos izquierda/derecha) y círculo de fuerza G.
+- **DASH**: varias pantallas que se pasan deslizando (de fábrica CARRETERA, CIRCUITO y MINIMA), hechas con bloques: velocímetro, inclinómetro, círculo G, inclinación y G en número con barra, hora, brújula, gráficas de velocidad (1 min) y de altitud (10 min), viaje, tiempo, media, punta, máximos, altitud, rumbo, total, récords, última pasada, GPS y caja negra. **EDITAR** (abajo a la derecha) deja añadir bloques desde un catálogo con vista previa en vivo, tocar uno para cambiar su medida o quitarlo, arrastrarlo para moverlo, y en PANTALLAS renombrar, ordenar, borrar o crear pantallas desde plantillas (también VIAJE). La rejilla es de 6×8 casillas en vertical y 12×4 en horizontal; los bloques se colocan solos en orden (`src/ui/dash.js`, `src/ui/widgets.js`) y el editor avisa si algo no cabe en una orientación.
+- **Apariencia** (Garaje): temas de color para toda la app (SYNTHWAVE, LCD VERDE, AMBAR, TOKIO, CARRERAS, OCASO y SOL, claro y sin sombras para leer a pleno sol), números del DASH en LCD, PIXEL o LIMPIO, el color de tu moto como acento y el efecto CRT (`src/ui/themes.js`: cada tema redefine las variables de color de `style.css`).
 - **CRONO**: se arma solo al parar la moto y cronometra al salir. Una pasada mide a la vez 0-50/100/150/200, 100-200, 60 ft, 330 ft, 1/8 de milla, 1000 ft y 1/4 de milla con velocidad de trampa. Rollout de 1 pie opcional. Récords y ticket de cada pasada.
 - **VS**: radar de pilotos cercanos (radio 0,5 / 1,5 / 3 km), retos a 1/8, 1/4 o 0-100, y duelos contra la CPU (4 clases de moto inventadas) o contra tu fantasma (tu mejor pasada).
 - **GARAJE**: tu piloto (nombre, moto, color), récords, duelos ganados/perdidos, historial y ajustes.
+- **Pantalla negra** (la luna de la barra de arriba): todo en negro con solo un punto «REC» tenue que cambia de sitio. La app sigue en primer plano y graba igual (GPS, sensores, crono, caja negra), gasta poca batería en pantallas OLED, deja de dibujar lo de debajo e ignora los toques; se sale manteniendo pulsado 1,6 s. Es lo más parecido a «segundo plano» que permite una web: con el móvil bloqueado o con otra app delante, el navegador congela la app.
 
 ## Cómo se cronometra
 
