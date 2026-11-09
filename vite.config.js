@@ -2,8 +2,21 @@ import { defineConfig } from 'vite'
 import { resolve } from 'node:path'
 import basicSsl from '@vitejs/plugin-basic-ssl'
 import { VitePWA } from 'vite-plugin-pwa'
+import { execSync } from 'node:child_process'
+
+// Versión que enseña la app (Garaje → Versión): el commit y la fecha de la compilación
+function version() {
+  let sha = 'local'
+  try {
+    sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {}
+  const d = new Date()
+  const p = (x) => String(x).padStart(2, '0')
+  return `${sha} · ${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 export default defineConfig(({ mode }) => ({
+  define: { __APP_VERSION__: JSON.stringify(version()) },
   plugins: [
     // `npm run dev:movil`: HTTPS autofirmado para abrirla desde el móvil en la red local (el GPS exige HTTPS)
     mode === 'movil' ? basicSsl() : null,
@@ -25,7 +38,8 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}'],
+        // La voz de la app (public/voz) también, para que hable sin conexión
+        globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}', 'voz/*.{m4a,json}'],
         // El analizador (/blackbox) es para el ordenador: ni se guarda para usar sin conexión ni
         // se le sirve la app del móvil al navegar
         globIgnores: ['blackbox/**', 'assets/bb-*'],

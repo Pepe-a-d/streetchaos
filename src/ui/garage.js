@@ -7,7 +7,8 @@ import { T, zeroLean, resetTrip, motionNeedsTap, requestMotion } from '../core/t
 import { BIKES } from '../core/physics.js'
 import { lobby } from '../core/lobby.js'
 import { sfx } from '../core/audio.js'
-import { geoPermission, isIOS, isStandalone } from '../core/device.js'
+import { geoPermission, isIOS, isStandalone, screenInfo } from '../core/device.js'
+import { APP_VERSION, checkUpdate, updatePending } from '../core/update.js'
 import { sendForAnalysis, buildExport, shareFile } from '../core/share.js'
 import { logger } from '../core/logger.js'
 import { cloud, cloudAvailable, syncNow, syncKey, blackboxLink, onCloud, pairCode } from '../core/cloud.js'
@@ -17,7 +18,7 @@ import { editRider } from './title.js'
 import { RACE_MODES } from '../core/race.js'
 import { THEMES, DIGITS, themeOf, themeStyle } from './themes.js'
 import { ACHIEVEMENTS, TIERS, unlocked, progress, stats, level } from '../core/achievements.js'
-import { voiceAvailable, spanishVoices, VOICE_EVENTS, VOICE_DEFAULTS, SPEED_STEPS, say, MUSIC_MODES, audioSessionAvailable } from '../core/voice.js'
+import { voiceAvailable, systemVoiceAvailable, voiceEngine, spanishVoices, VOICE_EVENTS, VOICE_DEFAULTS, SPEED_STEPS, say, MUSIC_MODES, audioSessionAvailable } from '../core/voice.js'
 import { medalSvg } from './medals.js'
 
 const ARROW = pixelSvg(['X....', 'XX...', 'XXX..', 'XXXX.', 'XXX..', 'XX...', 'X....'], { X: 'currentColor' }, { className: 'px-arrow' })
@@ -57,6 +58,7 @@ const ITEMS = [
   { id: 'settings', title: 'AJUSTES', sub: () => 'Unidades, sonido, crono, radar' },
   { id: 'perms', title: 'PERMISOS', sub: () => (T.status === 'ok' ? 'GPS OK' : 'GPS sin señal') + (T.motion ? ' · movimiento OK' : '') },
   { id: 'data', title: 'DATOS', sub: () => (settings.logTelemetry ? 'Telemetría guardándose · exportar' : 'Telemetría apagada · exportar') },
+  { id: 'about', title: 'VERSION', sub: () => `${APP_VERSION.split(' ')[0]} · buscar actualización` },
 ]
 
 export function mountGarage(el, { applySource, editDash = () => {} }) {
@@ -264,28 +266,62 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
         group(
           'VOZ',
           onOff('voice', 'Que la app hable', 'Suena por donde suene el móvil: el intercomunicador del casco si está conectado') +
-            (voices.length > 1
-              ? `<div class="set"><span>Voz<small>Las voces en español de tu móvil</small></span><select class="vsel" data-k="voiceName">${voices.map((v) => `<option value="${esc(v.voiceURI)}" ${v.voiceURI === settings.voiceName ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select></div>`
-              : '') +
-            pick('voiceRate', 'Rapidez', [
-              [0.9, 'LENTA'],
-              [1.05, 'NORMAL'],
-              [1.25, 'RAPIDA'],
-            ]) +
-            (audioSessionAvailable()
+            (systemVoiceAvailable()
               ? pick(
-                  'voiceMusic',
-                  'Con música',
-                  Object.entries(MUSIC_MODES).map(([k, [, l]]) => [k, l]),
-                  `${(MUSIC_MODES[settings.voiceMusic] || MUSIC_MODES.duck)[2]}. Con el móvil en silencio, iOS puede callarla`,
+                  'voiceEngine',
+                  'Voz',
+                  [
+                    ['app', 'DE LA APP'],
+                    ['system', 'DEL MOVIL'],
+                  ],
+                  voiceEngine() === 'app' ? 'Grabada para la app: deja sonar la música a la vez' : 'La del móvil: más natural, pero en el iPhone para la música mientras habla',
                 )
               : '') +
+            (voiceEngine() === 'system'
+              ? (voices.length > 1
+                  ? `<div class="set"><span>Voz del móvil<small>Las voces en español de tu móvil</small></span><select class="vsel" data-k="voiceName">${voices.map((v) => `<option value="${esc(v.voiceURI)}" ${v.voiceURI === settings.voiceName ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select></div>`
+                  : '') +
+                pick('voiceRate', 'Rapidez', [
+                  [0.9, 'LENTA'],
+                  [1.05, 'NORMAL'],
+                  [1.25, 'RAPIDA'],
+                ])
+              : audioSessionAvailable()
+                ? pick(
+                    'voiceMusic',
+                    'Con música',
+                    Object.entries(MUSIC_MODES).map(([k, [, l]]) => [k, l]),
+                    `${(MUSIC_MODES[settings.voiceMusic] || MUSIC_MODES.duck)[2]}. Con el móvil en silencio, iOS puede callarla`,
+                  )
+                : '') +
             `<div class="set"><span>Probar<small>Si no oyes nada, sube el volumen del móvil o del casco</small></span><button class="btn small cyan" data-act="voiceTest">PROBAR</button></div>`,
         ),
         group('QUE DICE', VOICE_EVENTS.map(([k, label, small]) => `<div class="set"><span>${label}<small>${small}</small></span><button class="chip ${ev[k] ? 'on' : ''}" data-vev="${k}">${ev[k] ? 'SI' : 'NO'}</button></div>`).join('')),
         group(
           'AVISOS DE VELOCIDAD',
           `<p class="tip">Dice la velocidad al pasar de cada una que marques (sube y vuelve a avisar al bajar 5 por debajo).</p><div class="chips">${steps.map((v) => `<button class="chip ${alerts.includes(v) ? 'on' : ''}" data-alert="${v}">${v}</button>`).join('')}</div>`,
+        ),
+      ].join('')
+    },
+    about() {
+      const i = screenInfo()
+      const row = (k, v) => `<div class="set"><span>${k}</span><b class="mono">${esc(v)}</b></div>`
+      return [
+        group(
+          'VERSION',
+          `<div class="set"><span>Esta app<small>Commit y fecha de la versión que tienes abierta</small></span><b class="mono">${esc(APP_VERSION)}</b></div>
+           <div class="set"><span>Buscar actualización<small>Se actualiza sola al volver a la app con la moto parada; esto lo mira ya</small></span><button class="btn small cyan" data-act="update">BUSCAR</button></div>`,
+        ),
+        group(
+          'PANTALLA',
+          `<p class="tip">Si algo no encaja en la pantalla, haz una captura de esto y pásamela.</p>` +
+            row('Ventana', i.inner) +
+            row('Pantalla', i.screen) +
+            row('100lvh / 100dvh', `${i.lvh} / ${i.dvh}`) +
+            row('Visible', String(i.vv)) +
+            row('Alto usado', i.appH) +
+            row('Márgenes', i.safe) +
+            row('Modo', `${i.mode}${i.standalone ? ' · instalada' : ''}`),
         ),
       ].join('')
     },
@@ -371,7 +407,7 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
   }
 
   // Las voces del móvil llegan un poco después de abrir la app
-  if (voiceAvailable()) speechSynthesis.addEventListener?.('voiceschanged', () => sub === 'voice' && render())
+  if (systemVoiceAvailable()) speechSynthesis.addEventListener?.('voiceschanged', () => sub === 'voice' && render())
 
   el.addEventListener('change', (e) => {
     if (e.target.dataset.k === 'voiceName') {
@@ -449,6 +485,26 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
         sfx.error()
         toast(`NO SE PUDO EXPORTAR: ${err?.message || err}`, 4000)
       }
+    } else if (b.dataset.act === 'update') {
+      b.disabled = true
+      b.textContent = '...'
+      const has = await checkUpdate()
+      if (has) {
+        // Se espera a que la versión nueva acabe de bajar (como mucho 20 s) y se recarga
+        toast('BAJANDO LA VERSION NUEVA…', 20000)
+        const t0 = Date.now()
+        const wait = setInterval(() => {
+          if (updatePending() || Date.now() - t0 > 20000) {
+            clearInterval(wait)
+            location.reload()
+          }
+        }, 500)
+      } else {
+        toast('YA TIENES LA ULTIMA VERSION')
+        b.disabled = false
+        b.textContent = 'BUSCAR'
+      }
+      return
     } else if (b.dataset.act === 'bbPair') {
       pairDialog()
       return

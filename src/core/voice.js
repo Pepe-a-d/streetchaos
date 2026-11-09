@@ -1,34 +1,20 @@
-// Voz: la app habla con la voz en español del móvil (Web Speech), y suena por donde suene el móvil:
-// el intercomunicador del casco si está conectado por Bluetooth. Así te enteras sin mirar.
-// En iPhone la primera frase tiene que salir de un toque: unlockVoice() se llama en cada toque
-// hasta que queda desbloqueada.
+// Voz: la app te habla por donde suene el móvil (el intercomunicador del casco si está conectado).
+// Dos voces:
+// - 'app' (por defecto): audios propios grabados con Piper (core/speech.js). Suenan con Web Audio y
+//   dejan sonar la música a la vez (core/audiosession.js).
+// - 'system': la voz en español del móvil (Web Speech). Es más natural y dice cualquier cosa, pero en
+//   el iPhone se queda el audio y PARA la música.
+// En iPhone el sonido tiene que arrancar en un toque: unlockVoice() se llama en cada toque.
 import { settings } from './store.js'
+import { speak as speakApp, warmUp } from './speech.js'
+import { applyAudioSession } from './audiosession.js'
+export { MUSIC_MODES, audioSessionAvailable, applyAudioSession } from './audiosession.js'
 
-export const voiceAvailable = () => typeof window !== 'undefined' && 'speechSynthesis' in window
-
-// Con la música del móvil. Por defecto, en cuanto una web suena (voz o pitidos), iOS le da el audio
-// a ella y Apple Music se para. Con la Audio Session API (Safari/iOS 16.4+) la web dice qué clase de
-// sonido es: 'transient' suena encima y baja la música un momento, 'transient-solo' la pausa y la
-// reanuda al acabar, 'ambient' se mezcla sin bajarla. Ojo: con el móvil en silencio, iOS puede callar
-// estos sonidos (son de los que respetan el interruptor).
-export const MUSIC_MODES = {
-  duck: ['transient', 'BAJARLA', 'Baja la música mientras habla'],
-  pause: ['transient-solo', 'PAUSARLA', 'La para y la vuelve a poner al acabar'],
-  mix: ['ambient', 'ENCIMA', 'Habla encima sin bajarla'],
-}
-export const audioSessionAvailable = () => typeof navigator !== 'undefined' && !!navigator.audioSession
-
-/** Le dice al móvil cómo tiene que convivir el sonido de la app con la música. Llamar antes de sonar. */
-export function applyAudioSession() {
-  if (!audioSessionAvailable()) return false
-  const type = (MUSIC_MODES[settings.voiceMusic] || MUSIC_MODES.duck)[0]
-  try {
-    if (navigator.audioSession.type !== type) navigator.audioSession.type = type
-    return true
-  } catch {
-    return false
-  }
-}
+export const systemVoiceAvailable = () => typeof window !== 'undefined' && 'speechSynthesis' in window
+const audioAvailable = () => typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext)
+export const voiceAvailable = () => audioAvailable() || systemVoiceAvailable()
+/** La voz que se usa: la de la app salvo que se elija la del móvil (o no haya Web Audio). */
+export const voiceEngine = () => (settings.voiceEngine === 'system' && systemVoiceAvailable()) || !audioAvailable() ? 'system' : 'app'
 
 // Qué dice (cada uno se puede apagar en Garaje → Voz)
 export const VOICE_EVENTS = [
@@ -48,7 +34,7 @@ const NOVELTY = /^(Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley|Albert|Bad 
 
 /** Voces en español del móvil: las normales antes que las de juguete, y las de España primero. */
 export function spanishVoices() {
-  if (!voiceAvailable()) return []
+  if (!systemVoiceAvailable()) return []
   const score = (v) => (NOVELTY.test(v.name) ? 0 : 4) + (/es[-_]ES/i.test(v.lang) ? 2 : 0) + (v.localService ? 1 : 0)
   return speechSynthesis
     .getVoices()
@@ -65,6 +51,9 @@ export function unlockVoice() {
   if (unlocked || !voiceAvailable()) return
   unlocked = true
   applyAudioSession()
+  // Con la voz de la app no se toca la del sistema: solo con decir una frase en silencio, el iPhone ya
+  // paraba la música al abrir la app
+  if (voiceEngine() === 'app') return warmUp()
   const u = new SpeechSynthesisUtterance(' ')
   u.volume = 0
   speechSynthesis.speak(u)
@@ -78,6 +67,16 @@ export function say(text, { kind = null, urgent = false, force = false } = {}) {
   if (!voiceAvailable() || (!settings.voice && !force)) return false
   if (kind && !force && (settings.voiceEvents?.[kind] ?? VOICE_DEFAULTS[kind]) === false) return false
   applyAudioSession()
+  if (voiceEngine() === 'app') {
+    // Si alguna palabra no está grabada, la dice la voz del sistema (no debería pasar)
+    speakApp(text, { urgent }).then((ok) => ok || sayWithSystem(text, urgent))
+    return true
+  }
+  return sayWithSystem(text, urgent)
+}
+
+function sayWithSystem(text, urgent) {
+  if (!systemVoiceAvailable()) return false
   const u = new SpeechSynthesisUtterance(text)
   u.lang = 'es-ES'
   const v = pickVoice()

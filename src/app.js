@@ -20,6 +20,7 @@ import { showTitle } from './ui/title.js'
 import { ICONS, pixelSvg } from './ui/pixel.js'
 import { showBlackout, blackout } from './ui/blackout.js'
 import { applyTheme } from './ui/themes.js'
+import { setupUpdates } from './core/update.js'
 import { $, html, setter, toast } from './ui/util.js'
 import { fixOldRecords } from './core/recalc.js'
 
@@ -205,6 +206,7 @@ onSetting((key, val) => {
   if (key === 'voiceMusic') applyAudioSession()
 })
 setupIncoming()
+setupUpdates()
 initLogger()
 // Subida a la nube: al cerrar cada salida, al abrir la app (lo que quedó pendiente) y al volver la conexión
 onSessionEnd((meta) => {

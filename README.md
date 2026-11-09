@@ -85,6 +85,14 @@ El análisis (`src/blackbox/process.js`) es offline y por eso más fino que el d
 
 No se guarda para usar sin conexión: la app del móvil (PWA) deja fuera sus archivos (`bb-*`).
 
+## Voz
+
+La app habla por el intercomunicador con **audios propios** grabados con Piper (voz CC0), que dejan sonar la música a la vez; la voz del sistema del iPhone la paraba. Se puede volver a la del móvil en Garaje → Voz. Cómo funciona y cómo regenerarla: [`docs/voz.md`](docs/voz.md).
+
+## Versión y actualizaciones
+
+Garaje → **Versión** enseña el commit y la fecha de la versión abierta, busca actualizaciones y da las medidas de la pantalla (para depurar cómo encaja). La app instalada se actualiza sola al volver a ella con la moto parada (`src/core/update.js`).
+
 ## Si la app no arranca
 
 `index.html` lleva un **modo rescate** aparte del código de la app: si esta no llega a arrancar, enseña el error y deja buscar una versión nueva, reintentar o exportar los datos del móvil (ajustes, pasadas, duelos y la caja negra) en un `.json` que el Blackbox importa. No hay que borrar la app de la pantalla de inicio: en iPhone eso borra sus datos.

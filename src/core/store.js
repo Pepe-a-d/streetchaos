@@ -58,6 +58,7 @@ const DEFAULTS = {
   voiceEvents: {},
   speedAlerts: [],
   voiceMusic: 'duck', // cómo convive con la música: duck | pause | mix (core/voice.js)
+  voiceEngine: 'app', // app: audios propios (no paran la música) | system: la voz del móvil
 }
 
 export const settings = { ...DEFAULTS, ...load('settings', {}) }

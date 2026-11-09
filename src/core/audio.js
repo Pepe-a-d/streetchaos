@@ -1,6 +1,6 @@
 // Sonidos chiptune generados con WebAudio (onda cuadrada, nada de archivos)
 import { settings } from './store.js'
-import { applyAudioSession } from './voice.js'
+import { applyAudioSession } from './audiosession.js'
 
 let ctx = null
 
@@ -13,6 +13,12 @@ export function unlockAudio() {
   } catch {
     ctx = null
   }
+}
+
+/** El contexto de audio (lo usa también la voz de la app). Hasta el primer toque puede estar en pausa. */
+export function audioContext() {
+  if (!ctx) unlockAudio()
+  return ctx
 }
 
 function tone(freq, dur, { type = 'square', vol = 0.12, at = 0, slide = null } = {}) {

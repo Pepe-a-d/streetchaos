@@ -42,7 +42,7 @@ export const ACHIEVEMENTS = [
 ]
 
 export const LEVELS = [0, 50, 150, 300, 500, 800, 1200, 1700, 2300, 3000, 4000, 5500, 7500, 10000, 13000]
-const RANKS = ['NOVATO', 'NOVATO', 'AFICIONADO', 'AFICIONADO', 'PILOTO', 'PILOTO', 'VETERANO', 'VETERANO', 'EXPERTO', 'EXPERTO', 'PRO', 'PRO', 'LEYENDA', 'LEYENDA', 'LEYENDA']
+export const RANKS = ['NOVATO', 'NOVATO', 'AFICIONADO', 'AFICIONADO', 'PILOTO', 'PILOTO', 'VETERANO', 'VETERANO', 'EXPERTO', 'EXPERTO', 'PRO', 'PRO', 'LEYENDA', 'LEYENDA', 'LEYENDA']
 
 /** Los datos que miran los logros. */
 export function stats() {

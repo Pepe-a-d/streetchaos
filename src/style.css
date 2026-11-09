@@ -1509,6 +1509,22 @@ svg.medal.big { width: 72px; height: 81px; }
   bottom: auto;
   height: var(--app-h, 100%);
 }
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  html,
+  body {
+    height: 100lvh;
+  }
+  #app,
+  .layer,
+  .blackout,
+  .crt::after {
+    height: var(--app-h, 100lvh);
+  }
+}
+/* Si aun así quedara algo por abajo, que sea del color de la barra de pestañas y no una franja blanca */
+html {
+  background: var(--bar);
+}
 
 /* ---------- Instálala (iPhone en Safari) ---------- */
 body.gate #app { display: block; overflow-y: auto; }
@@ -1569,4 +1585,7 @@ body.gate #app { display: block; overflow-y: auto; }
   background: var(--deep);
   border: 3px solid var(--line);
 }
+
+/* Garaje → Versión */
+.set b.mono { font-family: var(--term); font-size: 19px; font-weight: normal; text-align: right; color: var(--cyan); max-width: 55%; overflow-wrap: anywhere; }
 
