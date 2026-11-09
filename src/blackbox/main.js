@@ -7,12 +7,13 @@ import '@fontsource/press-start-2p'
 import './style.css'
 import { onDbBlocked, listSessions, addSessions, loadSession, deleteSession, parseExport, deviceSessions, listSegments, saveSegment, deleteSegment, getEfforts, putEfforts, updateMeta, gpsBbox, getAnalysis, putAnalysis } from './library.js'
 import { analyze, rangeStats, DT, ANALYSIS_VERSION } from './process.js'
-import { makePath, findPasses, compare, pathPoints, runPass, bboxHit, closeLoop } from './align.js'
+import { makePath, findPasses, compare, pathPoints, runPass, bboxHit, closeLoop, profileOf, sectors } from './align.js'
 import { findPulls, pullCurve, envelope, DYNO, CDA_PRESETS } from './dyno.js'
 import { cloudAvailable, getKey, setKey, keyFromUrl, validKey, normKey, listRemote, fetchRemote, deleteRemote, sharedCircuits, sharedCircuit, shareCircuit, ranking, publishEffort, fetchProfile, claimCode, normCode } from './cloud.js'
 import { savedProfile, saveProfile, applyProfileTheme } from './theme.js'
 import { pal } from './palette.js'
 import { tip, GG_HELP, helpHtml } from './help.js'
+import { whereTime, reasons } from './coach.js'
 import { createCompareView, gainColors, fmtLap } from './compare-view.js'
 import { esc, toast, modal } from './ui.js'
 import uPlot from 'uplot'
@@ -89,6 +90,7 @@ root.innerHTML = `
     <div class="seg" data-k="xmode" title="Eje de las gráficas"><button data-x="t">TIEMPO</button><button data-x="d">DISTANCIA</button></div>
     <div class="seg" data-k="units"><button data-u="kmh">KM/H</button><button data-u="mph">MPH</button></div>
     <button class="btn ghost" data-act="csv" disabled title="Canales a 10 Hz para Excel u otras herramientas (del tramo elegido, o de toda la salida)">CSV</button>
+    <button class="btn ghost" data-act="gpx" disabled title="El recorrido para Google Earth, Strava u otros mapas (del tramo elegido, o de toda la salida)">GPX</button>
     <button class="btn ghost dl-btn" data-act="download" title="La app de Windows: más fluida y con una ventana en cada pantalla">⬇ WINDOWS</button>
     <button class="btn ghost win-btn" data-act="windows" title="Abrir el mapa, las gráficas o los datos en otra ventana y repartirlas en tus pantallas">VENTANAS</button>
     <button class="btn ghost help-btn" data-act="help" title="Cómo se leen tus datos y atajos">?</button>
@@ -206,7 +208,7 @@ async function refreshList() {
           const tag = m.source !== 'real' || m.state === 'rec' ? `<i class="src ${cls}">${txt}${m.state === 'rec' ? ' · A MEDIAS' : ''}</i>` : ''
           return `${head}<div class="sess ${m.id === S.id ? 'on' : ''}" data-id="${esc(m.id)}">
             <button class="sess-open" data-open="${esc(m.id)}" title="${fmtDateTime(m.start)}">
-              <b>${fmtClock(m.start).slice(0, 5)}${S.fresh.has(m.id) ? ' <em class="new">NUEVA</em>' : ''}</b>
+              <b class="${m.notes || m.tags?.length ? 'has-notes' : ''}" title="${esc([...(m.tags || []), m.notes || ''].filter(Boolean).join(' · '))}">${fmtClock(m.start).slice(0, 5)}${S.fresh.has(m.id) ? ' <em class="new">NUEVA</em>' : ''}</b>
               <span>${toDist(distOf(m)).toFixed(1)} ${distUnit()} · ${fmtDur((m.end - m.start) / 1000)} · ${Math.round(toSpeed(vmaxOf(m)))} ${speedUnit()}</span>
             </button>
             ${tag}
@@ -331,6 +333,7 @@ async function open(id, { range, cur } = {}) {
     if (lm && Number.isFinite(A.stats.vMax) && (Math.abs((lm.vmaxBB ?? -1) - A.stats.vMax) > 0.05 || Math.abs((lm.distBB ?? -1) - A.stats.dist) > 1)) updateMeta({ ...lm, vmaxBB: A.stats.vMax, distBB: A.stats.dist }).catch(() => {})
     S.fresh.delete(id)
     root.querySelector('[data-act="csv"]').disabled = false
+    root.querySelector('[data-act="gpx"]').disabled = false
     ensureViews()
     const m = A.meta
     K('title').innerHTML = `<b>${fmtDateTime(m.start)}</b> · ${toDist(A.stats.dist).toFixed(1)} ${distUnit()} · ${fmtDur(A.stats.dur)}${m.source !== 'real' ? ` · <i class="src ${m.source}">${(SRC[m.source] || ['?'])[0]}</i>` : ''}${m.rider?.bike ? ` · ${esc(m.rider.bike)}` : ''}`
@@ -723,7 +726,8 @@ function renderTab() {
         ${row('Sube / baja', `${Math.round(s.climb)} / ${Math.round(s.descent)} m`)}
         ${row('Vibración media', Number.isFinite(s.vib) ? `${s.vib.toFixed(2)} m/s²` : '—')}
       </table>
-      <p class="note">Pulsa una tarjeta con borde para ir a ese momento. Arrastra sobre las gráficas para ver solo un tramo.${p ? ' <b class="rec-dot">★</b> = igual o mejor que tu récord del móvil.' : ''}</p>`
+      <p class="note">Pulsa una tarjeta con borde para ir a ese momento. Arrastra sobre las gráficas para ver solo un tramo.${p ? ' <b class="rec-dot">★</b> = igual o mejor que tu récord del móvil.' : ''}</p>
+      ${notesHtml()}`
     },
     gg() {
       return `<p class="note">${GG_HELP}</p><canvas class="gg" data-k="gg"></canvas><h4 class="h">TIEMPO A CADA INCLINACION</h4><p class="note">Cuánto rato fuiste a cada inclinación: con práctica, la parte de la derecha crece.</p><canvas class="hist" data-k="hist"></canvas>`
@@ -851,6 +855,7 @@ root.addEventListener('click', async (e) => {
   if (d.act === 'shared') return sharedDialog()
   if (d.act === 'link') return linkDialog()
   if (d.act === 'home') return goHome()
+  if (d.act === 'analyzeAll') return analyzeAll()
   if (d.act === 'help') return modal(helpHtml(), { wide: true })
   if (d.act === 'windows') return windowsMenu()
   if (d.act === 'download') return downloadDialog()
@@ -892,6 +897,8 @@ root.addEventListener('click', async (e) => {
     return
   }
   if (d.act === 'csv') return exportCsv()
+  if (d.act === 'gpx') return exportGpx()
+  if (d.tag) return toggleTag(d.tag)
   if (d.u) {
     prefs.units = units.speed = d.u
     savePrefs()
@@ -901,7 +908,7 @@ root.addEventListener('click', async (e) => {
     buildCharts()
     S.map?.setTrack(S.A, prefs.mapCh, S.range)
     // La comparación abierta también, con la unidad nueva
-    if (S.cmp) S.cmpView.show(S.cmp.C, S.A, S.cmp.B, S.cmp.labels)
+    if (S.cmp) (S.cmpView.show(S.cmp.C, S.A, S.cmp.B, S.cmp.labels), renderCoach(S.cmp.C, S.A, S.cmp.B))
     return renderAll()
   }
   if (!S.A) return
@@ -1068,9 +1075,21 @@ async function analysisOf(id) {
     if (!A.empty) putAnalysis({ id, size: meta?.size ?? data.meta?.size, v: ANALYSIS_VERSION, A })
   }
   cache.set(id, A)
+  saveSummary(id, A)
   // Comparar y los tramos miran varias salidas: 12 análisis en memoria (~5 MB por hora de moto)
   if (cache.size > 12) cache.delete(cache.keys().next().value)
   return A
+}
+
+/** Las cifras de cada salida, guardadas en su ficha: con ellas se dibuja tu evolución sin reanalizar. */
+function saveSummary(id, A) {
+  const m = S.list.find((x) => x.id === id)
+  if (!m || A.empty || m.sum?.v === ANALYSIS_VERSION) return
+  const st = A.stats
+  m.sum = { v: ANALYSIS_VERSION, vMax: st.vMax, leanL: st.leanL, leanR: st.leanR, gTot: st.gTot, brake: st.brake, accel: st.accel, dist: st.dist, moving: st.moving, corners: A.corners.length }
+  m.vmaxBB = st.vMax
+  m.distBB = st.dist
+  updateMeta(m).catch(() => {})
 }
 
 /** Caja de la salida (las importadas antes de guardarla se calculan una vez). */
@@ -1164,6 +1183,34 @@ async function compareRunDialog(k) {
   }
 }
 
+/**
+ * DÓNDE GANAS Y PIERDES: las curvas y rectas donde más tiempo cambia entre las dos pasadas, con el
+ * porqué (frenada, velocidad mínima, inclinación, salida). Un clic lleva el cursor allí.
+ */
+function renderCoach(C, A, B) {
+  K('cmp').querySelector('.coach')?.remove()
+  const zones = whereTime(C, A, B).filter((z) => Math.abs(z.dt) >= 0.05)
+  const total = C.delta[C.n - 1]
+  if (!zones.length) return
+  const opts = { speed: (v) => toSpeed(v), unit: speedUnit() }
+  const name = (z) => (z.kind === 'corner' ? `Curva ${z.n} <small>(${z.dir === 'L' ? 'izq' : 'der'})</small>` : `Recta <small>(${Math.round(z.len)} m)</small>`)
+  const html = `<div class="coach"><h4 class="h">DONDE GANA Y PIERDE LA ROSA <small>(total ${total >= 0 ? '+' : '−'}${Math.abs(total).toFixed(2)} s)</small></h4>
+    <ul>${zones
+      .slice(0, 8)
+      .map((z) => {
+        const why = reasons(z, opts)
+        return `<li><button class="coach-row ${z.dt > 0 ? 'loss' : 'gain'}" data-coach="${z.at}"><b>${z.dt > 0 ? '+' : '−'}${Math.abs(z.dt).toFixed(2)} s</b><span>${name(z)}</span><em>${why.length ? why.join(' · ') : z.dt > 0 ? 'pierde sin una causa clara: mira la línea en el mapa' : 'gana sin una causa clara'}</em></button></li>`
+      })
+      .join('')}</ul>
+    <p class="note">+ es tiempo que pierde la pasada rosa respecto a la azul; − lo que gana. Cada curva cuenta desde su frenada (${70} m antes) hasta la salida.</p></div>`
+  const head = K('cmp').querySelector('.hint') || K('cmp').firstElementChild
+  head.insertAdjacentHTML('afterend', html)
+  K('cmp').querySelector('.coach').onclick = (e) => {
+    const b = e.target.closest('[data-coach]')
+    if (b) setCursor(Number(b.dataset.coach), 'list')
+  }
+}
+
 let cmpResize = null
 /** Compara la pasada `ref` de la salida abierta con `f` (otra pasada, de esta salida u otra). */
 async function startCompare(ref, f, L, labels) {
@@ -1183,6 +1230,7 @@ async function startCompare(ref, f, L, labels) {
     onExit: () => exitCompare(),
   })
   S.cmpView.show(C, S.A, B, labels)
+  renderCoach(C, S.A, B)
   setRange(Math.max(0, ref.i0 - 20), Math.min(S.A.n - 1, ref.i1 + 20))
   const coords = Array.from(C.iB, (i) => [B.lon[i], B.lat[i]])
   S.map?.setCompare(coords, gainColors(C))
@@ -1248,7 +1296,7 @@ function saveSegDialog() {
 }
 
 // Sube este número si cambia cómo se buscan las pasadas: los tiempos guardados se rehacen
-const EFFORTS_VERSION = `3.${ANALYSIS_VERSION}`
+const EFFORTS_VERSION = `4.${ANALYSIS_VERSION}`
 
 /** Tiempos de un tramo en toda la biblioteca (lo ya buscado se guarda). */
 async function segmentEfforts(seg, onProgress) {
@@ -1264,7 +1312,7 @@ async function segmentEfforts(seg, onProgress) {
         let vmax = 0
         let lean = 0
         for (let i = p.i0; i <= p.i1; i++) if (A.valid[i]) (vmax = Math.max(vmax, A.v[i])), (lean = Math.max(lean, Math.abs(A.lean[i])))
-        return { t0: p.t0, t1: p.t1, time: p.time, i0: p.i0, i1: p.i1, vmax, lean }
+        return { t0: p.t0, t1: p.t1, time: p.time, i0: p.i0, i1: p.i1, vmax, lean, prof: profileOf(p, P.length) }
       })
       rec = { seg: seg.id, session: m.id, size: m.size, v: EFFORTS_VERSION, list }
       await putEfforts(rec)
@@ -1297,6 +1345,7 @@ async function openSegment(id) {
   const el = modal(`<h2>${esc(seg.name)}</h2>
     <p class="note">${fmtLen(seg.length)}${seg.closed ? ' · vuelta' : ''}${seg.circuit ? ' · circuito cerrado' : ' · carretera: solo tus tiempos'}</p>
     <h4 class="h">TUS TIEMPOS</h4><div data-k="mine"><p class="note">Buscando en tus salidas…</p></div>
+    <div data-k="sectors"></div>
     ${seg.circuit ? '<h4 class="h">CLASIFICACION COMPARTIDA</h4><div data-k="shared"><p class="note">Cargando…</p></div>' : ''}
     <div class="actions"><button class="btn ghost small" data-k="del">BORRAR TRAMO</button><button class="btn small" data-close>CERRAR</button></div>`, { wide: true })
   const mine = el.querySelector('[data-k="mine"]')
@@ -1340,7 +1389,59 @@ async function openSegment(id) {
     el.close()
     refreshSegs()
   }
+  renderSectors(seg, efforts, el.querySelector('[data-k="sectors"]'))
+  // Tu evolución en este tramo: el mejor tiempo de cada día (más baja la barra, mejor)
+  if (efforts.length >= 2) {
+    const byDay = new Map()
+    for (const e of efforts) {
+      const k = new Date(e.meta.start).toDateString()
+      if (!byDay.has(k) || e.time < byDay.get(k).time) byDay.set(k, e)
+    }
+    const days = [...byDay.values()].sort((a, b) => a.meta.start - b.meta.start)
+    if (days.length >= 2) {
+      const worst = Math.max(...days.map((e) => e.time))
+      // Barras: lo que mejoras respecto a tu peor día (más alta, mejor)
+      const items = days.map((e) => ({ label: new Date(e.meta.start).toLocaleDateString('es', { day: 'numeric', month: 'short' }), y: worst - e.time + 0.2, title: `${fmtDateTime(e.meta.start)}: ${fmtLap(e.time)}` }))
+      el.querySelector('[data-k="sectors"]').insertAdjacentHTML('beforebegin', `<h4 class="h">TU EVOLUCION AQUI</h4><div class="evo-card">${bars(items, { color: 'green', fmt: () => `mejor ${fmtLap(Math.min(...days.map((e) => e.time)))}` })}<p class="note">Tu mejor tiempo de cada día: cuanto más alta la barra, más rápido.</p></div>`)
+    }
+  }
   if (seg.circuit) renderShared(seg, efforts, el.querySelector('[data-k="shared"]'))
+}
+
+/**
+ * Sectores del tramo: el tiempo de cada pasada en cada trozo, el mejor de cada uno (en morado, como en
+ * la F1) y la vuelta óptima: lo que harías si juntaras tus mejores sectores. Dice también en qué sector
+ * se te va más tiempo respecto a ese ideal.
+ */
+function renderSectors(seg, efforts, box) {
+  const list = efforts.filter((e) => Array.isArray(e.prof) && e.prof.length === 101)
+  if (list.length < 2) return (box.innerHTML = '')
+  const n = seg.sectors || 3
+  const { rows, best, optimal } = sectors(list.map((e) => e.prof), n)
+  const top = list[0]
+  const gain = top.time - optimal
+  // Dónde se te va más tiempo en tu mejor pasada (respecto al mejor de cada sector)
+  const loss = rows[0].map((v, k) => v - best[k])
+  const worst = loss.indexOf(Math.max(...loss))
+  const sp = (v) => fmtLap(v)
+  box.innerHTML = `<h4 class="h">SECTORES</h4>
+    <div class="sort">TROZOS ${[2, 3, 4, 5, 6].map((k) => `<button class="chip ${k === n ? 'on' : ''}" data-nsec="${k}">${k}</button>`).join('')}</div>
+    <p class="note">${seg.closed ? 'Vuelta' : 'Tramo'} óptima: <b>${sp(optimal)}</b>${gain > 0.005 ? ` · juntando tus mejores sectores irías <b>${gain.toFixed(2)} s</b> más rápido que tu mejor ${seg.closed ? 'vuelta' : 'pasada'}` : ' · tu mejor pasada ya es la óptima'}.${gain > 0.005 && loss[worst] > 0.005 ? ` En tu mejor, donde más se te va es el <b>sector ${worst + 1}</b> (+${loss[worst].toFixed(2)} s).` : ''}</p>
+    <table class="grid sectors"><thead><tr><th>#</th><th>FECHA</th>${best.map((_, k) => `<th>S${k + 1}</th>`).join('')}<th>TOTAL</th></tr></thead><tbody>
+      ${list
+        .slice(0, 30)
+        .map((e, j) => `<tr><td>${j + 1}</td><td>${when(e.meta, e.t0)}</td>${rows[j].map((v, k) => `<td class="${v <= best[k] + 0.0005 ? 'sbest' : ''}">${v.toFixed(2)}</td>`).join('')}<td><b>${sp(e.time)}</b></td></tr>`)
+        .join('')}
+      <tr class="optimal"><td>★</td><td>ÓPTIMA</td>${best.map((v) => `<td>${v.toFixed(2)}</td>`).join('')}<td><b>${sp(optimal)}</b></td></tr>
+    </tbody></table>
+    <p class="note">En morado, el mejor tiempo de cada sector. Los sectores son trozos iguales del ${seg.closed ? 'circuito' : 'tramo'}.</p>`
+  box.onclick = async (e) => {
+    const b = e.target.closest('[data-nsec]')
+    if (!b) return
+    seg.sectors = Number(b.dataset.nsec)
+    await saveSegment(seg)
+    renderSectors(seg, efforts, box)
+  }
 }
 
 async function renderShared(seg, efforts, box) {
@@ -1553,7 +1654,7 @@ function renderHome() {
       <p class="alt"><button class="linkish" data-act="help">¿Cómo se leen los datos?</button> · Otras formas: <button class="linkish" data-act="link">pegar la clave larga</button> · <label class="linkish">importar un archivo .json<input type="file" accept=".json,application/json" multiple hidden data-k="homeFile"></label> · <button class="linkish" data-act="demo">ver la demo</button></p>
     </section>`
   if (!p) {
-    el.innerHTML = `${linked ? `<section class="onboard"><h2>VINCULADO</h2><p>${S.list.length ? 'Tus salidas llegan solas. Elige una a la izquierda o aquí abajo.' : 'Aún no ha llegado nada: el móvil sube cada salida al terminarla (con conexión). Si acabas de vincularlo, abre la app en el móvil un momento.'}</p></section>` : onboarding}${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : ''}`
+    el.innerHTML = `${linked ? `<section class="onboard"><h2>VINCULADO</h2><p>${S.list.length ? 'Tus salidas llegan solas. Elige una a la izquierda o aquí abajo.' : 'Aún no ha llegado nada: el móvil sube cada salida al terminarla (con conexión). Si acabas de vincularlo, abre la app en el móvil un momento.'}</p></section>` : onboarding}${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : ''}${evolutionHtml()}`
     return
   }
   const t = p.totals || {}
@@ -1575,7 +1676,73 @@ function renderHome() {
       </div>
       <p class="note">Datos de tu móvil${p.updatedAt ? ` · ${new Date(p.updatedAt).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}. Pulsa una salida para analizarla.</p>
     </section>
-    ${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : '<p class="note">Aún no ha llegado ninguna salida: el móvil sube cada una al terminarla.</p>'}`
+    ${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : '<p class="note">Aún no ha llegado ninguna salida: el móvil sube cada una al terminarla.</p>'}
+    ${evolutionHtml()}`
+}
+
+// ---------- Tu evolución ----------
+/** Barras pequeñas (SVG, colores del tema): [{ label, y, title }] */
+function bars(items, { h = 84, color = 'cyan', fmt = (v) => v.toFixed(0), w = 280 } = {}) {
+  if (!items.length) return ''
+  const max = Math.max(...items.map((x) => x.y), 1e-9)
+  const bw = Math.max(3, Math.min(22, (w - 10) / items.length - 2))
+  const best = items.reduce((a, b) => (b.y > a.y ? b : a))
+  return `<svg class="evo" viewBox="0 0 ${w} ${h + 14}" width="100%" preserveAspectRatio="none">
+    ${items.map((x, k) => {
+      const bh = Math.max(1, (x.y / max) * h)
+      return `<rect x="${5 + k * (bw + 2)}" y="${h - bh}" width="${bw}" height="${bh}" fill="var(--${x === best ? 'yellow' : color})"><title>${esc(x.title)}</title></rect>`
+    }).join('')}
+    <text x="${w - 4}" y="10" text-anchor="end" fill="var(--dim)" font-size="10">máx ${fmt(max)}</text>
+    <text x="4" y="${h + 12}" fill="var(--dim)" font-size="9">${esc(items[0].label)}</text>
+    <text x="${w - 4}" y="${h + 12}" text-anchor="end" fill="var(--dim)" font-size="9">${esc(items.at(-1).label)}</text>
+  </svg>`
+}
+
+/** Tus salidas reales con su resumen, de la más antigua a la más nueva. */
+const realRides = () => S.list.filter((m) => (m.source || 'real') === 'real').slice().reverse()
+function evolutionHtml() {
+  const rides = realRides()
+  if (rides.length < 2) return ''
+  const done = rides.filter((m) => m.sum?.v === ANALYSIS_VERSION)
+  const missing = rides.length - done.length
+  const d = (m) => new Date(m.start).toLocaleDateString('es', { day: 'numeric', month: 'short' })
+  // Kilómetros por semana (las últimas 12)
+  const weeks = new Map()
+  for (const m of rides) {
+    const t = new Date(m.start)
+    const monday = new Date(t.getFullYear(), t.getMonth(), t.getDate() - ((t.getDay() + 6) % 7))
+    const k = monday.getTime()
+    weeks.set(k, (weeks.get(k) || 0) + (m.sum?.dist ?? m.distBB ?? m.dist ?? 0))
+  }
+  const wk = [...weeks.entries()].sort((a, b) => a[0] - b[0]).slice(-12).map(([k, v]) => ({ label: new Date(k).toLocaleDateString('es', { day: 'numeric', month: 'short' }), y: toDist(v), title: `Semana del ${new Date(k).toLocaleDateString('es', { day: 'numeric', month: 'long' })}: ${toDist(v).toFixed(1)} ${distUnit()}` }))
+  const last = done.slice(-30)
+  const lean = last.map((m) => ({ label: d(m), y: Math.max(m.sum.leanL, m.sum.leanR), title: `${fmtDateTime(m.start)}: ${Math.round(m.sum.leanL)}° izq · ${Math.round(m.sum.leanR)}° der` }))
+  const vmax = last.map((m) => ({ label: d(m), y: toSpeed(m.sum.vMax), title: `${fmtDateTime(m.start)}: ${Math.round(toSpeed(m.sum.vMax))} ${speedUnit()}` }))
+  return `<h3 class="h">TU EVOLUCION</h3>
+    <div class="evo-grid">
+      ${lean.length ? `<div class="evo-card"><span>INCLINACION MAXIMA POR SALIDA</span>${bars(lean, { color: 'cyan', fmt: (v) => `${Math.round(v)}°` })}</div>` : ''}
+      ${vmax.length ? `<div class="evo-card"><span>PUNTA POR SALIDA</span>${bars(vmax, { color: 'pink', fmt: (v) => `${Math.round(v)} ${speedUnit()}` })}</div>` : ''}
+      <div class="evo-card"><span>${distUnit().toUpperCase()} POR SEMANA</span>${bars(wk, { color: 'green', fmt: (v) => v.toFixed(0) })}</div>
+    </div>
+    ${missing ? `<p class="note">${missing} ${missing === 1 ? 'salida aún no está analizada' : 'salidas aún no están analizadas'} y no salen en las gráficas. <button class="linkish" data-act="analyzeAll">Analizarlas ahora</button></p>` : '<p class="note">En amarillo, tu mejor marca. Pasa el ratón por una barra para ver la salida.</p>'}`
+}
+
+/** Analiza las salidas que falten (en segundo plano) para completar tu evolución. */
+let analyzingAll = false
+async function analyzeAll() {
+  if (analyzingAll) return
+  analyzingAll = true
+  const todo = realRides().filter((m) => m.sum?.v !== ANALYSIS_VERSION)
+  let n = 0
+  for (const m of todo) {
+    toast(`Analizando ${++n} de ${todo.length}…`, 4000)
+    try {
+      await analysisOf(m.id)
+    } catch {}
+  }
+  analyzingAll = false
+  toast('Listo: tu evolución está completa')
+  if (!S.id) renderHome()
 }
 
 /** Vuelve al inicio (perfil y salidas). */
@@ -1587,6 +1754,7 @@ function goHome() {
   S.A = null
   history.replaceState(null, '', location.pathname + location.search)
   root.querySelector('[data-act="csv"]').disabled = true
+  root.querySelector('[data-act="gpx"]').disabled = true
   refreshList()
 }
 
@@ -1703,6 +1871,76 @@ function cloudSync({ quiet = false } = {}) {
 let lastSync = 0
 setInterval(() => !SAT && document.visibilityState === 'visible' && getKey() && cloudSync({ quiet: true }), 60000)
 document.addEventListener('visibilitychange', () => !SAT && document.visibilityState === 'visible' && getKey() && Date.now() - lastSync > 15000 && cloudSync({ quiet: true }))
+
+// ---------- Notas de cada salida ----------
+// Para acordarte de qué cambió (presiones, reglajes, lluvia...): se guardan en este navegador con la salida
+const TAGS = ['Neumáticos nuevos', 'Lluvia o mojado', 'Con pasajero', 'Circuito', 'Cambié reglajes', 'Moto nueva']
+const metaOf = (id) => S.list.find((m) => m.id === id)
+function notesHtml() {
+  const m = metaOf(S.id) || {}
+  const tags = m.tags || []
+  return `<div class="notes"><h4 class="h">NOTAS DE LA SALIDA</h4>
+    <div class="chips">${TAGS.map((t) => `<button class="chip ${tags.includes(t) ? 'on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+    <textarea data-k="notes" maxlength="2000" rows="3" placeholder="Presiones, reglajes, cómo te encontraste… (se guarda solo)">${esc(m.notes || '')}</textarea></div>`
+}
+async function saveNotes(patch) {
+  const m = metaOf(S.id)
+  if (!m) return
+  Object.assign(m, patch)
+  await updateMeta(m)
+  // La marca de «tiene notas» en la lista
+  K('list').querySelector(`[data-id="${CSS.escape(S.id)}"] .sess-open b`)?.classList.toggle('has-notes', !!(m.notes || m.tags?.length))
+}
+function toggleTag(t) {
+  const m = metaOf(S.id)
+  if (!m) return
+  const tags = new Set(m.tags || [])
+  tags.has(t) ? tags.delete(t) : tags.add(t)
+  saveNotes({ tags: [...tags] })
+  for (const b of root.querySelectorAll('[data-tag]')) b.classList.toggle('on', tags.has(b.dataset.tag))
+}
+let notesTimer = null
+root.addEventListener('input', (e) => {
+  if (e.target.dataset?.k !== 'notes') return
+  clearTimeout(notesTimer)
+  const v = e.target.value
+  notesTimer = setTimeout(() => saveNotes({ notes: v }), 600)
+})
+
+// ---------- GPX ----------
+/** El recorrido (del tramo elegido o de toda la salida) en GPX 1.1, con velocidad e inclinación. */
+function exportGpx() {
+  const A = S.A
+  if (!A) return
+  const [w0, w1] = S.work
+  const t0 = A.meta.start
+  const name = `Street Chaos ${fmtDateTime(t0)}${isFull(S.work) ? '' : ` (tramo ${span(w0, w1)})`}`
+  const x = (v, d) => (Number.isFinite(v) ? v.toFixed(d) : null)
+  const out = [`<?xml version="1.0" encoding="UTF-8"?>`, `<gpx version="1.1" creator="Street Chaos Blackbox" xmlns="http://www.topografix.com/GPX/1/1" xmlns:sc="https://pepe-a-d.github.io/streetchaos/gpx/1">`, `<metadata><name>${esc(name)}</name><time>${new Date(t0).toISOString()}</time></metadata>`, `<trk><name>${esc(name)}</name><type>motorcycling</type>`]
+  let open = false
+  let lastSeg = null
+  for (let i = w0; i <= w1; i++) {
+    if (!A.valid[i]) {
+      if (open) (out.push('</trkseg>'), (open = false))
+      continue
+    }
+    if (!open || A.seg[i] !== lastSeg) {
+      if (open) out.push('</trkseg>')
+      out.push('<trkseg>')
+      open = true
+      lastSeg = A.seg[i]
+    }
+    const ele = x(A.alt[i], 1)
+    out.push(`<trkpt lat="${A.lat[i].toFixed(7)}" lon="${A.lon[i].toFixed(7)}">${ele ? `<ele>${ele}</ele>` : ''}<time>${new Date(t0 + A.t[i] * 1000).toISOString()}</time><extensions><sc:speed>${x(A.v[i], 2)}</sc:speed><sc:lean>${x(A.lean[i], 1)}</sc:lean><sc:glong>${x(A.gLong[i], 3)}</sc:glong></extensions></trkpt>`)
+  }
+  if (open) out.push('</trkseg>')
+  out.push('</trk>', '</gpx>')
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([out.join('\n')], { type: 'application/gpx+xml' }))
+  a.download = `streetchaos-${new Date(t0).toISOString().slice(0, 16).replace(/[:T]/g, '-')}${isFull(S.work) ? '' : '-tramo'}.gpx`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000)
+}
 
 // ---------- CSV ----------
 function exportCsv() {

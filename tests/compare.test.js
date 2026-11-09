@@ -2,7 +2,8 @@
 import { describe, it, expect } from 'vitest'
 import { synthRide } from '../src/blackbox/synth.js'
 import { analyze, DT } from '../src/blackbox/process.js'
-import { makePath, findPasses, compare, pathPoints, runPass, closeLoop, cutAt } from '../src/blackbox/align.js'
+import { makePath, findPasses, compare, pathPoints, runPass, closeLoop, cutAt, profileOf, sectors } from '../src/blackbox/align.js'
+import { whereTime, reasons } from '../src/blackbox/coach.js'
 import { findPulls, pullCurve, DYNO } from '../src/blackbox/dyno.js'
 import { packSession, unpackSession } from '../src/core/blackbox.js'
 
@@ -194,6 +195,51 @@ describe('arreglos de la revisión del Blackbox', () => {
     for (let k = 0; k < g.length / W; k += 8) out.push(...g.slice(k * W, k * W + W))
     const A = analyze({ ...ride, gps: Float64Array.from(out), meta: { ...ride.meta, rows: { ...ride.meta.rows, gps: out.length / W } } })
     expect(A.empty).toBe(true)
+  })
+})
+
+describe('sectores, vuelta óptima y dónde se gana tiempo', () => {
+  it('perfil de una pasada y sectores: la óptima junta lo mejor de cada una', () => {
+    // Dos pasadas de 100 s: la A es más rápida en la primera mitad y la B en la segunda
+    const a = Array.from({ length: 101 }, (_, k) => (k <= 50 ? k * 0.9 : 45 + (k - 50) * 1.1))
+    const b = Array.from({ length: 101 }, (_, k) => (k <= 50 ? k * 1.1 : 55 + (k - 50) * 0.9))
+    const { rows, best, optimal } = sectors([a, b], 2)
+    expect(rows[0][0]).toBeCloseTo(45, 6)
+    expect(rows[1][1]).toBeCloseTo(45, 6)
+    expect(best[0]).toBeCloseTo(45, 6)
+    expect(best[1]).toBeCloseTo(45, 6)
+    expect(optimal).toBeCloseTo(90, 6) // 10 s mejor que cualquiera de las dos (100 s)
+    // El perfil de una pasada real empieza en 0 y acaba en su tiempo
+    const path = road()
+    const A = analyze(synthRide({ path, drag: false, seed: 3 }))
+    const P = makePath(pathPoints(A, A.valid.indexOf(1), A.valid.lastIndexOf(1)))
+    const [p] = findPasses(P, A)
+    const prof = profileOf(p, P.length)
+    expect(prof).toHaveLength(101)
+    expect(prof[0]).toBeCloseTo(0, 2)
+    expect(prof[100]).toBeCloseTo(p.time, 1)
+  })
+
+  it('dónde gana tiempo la más rápida: las zonas suman la diferencia total y explican por qué', () => {
+    const path = road()
+    const slow = analyze(synthRide({ path, drag: false, vRoad: 18, seed: 3 }))
+    const fast = analyze(synthRide({ path, drag: false, vRoad: 24, seed: 5, start: Date.UTC(2026, 10, 10, 10) }))
+    const P = makePath(pathPoints(slow, slow.valid.indexOf(1), slow.valid.lastIndexOf(1)))
+    const [ra] = findPasses(P, slow)
+    const [rb] = findPasses(P, fast)
+    const C = compare(ra, slow, rb, fast, P.length)
+    const zones = whereTime(C, slow, fast)
+    expect(zones.length).toBeGreaterThan(1)
+    // La rápida (B) gana tiempo: casi todo negativo, y las zonas cubren casi toda la diferencia
+    const sum = zones.reduce((a, z) => a + z.dt, 0)
+    expect(sum).toBeLessThan(0)
+    expect(Math.abs(sum - C.delta[C.n - 1])).toBeLessThan(Math.abs(C.delta[C.n - 1]) * 0.25 + 0.3)
+    // Las curvas dicen algo (pasa más rápido, etc.) y van de más a menos tiempo
+    const corner = zones.find((z) => z.kind === 'corner')
+    expect(corner).toBeTruthy()
+    expect(Math.abs(zones[0].dt)).toBeGreaterThanOrEqual(Math.abs(zones.at(-1).dt))
+    const why = zones.flatMap((z) => reasons(z, { speed: (v) => v * 3.6, unit: 'km/h' }))
+    expect(why.some((w) => /más rápido|punta/.test(w))).toBe(true)
   })
 })
 

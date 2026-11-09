@@ -220,6 +220,27 @@ function byOwnDistance(r, S, L) {
   return { ...r, s }
 }
 
+/**
+ * El tiempo de una pasada en cada 1 % del trazado (101 valores, desde su inicio): con eso se sacan los
+ * sectores que quieras (2, 3, 4...) sin volver a analizar nada.
+ */
+export function profileOf(pass, L, n = 100) {
+  const out = new Array(n + 1)
+  for (let k = 0; k <= n; k++) out[k] = Math.round((interpMono(pass.s, pass.t, (L * k) / n) - pass.t0) * 1000) / 1000
+  return out
+}
+
+/**
+ * Sectores de varias pasadas: tiempos de cada sector, el mejor de cada uno y la vuelta óptima (la suma
+ * de los mejores sectores: lo que harías si juntaras lo mejor de cada pasada).
+ */
+export function sectors(profiles, nSec) {
+  const cut = (k) => Math.round((100 * k) / nSec)
+  const rows = profiles.map((p) => Array.from({ length: nSec }, (_, k) => p[cut(k + 1)] - p[cut(k)]))
+  const best = Array.from({ length: nSec }, (_, k) => Math.min(...rows.map((r) => r[k])))
+  return { rows, best, optimal: best.reduce((a, b) => a + b, 0) }
+}
+
 /** Corta una pasada con s en metros desde su salida en L (el tiempo en L, interpolado). */
 export function cutAt(r, L) {
   const s = []

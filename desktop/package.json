@@ -1,7 +1,7 @@
 {
   "name": "streetchaos-blackbox",
   "productName": "Blackbox Street Chaos",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Analizador de la telemetría de Street Chaos para el ordenador, en varias pantallas",
   "main": "main.js",
   "author": "Pepe",

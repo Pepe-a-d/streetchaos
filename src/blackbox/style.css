@@ -443,3 +443,33 @@ body[data-vista='todo'].det-graficas .row1 { height: calc(100vh - 90px); }
 .win-btns a.btn small { font: 11px var(--ui); opacity: 0.8; }
 .dl-btn { color: var(--green); border-color: var(--green); }
 
+/* Notas de la salida */
+.notes { margin-top: 12px; display: grid; gap: 6px; }
+.notes textarea { width: 100%; font: 13px var(--ui); color: var(--ink); background: var(--bg); border: 2px solid var(--line2); padding: 8px; resize: vertical; }
+.notes textarea:focus { outline: none; border-color: var(--cyan); }
+.has-notes::after { content: ' ✎'; color: var(--yellow); font-weight: normal; }
+
+/* Sectores */
+.sectors td.sbest { color: var(--violet); font-weight: 700; }
+.sectors tr.optimal td { border-top: 2px solid var(--line2); color: var(--yellow); }
+
+/* Evolución */
+.evo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.evo-card { padding: 10px; background: var(--panel); border: 2px solid var(--line); display: grid; gap: 4px; }
+.evo-card > span { font: 7px var(--pixel); color: var(--dim); letter-spacing: 0.5px; }
+.evo { display: block; height: 100px; }
+.evo rect:hover { opacity: 0.75; }
+
+/* Dónde gana y pierde */
+.coach { margin: 6px 0 10px; padding: 8px 10px; background: var(--bg2); border: 2px solid var(--line); }
+.coach h4 small { color: var(--dim); }
+.coach ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.coach-row { width: 100%; display: grid; grid-template-columns: 70px 120px 1fr; gap: 8px; align-items: baseline; text-align: left; padding: 4px 6px; border-left: 3px solid transparent; }
+.coach-row:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.coach-row b { font: 600 13px var(--mono); }
+.coach-row.loss { border-left-color: var(--red); }
+.coach-row.loss b { color: var(--red); }
+.coach-row.gain { border-left-color: var(--green); }
+.coach-row.gain b { color: var(--green); }
+.coach-row em { font-style: normal; color: var(--dim); }
+
