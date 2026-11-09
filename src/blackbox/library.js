@@ -72,6 +72,8 @@ const STORES = [
   ['data', { keyPath: 'id' }],
   ['segments', { keyPath: 'id' }],
   ['efforts', { keyPath: ['seg', 'session'] }],
+  // Análisis ya hechos (para no repetirlos cada vez que se abre la página): { id, size, v, A }
+  ['analysis', { keyPath: 'id' }],
 ]
 const blockedSubs = new Set()
 export const onDbBlocked = (fn) => (blockedSubs.add(fn), () => blockedSubs.delete(fn))
@@ -173,11 +175,16 @@ export async function loadSession(id) {
 }
 
 export async function deleteSession(id) {
-  await run(['meta', 'data'], 'readwrite', (tx) => {
+  await run(['meta', 'data', 'analysis'], 'readwrite', (tx) => {
     tx.objectStore('meta').delete(id)
     tx.objectStore('data').delete(id)
+    tx.objectStore('analysis').delete(id)
   })
 }
+
+/** Análisis guardado de una salida (o undefined). */
+export const getAnalysis = (id) => run(['analysis'], 'readonly', (tx) => tx.objectStore('analysis').get(id)).catch(() => undefined)
+export const putAnalysis = (rec) => run(['analysis'], 'readwrite', (tx) => tx.objectStore('analysis').put(rec)).catch(() => {})
 
 // ---------- Tramos ----------
 

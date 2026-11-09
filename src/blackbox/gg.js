@@ -20,8 +20,12 @@ function setup(canvas) {
   return { ctx, w, h }
 }
 
-export function drawGG(canvas, A, i0, i1, cur) {
-  const { ctx, w, h } = setup(canvas)
+function drawBase(A, i0, i1, w, h, dpr, key) {
+  const off = document.createElement('canvas')
+  off.width = Math.round(w * dpr)
+  off.height = Math.round(h * dpr)
+  const ctx = off.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   const size = Math.min(w, h)
   const cx = w / 2
   const cy = h / 2
@@ -65,14 +69,22 @@ export function drawGG(canvas, A, i0, i1, cur) {
   const SECT = 36
   const env = new Float64Array(SECT)
   ctx.globalAlpha = 0.55
+  // Por colores: 24 tonos de la rampa, cada uno de una vez (antes se calculaba el color punto a punto)
+  const NC = 24
+  const ramp = SPEED()
+  const groups = Array.from({ length: NC }, () => [])
   for (let i = i0; i <= i1; i += step) {
     if (!A.valid[i] || A.v[i] < 3) continue
     const x = A.gLat[i]
     const y = A.gLong[i]
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue
-    ctx.fillStyle = rampColor(SPEED(), A.v[i] / vTop)
-    ctx.fillRect(cx + x * k - 1.5, cy - y * k - 1.5, 3, 3)
+    groups[Math.min(NC - 1, Math.floor((A.v[i] / vTop) * NC))].push(cx + x * k - 1.5, cy - y * k - 1.5)
   }
+  groups.forEach((g, c) => {
+    if (!g.length) return
+    ctx.fillStyle = rampColor(ramp, (c + 0.5) / NC)
+    for (let j = 0; j < g.length; j += 2) ctx.fillRect(g[j], g[j + 1], 3, 3)
+  })
   for (let i = i0; i <= i1; i++) {
     if (!A.valid[i] || A.v[i] < 3) continue
     const x = A.gLat[i]
@@ -94,7 +106,23 @@ export function drawGG(canvas, A, i0, i1, cur) {
     s ? ctx.lineTo(px, py) : ctx.moveTo(px, py)
   }
   ctx.stroke()
+  ctx.textAlign = 'left'
+  ctx.fillStyle = pal('dim')
+  ctx.fillText(`color: ${speedUnit()} (0-${Math.round(toSpeed(vTop))})`, 4, h - 4)
+  return { key, canvas: off, k, cx, cy }
+}
 
+// El fondo (rejilla, puntos y envolvente) se dibuja una vez por tramo y tamaño en un lienzo aparte; al
+// mover el cursor solo se copia y se pinta el círculo (antes se redibujaban ~12 000 puntos a cada paso)
+let base = null // { key, canvas, k, cx, cy, vTop }
+
+export function drawGG(canvas, A, i0, i1, cur) {
+  const { ctx, w, h } = setup(canvas)
+  const dpr = devicePixelRatio || 1
+  const key = `${A.meta?.id}|${A.n}|${i0}|${i1}|${w}|${h}|${dpr}|${pal('cyan')}|${pal('bg')}|${speedUnit()}`
+  if (base?.key !== key) base = drawBase(A, i0, i1, w, h, dpr, key)
+  ctx.drawImage(base.canvas, 0, 0, w, h)
+  const { k, cx, cy } = base
   if (cur != null && A.valid[cur]) {
     const x = cx + A.gLat[cur] * k
     const y = cy - A.gLong[cur] * k
@@ -107,9 +135,6 @@ export function drawGG(canvas, A, i0, i1, cur) {
     ctx.lineWidth = 2
     ctx.stroke()
   }
-  ctx.textAlign = 'left'
-  ctx.fillStyle = pal('dim')
-  ctx.fillText(`color: ${speedUnit()} (0-${Math.round(toSpeed(vTop))})`, 4, h - 4)
 }
 
 /** Tiempo a cada inclinación (bloques de 5°, de 60° IZQ a 60° DER), por encima de 20 km/h. */

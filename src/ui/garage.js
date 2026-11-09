@@ -424,6 +424,7 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
       sub = b.dataset.sub
       if (sub === 'perms') geo = await geoPermission()
       render()
+      el.querySelector('.g-page')?.classList.add('enter')
       el.scrollTop = 0
       return
     }

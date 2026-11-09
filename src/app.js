@@ -21,6 +21,7 @@ import { ICONS, pixelSvg } from './ui/pixel.js'
 import { showBlackout, blackout } from './ui/blackout.js'
 import { applyTheme } from './ui/themes.js'
 import { setupUpdates } from './core/update.js'
+import { setupGestures } from './ui/gestures.js'
 import { $, html, setter, toast } from './ui/util.js'
 import { fixOldRecords } from './core/recalc.js'
 
@@ -207,6 +208,8 @@ onSetting((key, val) => {
 })
 setupIncoming()
 setupUpdates()
+// Deslizar desde el borde para volver y hacia abajo para cerrar (en marcha no se sale de una pestaña)
+setupGestures({ goTab: (id) => go(id), canLeave: () => T.v < 2 })
 initLogger()
 // Subida a la nube: al cerrar cada salida, al abrir la app (lo que quedó pendiente) y al volver la conexión
 onSessionEnd((meta) => {

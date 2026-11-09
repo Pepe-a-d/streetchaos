@@ -48,6 +48,11 @@ export default defineConfig(({ mode }) => ({
       },
     }),
   ].filter(Boolean),
+  // El worker del análisis es solo del Blackbox: «bb-» para dejarlo fuera de la app del móvil
+  worker: {
+    format: 'es',
+    rolldownOptions: { output: { entryFileNames: 'assets/bb-[name]-[hash].js', chunkFileNames: 'assets/bb-[name]-[hash].js' } },
+  },
   build: {
     rolldownOptions: {
       input: { main: resolve(import.meta.dirname, 'index.html'), blackbox: resolve(import.meta.dirname, 'blackbox/index.html') },

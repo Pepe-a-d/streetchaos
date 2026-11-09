@@ -192,7 +192,9 @@ main {
 }
 .screen.on {
   display: grid;
+  animation: scrIn 0.16s ease-out;
 }
+@keyframes scrIn { from { opacity: 0; transform: translateY(6px); } }
 .screen.scroll {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -1384,9 +1386,10 @@ body.dash-edit .simpad { display: none; }
   padding: 0 14px calc(16px + var(--safe-b));
   border-bottom: 0;
   box-shadow: none;
-  animation: sheetUp 0.2s steps(4);
+  animation: sheetUp 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  overscroll-behavior: contain;
 }
-@keyframes sheetUp { from { transform: translateY(48px); opacity: 0; } }
+@keyframes sheetUp { from { transform: translateY(70px); opacity: 0; } }
 .sh-head { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; padding: 12px 0 8px; background: var(--panel); border-bottom: 2px dashed var(--dash); }
 .sh-x { font: 16px var(--pixel); color: var(--dim); padding: 4px 8px; }
 .sheet h4.lbl { margin: 6px 0 0; color: var(--faint); }
@@ -1597,4 +1600,22 @@ body.gate #app { display: block; overflow-y: auto; }
 
 /* Garaje → Versión */
 .set b.mono { font-family: var(--term); font-size: 19px; font-weight: normal; text-align: right; color: var(--cyan); max-width: 55%; overflow-wrap: anywhere; }
+
+/* ---------- Fluidez en el móvil ---------- */
+body { -webkit-touch-callout: none; }
+.screen.scroll, .g-body, .layer { overscroll-behavior: contain; }
+.layer { animation: layerIn 0.14s ease-out; }
+@keyframes layerIn { from { opacity: 0; } }
+.layer .modal { animation: popIn 0.18s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes popIn { from { opacity: 0; transform: scale(0.96) translateY(8px); } }
+/* Al abrir un apartado del Garaje, entra desde la derecha (y se puede sacar deslizando desde el borde) */
+.g-page.enter { animation: pageIn 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes pageIn { from { opacity: 0.3; transform: translateX(40px); } }
+/* Respuesta inmediata al tocar */
+.tab:active { filter: brightness(1.25); }
+.chip:active { transform: translate(1px, 1px); }
+.mi:active { transform: translateX(2px); }
+@media (prefers-reduced-motion: reduce) {
+  .screen.on, .layer, .layer .modal, .g-page.enter, .sheet { animation: none; }
+}
 

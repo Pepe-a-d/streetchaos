@@ -83,9 +83,15 @@ El **inicio** enseña el perfil y las últimas salidas (sin vincular, los tres p
 
 Comparar y tramos usan `src/blackbox/align.js` (proyecta una salida sobre el trazado de otra con una rejilla, encuentra las pasadas de principio a fin en el mismo sentido y las alinea por la distancia que recorre cada moto); la potencia, `src/blackbox/dyno.js`.
 
+**Rendimiento**: el análisis va en un worker (`analyze.worker.js`, la página no se para) y se guarda en el navegador junto con la salida (se rehace si la salida crece o cambia `ANALYSIS_VERSION`); el G-G dibuja su fondo una vez y solo mueve el cursor; el cursor del mapa es un marcador.
+
 El análisis (`src/blackbox/process.js`) es offline y por eso más fino que el del móvil: traza la curva entre fixes de GPS con un spline que respeta su rumbo y velocidad, saca la postura del móvil en el soporte (arriba = gravedad media, adelante = la dirección del acelerómetro que mejor explica lo que acelera el GPS), da la G longitudinal del acelerómetro calibrado, mide el retraso del GPS respecto a los sensores y lo descuenta, prueba las dos asignaciones de ejes del giroscopio (estándar e iPhone), y saca la inclinación de la gravedad del propio móvil (o, si no la da, de `sen φ = v·giro/g` fusionada con el giro de alabeo, sin retraso). La velocidad es solo la del GPS: los huecos se rellenan entre vecinos o a 0, nunca con saltos de posición. `src/blackbox/synth.js` inventa salidas con física y ruido realistas para probarlo (`tests/analysis.test.js`: error medio de inclinación < 2,5°) y para la demo (`node scripts/demo-telemetry.mjs` → `public/demo/`).
 
 No se guarda para usar sin conexión: la app del móvil (PWA) deja fuera sus archivos (`bb-*`).
+
+## Gestos
+
+Como en una app del iPhone (`src/ui/gestures.js`): **deslizar desde el borde izquierdo** vuelve atrás (cierra la ventana abierta, sale del apartado del Garaje o del editor del DASH, o vuelve al DASH desde otra pestaña; en marcha no se sale de una pestaña) y **deslizar hacia abajo** cierra ventanas y hojas. Lo que se cierra sigue al dedo. Las pestañas, los apartados y las ventanas entran con una transición corta y los botones se ven pulsados al momento.
 
 ## Voz
 

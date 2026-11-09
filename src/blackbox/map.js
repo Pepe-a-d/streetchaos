@@ -121,6 +121,12 @@ export async function createMap(el, { onHover, onPick, onMark = () => {} }) {
   map.addLayer({ id: 'cursor', type: 'circle', source: 'cursor', paint: { 'circle-radius': 5.5, 'circle-color': contrast(), 'circle-stroke-color': halo(), 'circle-stroke-width': 2 } })
 
   let A = null
+  // El cursor es un marcador (un div que se mueve), no una capa: cambiar los datos de una capa a cada
+  // movimiento del ratón obligaba al mapa a recalcularla y se notaba
+  const cursorEl = document.createElement('div')
+  cursorEl.className = 'map-cursor'
+  const cursorMk = new maplibregl.Marker({ element: cursorEl })
+  let cursorOn = false
 
   // La muestra de la traza más cercana al ratón (solo mira los trozos que hay bajo él)
   function nearest(point) {
@@ -238,7 +244,14 @@ export async function createMap(el, { onHover, onPick, onMark = () => {} }) {
     },
     setCursor(i) {
       const ok = A && i != null && A.valid[i]
-      map.getSource('cursor').setData(ok ? { type: 'Feature', geometry: { type: 'Point', coordinates: [A.lon[i], A.lat[i]] }, properties: {} } : empty)
+      if (!ok) {
+        if (cursorOn) cursorMk.remove()
+        cursorOn = false
+        return
+      }
+      cursorMk.setLngLat([A.lon[i], A.lat[i]])
+      if (!cursorOn) cursorMk.addTo(map)
+      cursorOn = true
     },
     /** Marcas: [{i, label, color, kind}] */
     setMarks(list) {

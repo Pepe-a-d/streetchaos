@@ -5,7 +5,7 @@
 // sincronizadas, resumen, G-G, curvas, frenadas, pasadas, potencia y calidad de los datos.
 import '@fontsource/press-start-2p'
 import './style.css'
-import { onDbBlocked, listSessions, addSessions, loadSession, deleteSession, parseExport, deviceSessions, listSegments, saveSegment, deleteSegment, getEfforts, putEfforts, updateMeta, gpsBbox } from './library.js'
+import { onDbBlocked, listSessions, addSessions, loadSession, deleteSession, parseExport, deviceSessions, listSegments, saveSegment, deleteSegment, getEfforts, putEfforts, updateMeta, gpsBbox, getAnalysis, putAnalysis } from './library.js'
 import { analyze, rangeStats, DT, ANALYSIS_VERSION } from './process.js'
 import { makePath, findPasses, compare, pathPoints, runPass, bboxHit, closeLoop } from './align.js'
 import { findPulls, pullCurve, envelope, DYNO, CDA_PRESETS } from './dyno.js'
@@ -963,6 +963,40 @@ addEventListener('keydown', (e) => {
 })
 
 
+// ---------- Análisis en segundo plano ----------
+// En un worker, para que la página no se quede parada mientras calcula; si no se puede, aquí mismo
+let worker = null
+let jobs = 0
+const jobsWaiting = new Map()
+function analyzeOff(session) {
+  try {
+    worker ??= (() => {
+      const w = new Worker(new URL('./analyze.worker.js', import.meta.url), { type: 'module' })
+      w.onmessage = (e) => {
+        const p = jobsWaiting.get(e.data.job)
+        jobsWaiting.delete(e.data.job)
+        if (!p) return
+        e.data.error ? p.reject(new Error(e.data.error)) : p.resolve(e.data.A)
+      }
+      w.onerror = () => {
+        // Sin worker (navegador raro): lo pendiente se hace aquí
+        for (const [, p] of jobsWaiting) p.fallback()
+        jobsWaiting.clear()
+        worker = false
+      }
+      return w
+    })()
+  } catch {
+    worker = false
+  }
+  if (!worker) return Promise.resolve(analyze(session))
+  return new Promise((resolve, reject) => {
+    const job = ++jobs
+    jobsWaiting.set(job, { resolve, reject, fallback: () => resolve(analyze(session)) })
+    worker.postMessage({ job, session })
+  })
+}
+
 // ---------- Análisis en caché (comparar y tramos miran varias salidas) ----------
 const cache = new Map()
 /**
@@ -986,9 +1020,16 @@ function refreshAnalysis(id, { reopen = false } = {}) {
 async function analysisOf(id) {
   if (S.A && S.id === id && S.staleId !== id) return S.A
   if (cache.has(id)) return cache.get(id)
-  const data = await loadSession(id)
-  if (!data) return null
-  const A = analyze(data)
+  // Ya hecho otra vez (y la salida no ha cambiado): se lee y listo
+  const meta = S.list.find((m) => m.id === id)
+  const saved = await getAnalysis(id)
+  let A = saved && saved.v === ANALYSIS_VERSION && saved.size === meta?.size ? saved.A : null
+  if (!A) {
+    const data = await loadSession(id)
+    if (!data) return null
+    A = await analyzeOff(data)
+    if (!A.empty) putAnalysis({ id, size: meta?.size ?? data.meta?.size, v: ANALYSIS_VERSION, A })
+  }
   cache.set(id, A)
   // Comparar y los tramos miran varias salidas: 12 análisis en memoria (~5 MB por hora de moto)
   if (cache.size > 12) cache.delete(cache.keys().next().value)
