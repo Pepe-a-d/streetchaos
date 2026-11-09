@@ -37,7 +37,12 @@ export function helpHtml() {
       <li><b>Pulsa una curva o una frenada</b> en su pestaña (o el número de la curva en el mapa) para verla de cerca. Con ◀ ▶ pasas a la siguiente sin perder el tramo, y <b>← ATRAS</b> vuelve.</li>
       <li><b>COMPARAR</b> busca otras veces que pasaste por lo que estás viendo y te dice, metro a metro, dónde ganas o pierdes tiempo.</li>
       <li><b>GUARDAR TRAMO</b> lo cronometra solo en todas tus salidas, como un segmento de Strava.</li>
+      <li><b>COMPARTIR</b> da un código para que un amigo se compare contigo en ese tramo; con <b>PASADA DE UN AMIGO</b> (a la izquierda) abres el suyo y ves dónde te gana.</li>
+      <li><b>VIDEO</b> (debajo del mapa): elige el vídeo de tu GoPro y se sincroniza solo con su GPS. Al mover el cursor, el vídeo va a ese momento; al reproducirlo, los datos le siguen.</li>
     </ol>
+    <h3 class="h">OTROS APARATOS</h3>
+    <p class="note">Puedes importar (o soltar en la página) el CSV de <b>RaceBox</b> o <b>RaceChrono</b>, un <b>VBO</b> de VBOX, un <b>GPX</b> o un registro <b>NMEA</b>. Con 10-25 posiciones por segundo los tiempos y las velocidades son mucho más finos que con el móvil. Si el aparato da su propia inclinación o G (RaceBox en modo moto, RaceChrono), se usa la suya.</p>
+    <p class="note">Vídeo: las GoPro desde la HERO5 graban su GPS dentro del vídeo y se sincronizan solas. Con otra cámara se usa su hora de grabación; ajústalo con −1 s / +1 s o, mejor, pon el vídeo y el cursor en el mismo momento (una frenada, un paso por meta) y pulsa <b>AQUI</b>. El vídeo no se sube a ningún sitio.</p>
     <h3 class="h">QUE ES CADA DATO</h3>
     <dl class="gloss">${g}</dl>
     <h3 class="h">LAS PESTAÑAS</h3>
@@ -58,6 +63,7 @@ export function helpHtml() {
       <dt>Doble clic</dt><dd>toda la salida</dd>
       <dt>← →</dt><dd>mover el cursor (con Mayús, de 1 s en 1 s)</dd>
       <dt>[ ]</dt><dd>curva o frenada anterior y siguiente</dd>
+      <dt>Espacio</dt><dd>reproducir o parar el vídeo</dd>
     </dl>
     <p class="note">Ojo con la precisión: el GPS del móvil da una posición por segundo, así que los parciales muy cortos (60 ft) son orientativos. La inclinación va a ±4° y la velocidad a ±1 km/h.</p>
     <div class="actions"><button class="btn small" data-close>ENTENDIDO</button></div>`

@@ -5,11 +5,15 @@
 // sincronizadas, resumen, G-G, curvas, frenadas, pasadas, potencia y calidad de los datos.
 import '@fontsource/press-start-2p'
 import './style.css'
-import { onDbBlocked, listSessions, addSessions, loadSession, deleteSession, parseExport, deviceSessions, listSegments, saveSegment, deleteSegment, getEfforts, putEfforts, updateMeta, gpsBbox, getAnalysis, putAnalysis } from './library.js'
+import { onDbBlocked, listSessions, addSessions, loadSession, deleteSession, parseExport, deviceSessions, listSegments, saveSegment, deleteSegment, getEfforts, putEfforts, updateMeta, gpsBbox, getAnalysis, putAnalysis, getVideos, putVideos } from './library.js'
 import { analyze, rangeStats, DT, ANALYSIS_VERSION } from './process.js'
 import { makePath, findPasses, compare, pathPoints, runPass, bboxHit, closeLoop, profileOf, sectors } from './align.js'
 import { findPulls, pullCurve, envelope, DYNO, CDA_PRESETS } from './dyno.js'
-import { cloudAvailable, getKey, setKey, keyFromUrl, validKey, normKey, listRemote, fetchRemote, deleteRemote, sharedCircuits, sharedCircuit, shareCircuit, ranking, publishEffort, fetchProfile, claimCode, normCode } from './cloud.js'
+import { cloudAvailable, getKey, setKey, keyFromUrl, validKey, normKey, listRemote, fetchRemote, deleteRemote, sharedCircuits, sharedCircuit, shareCircuit, ranking, publishEffort, fetchProfile, claimCode, normCode, shareGhost, fetchGhost, normGhostCode, validGhostCode } from './cloud.js'
+import { readVideo, fileReader, syncOffset, videoSpan } from './gpmf.js'
+import { createVideoPanel, isVideoFile, HOW } from './video.js'
+import { packGhost, unpackGhost } from './ghost.js'
+import { parseLoggerFile } from './importers.js'
 import { savedProfile, saveProfile, applyProfileTheme } from './theme.js'
 import { pal } from './palette.js'
 import { tip, GG_HELP, helpHtml } from './help.js'
@@ -42,7 +46,7 @@ const savePrefs = () => {
 // una: abrir una salida, elegir un tramo, mover el cursor o cambiar las unidades en una lo hace en las
 // demás (BroadcastChannel, dentro de este navegador o de la app de Windows). La principal («todo») es la
 // que tiene la biblioteca y sincroniza con la nube; las otras solo enseñan su parte, a pantalla completa.
-const VISTAS = { mapa: 'MAPA', graficas: 'GRAFICAS', datos: 'DATOS' }
+const VISTAS = { mapa: 'MAPA', graficas: 'GRAFICAS', datos: 'DATOS', video: 'VIDEO' }
 const VISTA = VISTAS[new URLSearchParams(location.search).get('vista')] ? new URLSearchParams(location.search).get('vista') : 'todo'
 const SAT = VISTA !== 'todo'
 document.body.dataset.vista = VISTA
@@ -103,8 +107,8 @@ root.innerHTML = `
     <div class="list" data-k="list"></div>
     <label class="drop" data-k="drop" title="También puedes soltar el archivo en cualquier parte de la página">
       <b>+ IMPORTAR</b>
-      <span>.json de <i>Garaje → Datos → Exportar</i></span>
-      <input type="file" accept=".json,application/json" multiple hidden>
+      <span>.json del móvil, GPX, CSV de RaceBox o RaceChrono, VBO o vídeo</span>
+      <input type="file" accept=".json,application/json,.gpx,.csv,.vbo,.nmea,.nma,.txt,.mp4,.mov,video/mp4,video/quicktime" multiple hidden>
     </label>
     <div class="lib-btns">
       <button class="btn ghost small" data-act="demo" title="Dos salidas inventadas por Oleiros para probarlo todo">VER DEMO</button>
@@ -113,6 +117,7 @@ root.innerHTML = `
     <h3 class="h">TRAMOS</h3>
     <div class="list" data-k="segs"></div>
     <button class="btn ghost small" data-act="shared" title="Circuitos cerrados con clasificación entre pilotos">CIRCUITOS COMPARTIDOS</button>
+    <button class="btn ghost small" data-act="friend" title="Abre la pasada que te ha pasado un amigo (con su código) y compárate con ella">PASADA DE UN AMIGO</button>
   </aside>
   <main class="main">
     <section class="empty" data-k="empty"></section>
@@ -120,9 +125,12 @@ root.innerHTML = `
       <div class="row1">
         <div class="panel mapbox">
           <div class="map" data-k="map"></div><div class="map-loading" data-k="maploading" hidden>CARGANDO MAPA…</div>
+          <div class="vid" data-k="vid" hidden></div>
           <div class="map-bar">
             <div class="chips" data-k="mapch">${MAP_CHANNELS.map((id) => `<button class="chip" data-mapch="${id}" title="Colorear la traza por ${CHANNELS[id].label.toLowerCase()}. ${tip(id)}">${CHANNELS[id].short}</button>`).join('')}</div>
             <div class="legend" data-k="legend"></div>
+            <span class="grow"></span>
+            <button class="btn ghost small vid-btn" data-act="video" data-k="vidBtn" title="El vídeo de esta salida (GoPro u otra cámara) al lado del mapa, sincronizado con los datos">VIDEO</button>
           </div>
         </div>
         <div class="panel side">
@@ -146,6 +154,7 @@ root.innerHTML = `
           <button class="btn ghost small" data-act="all" title="Toda la salida (doble clic en una gráfica)">VER TODO</button>
           <button class="btn cyan small" data-act="compare" title="Busca otras pasadas por este tramo (en esta salida o en otras) y compara">COMPARAR</button>
           <button class="btn ghost small" data-act="saveSeg" title="Guarda este tramo para cronometrarlo en todas tus salidas">GUARDAR TRAMO</button>
+          <button class="btn ghost small" data-act="share" title="Manda este tramo a un amigo: con el código lo compara con sus pasadas por el mismo sitio">COMPARTIR</button>
         </div>
         <div class="charts" data-k="charts"></div>
         <p class="hint">Arrastra sobre una gráfica o la tira de arriba para elegir un tramo · Ctrl/⌘ + rueda (o pellizca) para acercar · Esc vuelve atrás y doble clic lo enseña todo · ← → mueven el cursor · [ ] curva o frenada anterior y siguiente</p>
@@ -192,6 +201,8 @@ function dayLabel(ms) {
 // La punta que guardó el móvil antes de 2026-11-09 podía ser falsa (velocidad sacada de posiciones):
 // en cuanto se analiza una salida, se apunta la del análisis (vmaxBB) y es la que se enseña
 const vmaxOf = (m) => m.vmaxBB ?? m.vmax ?? 0
+/** Etiqueta corta de un archivo de otro aparato: «RACEBOX 25 HZ». */
+const loggerTag = (m) => `${String(m.logger.name || m.logger.kind).split(/[ ·(]/)[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()} ${Math.round(m.logger.hz)} HZ`
 const distOf = (m) => m.distBB ?? m.dist ?? 0
 
 async function refreshList() {
@@ -205,7 +216,7 @@ async function refreshList() {
           const d = dayLabel(m.start)
           const head = d !== day ? `<h4 class="day">${d}</h4>` : ''
           day = d
-          const tag = m.source !== 'real' || m.state === 'rec' ? `<i class="src ${cls}">${txt}${m.state === 'rec' ? ' · A MEDIAS' : ''}</i>` : ''
+          const tag = m.logger ? `<i class="src logger" title="${esc(m.logger.name)} · ${m.logger.hz} Hz${m.logger.file ? ` · ${esc(m.logger.file)}` : ''}">${loggerTag(m)}</i>` : m.source !== 'real' || m.state === 'rec' ? `<i class="src ${cls}">${txt}${m.state === 'rec' ? ' · A MEDIAS' : ''}</i>` : ''
           return `${head}<div class="sess ${m.id === S.id ? 'on' : ''}" data-id="${esc(m.id)}">
             <button class="sess-open" data-open="${esc(m.id)}" title="${fmtDateTime(m.start)}">
               <b class="${m.notes || m.tags?.length ? 'has-notes' : ''}" title="${esc([...(m.tags || []), m.notes || ''].filter(Boolean).join(' · '))}">${fmtClock(m.start).slice(0, 5)}${S.fresh.has(m.id) ? ' <em class="new">NUEVA</em>' : ''}</b>
@@ -220,8 +231,9 @@ async function refreshList() {
   if (!S.id) renderHome()
 }
 
-async function importText(text, from) {
-  const parsed = parseExport(text)
+async function importText(text, from, { mtime } = {}) {
+  // El .json del móvil (o del modo rescate); si no, un archivo de otro aparato (GPX, CSV, VBO, NMEA)
+  const parsed = /^\s*\{/.test(text.slice(0, 200)) ? parseExport(text) : { sessions: parseLoggerFile(text, from, { mtime }) }
   const r = await addSessions(parsed.sessions, from)
   // Importadas a mano: ya no cuentan como borradas, y su análisis se rehace si crecieron
   for (const x of parsed.sessions) if (deleted.delete(x.meta?.id)) saveDeleted()
@@ -236,10 +248,14 @@ async function importText(text, from) {
 }
 
 async function importFiles(files) {
+  // Los vídeos van al panel de vídeo; el resto, a la biblioteca
+  const videos = files.filter(isVideoFile)
+  files = files.filter((f) => !isVideoFile(f))
+  if (videos.length && !SAT) attachVideos(videos)
   let last = null
   for (const f of files) {
     try {
-      const sessions = await importText(await f.text(), f.name)
+      const sessions = await importText(await f.text(), f.name, { mtime: f.lastModified })
       if (sessions.length) last = sessions.sort((a, b) => b.meta.start - a.meta.start)[0].meta.id
     } catch (e) {
       toast(`${f.name}: ${e.message}`, 5000)
@@ -262,7 +278,7 @@ addEventListener('dragleave', (e) => {
 addEventListener('drop', (e) => {
   e.preventDefault()
   document.body.classList.remove('dragging')
-  const files = [...(e.dataTransfer?.files || [])].filter((f) => /json/i.test(f.type) || f.name.endsWith('.json'))
+  const files = [...(e.dataTransfer?.files || [])]
   if (files.length) importFiles(files)
 })
 
@@ -336,10 +352,11 @@ async function open(id, { range, cur } = {}) {
     root.querySelector('[data-act="gpx"]').disabled = false
     ensureViews()
     const m = A.meta
-    K('title').innerHTML = `<b>${fmtDateTime(m.start)}</b> · ${toDist(A.stats.dist).toFixed(1)} ${distUnit()} · ${fmtDur(A.stats.dur)}${m.source !== 'real' ? ` · <i class="src ${m.source}">${(SRC[m.source] || ['?'])[0]}</i>` : ''}${m.rider?.bike ? ` · ${esc(m.rider.bike)}` : ''}`
+    K('title').innerHTML = `<b>${fmtDateTime(m.start)}</b> · ${toDist(A.stats.dist).toFixed(1)} ${distUnit()} · ${fmtDur(A.stats.dur)}${m.logger ? ` · <i class="src logger">${loggerTag(m)}</i>` : m.source !== 'real' ? ` · <i class="src ${m.source}">${(SRC[m.source] || ['?'])[0]}</i>` : ''}${m.rider?.bike ? ` · ${esc(m.rider.bike)}` : ''}`
     if (S.map) paintMap(true)
     buildCharts()
     renderAll()
+    sessionVideos(A)
     try {
       if (!localStorage.getItem('sc-bb-helped')) {
         localStorage.setItem('sc-bb-helped', '1')
@@ -436,6 +453,10 @@ function setCursor(i, from) {
   else S.charts.setCursor(i, 'chart')
   S.map?.setCursor(i)
   if (from === 'key' || from === 'list') S.map?.follow(i)
+  if (vpanel) {
+    if (from !== 'video' && vpanel.on && videoShown()) vpanel.follow(i)
+    else vpanel.cursor = i
+  }
   if (S.cmp && from !== 'cmp') {
     const C = S.cmp.C
     let k = 0
@@ -801,22 +822,22 @@ function renderTab() {
         if (Number.isFinite(A.appV[i])) dv += (A.v[i] - A.appV[i]) ** 2
       }
       const vec = (v) => (v ? `(${v.map((x) => x.toFixed(2)).join(', ')})` : '—')
-      const LEAN = { gravity: 'gravedad del propio móvil', 'gyro+roll': 'giroscopio (giro + alabeo)', gyro: 'giroscopio (giro)', gps: 'rumbo del GPS' }
+      const LEAN = { gravity: 'gravedad del propio móvil', 'gyro+roll': 'giroscopio (giro + alabeo)', gyro: 'giroscopio (giro)', gps: 'rumbo del GPS', device: `la que da el aparato (${esc(m.logger?.name || '')})` }
       const c = m.calib || {}
       const calib =
         c.axes || c.leanSign != null || c.gpsLag != null
           ? `ejes ${c.axes || '—'} · sentido ${c.leanSign ?? '—'} · retraso GPS ${c.gpsLag != null ? `${c.gpsLag} s` : '—'}${c.fwd ? ' · delante aprendido' : ''}`
           : `cero ${c.leanZero != null ? `${((c.leanZero * 180) / Math.PI).toFixed(1)}°` : '—'} · signo giro ${c.gyroSign ?? '—'} (versión antigua)`
       return `<table class="kv">
-        ${row('Origen', `${(SRC[m.source] || [m.source])[0]}${m.sim ? ` · ${m.sim.hz} Hz, ${esc(m.sim.bike)}` : ''}`)}
+        ${row('Origen', m.logger ? `${esc(m.logger.name)} · ${m.logger.hz} Hz${m.logger.file ? ` · <span class="ua">${esc(m.logger.file)}</span>` : ''}` : `${(SRC[m.source] || [m.source])[0]}${m.sim ? ` · ${m.sim.hz} Hz, ${esc(m.sim.bike)}` : ''}`)}
         ${row('Estado', m.state === 'rec' ? 'a medias (se exportó grabando)' : 'cerrada')}
         ${row('Siguió tras cerrarse', `${m.resumed || 0} ${m.resumed === 1 ? 'vez' : 'veces'}`)}
         ${row('GPS', `${I.fixes} fixes · ${I.gpsHz.toFixed(2)} Hz · ±${I.accMean.toFixed(1)} m`)}
         ${row('Tramos sin GPS (>5 s)', `${Math.max(0, gaps - 1)}`)}
-        ${row('Sensores', I.hasImu ? `${(m.rows?.imu ?? 0).toLocaleString('es')} muestras · ${I.imuHz.toFixed(0)} Hz` : 'no hay (simulador u ordenador)')}
+        ${row('Sensores', I.hasImu ? `${(m.rows?.imu ?? 0).toLocaleString('es')} muestras · ${I.imuHz.toFixed(0)} Hz` : m.logger ? (m.logger.lean || m.logger.g ? `los del aparato: ${[m.logger.lean && 'inclinación', m.logger.g && 'G'].filter(Boolean).join(' y ')}` : 'solo GPS') : 'no hay (simulador u ordenador)')}
         ${row('Postura: arriba', vec(I.mount?.up))}
         ${row('Postura: adelante', I.mount?.fwd ? `${vec(I.mount.fwd)} · R² ${I.mount.r2.toFixed(2)}` : 'no se pudo sacar (pocas aceleraciones)')}
-        ${row('G longitudinal de', I.longFrom === 'imu' ? 'acelerómetro (calibrado con el GPS)' : 'velocidad del GPS')}
+        ${row('G longitudinal de', I.longFrom === 'imu' ? 'acelerómetro (calibrado con el GPS)' : I.longFrom === 'device' ? 'el acelerómetro del aparato' : 'velocidad del GPS')}
         ${row('Inclinación de', `${LEAN[I.leanFrom] || I.leanFrom}${I.leanCorr ? ` · cuadra con el GPS ${I.leanCorr.toFixed(2)}` : I.yawCorr ? ` · correlación ${I.yawCorr.toFixed(2)}` : ''}`)}
         ${row('Ejes del giroscopio', I.gyroAxes === 'xyz' ? 'los del iPhone (alpha = x)' : I.gyroAxes === 'w3c' ? 'los del estándar' : '—')}
         ${row('Retraso del GPS', Number.isFinite(I.gpsLag) ? `${I.gpsLag.toFixed(1)} s medido${I.appLag ? ` · el móvil ya descontaba ${I.appLag} s` : ''}` : '—')}
@@ -853,6 +874,7 @@ root.addEventListener('click', async (e) => {
   if (d.open) return open(d.open)
   if (d.seg) return openSegment(d.seg)
   if (d.act === 'shared') return sharedDialog()
+  if (d.act === 'friend') return friendDialog()
   if (d.act === 'link') return linkDialog()
   if (d.act === 'home') return goHome()
   if (d.act === 'analyzeAll') return analyzeAll()
@@ -919,6 +941,8 @@ root.addEventListener('click', async (e) => {
   if (d.act === 'toWork') return setRange(...S.work, { kind: 'work' })
   if (d.act === 'compare') return compareDialog()
   if (d.act === 'saveSeg') return saveSegDialog()
+  if (d.act === 'share') return shareDialog()
+  if (d.act === 'video') return videoButton()
   if (d.runcmp != null) return compareRunDialog(Number(d.runcmp))
   if (d.cda) {
     prefs.dyno.cda = Number(d.cda)
@@ -1000,6 +1024,7 @@ addEventListener('keydown', (e) => {
   if (e.key === 'ArrowRight') setCursor(Math.min(S.range[1], S.cur + step), 'key')
   else if (e.key === 'ArrowLeft') setCursor(Math.max(S.range[0], S.cur - step), 'key')
   else if (e.key === 'Escape' || e.key === 'Backspace') goBack()
+  else if (e.key === ' ' && vpanel?.on && videoShown()) vpanel.toggle()
   else if (e.key === '[') stepFocus(-1)
   else if (e.key === ']') stepFocus(1)
   else return
@@ -1194,7 +1219,8 @@ function renderCoach(C, A, B) {
   if (!zones.length) return
   const opts = { speed: (v) => toSpeed(v), unit: speedUnit() }
   const name = (z) => (z.kind === 'corner' ? `Curva ${z.n} <small>(${z.dir === 'L' ? 'izq' : 'der'})</small>` : `Recta <small>(${Math.round(z.len)} m)</small>`)
-  const html = `<div class="coach"><h4 class="h">DONDE GANA Y PIERDE LA ROSA <small>(total ${total >= 0 ? '+' : '−'}${Math.abs(total).toFixed(2)} s)</small></h4>
+  const who = S.cmp?.labels?.who ? plain(S.cmp.labels.who).toUpperCase() : 'LA ROSA'
+  const html = `<div class="coach"><h4 class="h">DONDE GANA Y PIERDE ${esc(who)} <small>(total ${total >= 0 ? '+' : '−'}${Math.abs(total).toFixed(2)} s)</small></h4>
     <ul>${zones
       .slice(0, 8)
       .map((z) => {
@@ -1202,7 +1228,7 @@ function renderCoach(C, A, B) {
         return `<li><button class="coach-row ${z.dt > 0 ? 'loss' : 'gain'}" data-coach="${z.at}"><b>${z.dt > 0 ? '+' : '−'}${Math.abs(z.dt).toFixed(2)} s</b><span>${name(z)}</span><em>${why.length ? why.join(' · ') : z.dt > 0 ? 'pierde sin una causa clara: mira la línea en el mapa' : 'gana sin una causa clara'}</em></button></li>`
       })
       .join('')}</ul>
-    <p class="note">+ es tiempo que pierde la pasada rosa respecto a la azul; − lo que gana. Cada curva cuenta desde su frenada (${70} m antes) hasta la salida.</p></div>`
+    <p class="note">+ es tiempo que pierde ${S.cmp?.labels?.who ? `la pasada de ${esc(S.cmp.labels.who)} (rosa) respecto a la tuya (azul)` : 'la pasada rosa respecto a la azul'}; − lo que gana. Cada curva cuenta desde su frenada (${70} m antes) hasta la salida.</p></div>`
   const head = K('cmp').querySelector('.hint') || K('cmp').firstElementChild
   head.insertAdjacentHTML('afterend', html)
   K('cmp').querySelector('.coach').onclick = (e) => {
@@ -1214,7 +1240,7 @@ function renderCoach(C, A, B) {
 let cmpResize = null
 /** Compara la pasada `ref` de la salida abierta con `f` (otra pasada, de esta salida u otra). */
 async function startCompare(ref, f, L, labels) {
-  const B = f.id === S.id ? S.A : await analysisOf(f.id)
+  const B = f.B || (f.id === S.id ? S.A : await analysisOf(f.id))
   const C = compare(ref, S.A, f.pass, B, L, undefined, { own: labels?.kind === 'run' })
   S.cmp = { C, B, ref, f, labels }
   if (!cmpResize) (cmpResize = new ResizeObserver(() => S.cmp && S.cmpView?.resize?.())).observe(K('cmp'))
@@ -1296,7 +1322,7 @@ function saveSegDialog() {
 }
 
 // Sube este número si cambia cómo se buscan las pasadas: los tiempos guardados se rehacen
-const EFFORTS_VERSION = `4.${ANALYSIS_VERSION}`
+const EFFORTS_VERSION = `5.${ANALYSIS_VERSION}`
 
 /** Tiempos de un tramo en toda la biblioteca (lo ya buscado se guarda). */
 async function segmentEfforts(seg, onProgress) {
@@ -1468,11 +1494,28 @@ async function renderShared(seg, efforts, box) {
     const me = bbDevice()
     box.innerHTML = `${
       rows.length
-        ? `<table class="grid"><thead><tr><th>#</th><th>PILOTO</th><th>MOTO</th><th>TIEMPO</th><th>FECHA</th></tr></thead><tbody>${rows
-            .map((r, k) => `<tr class="${r.device === me ? 'cur' : ''}"><td>${k + 1}</td><td>${esc(r.rider)}</td><td>${esc(r.bike)}</td><td><b>${fmtLap(r.time_s)}</b></td><td>${fmtDateTime(Date.parse(r.ridden_at))}</td></tr>`)
+        ? `<table class="grid"><thead><tr><th>#</th><th>PILOTO</th><th>MOTO</th><th>TIEMPO</th><th>FECHA</th><th></th></tr></thead><tbody>${rows
+            .map((r, k) => `<tr class="${r.device === me ? 'cur' : ''}"><td>${k + 1}</td><td>${esc(r.rider)}</td><td>${esc(r.bike)}</td><td><b>${fmtLap(r.time_s)}</b></td><td>${fmtDateTime(Date.parse(r.ridden_at))}</td><td class="acts">${r.ghost && r.device !== me ? `<button class="btn cyan small" data-vsg="${esc(r.ghost)}" title="Tu mejor vuelta contra la suya, metro a metro">VS</button>` : ''}</td></tr>`)
             .join('')}</tbody></table>`
         : '<p class="note">Nadie ha publicado todavía.</p>'
     }${efforts.length ? `<button class="btn small" data-k="pub">PUBLICAR MI MEJOR (${fmtLap(efforts[0].time)})</button>` : ''}<p class="note">Los tiempos se publican tal cual, sin comprobar: es una clasificación entre amigos.</p>`
+    box.onclick = async (ev) => {
+      const b = ev.target.closest('[data-vsg]')
+      if (!b) return
+      const mine = efforts.find((x) => (x.meta.source || 'real') === 'real') || efforts[0]
+      if (!mine) return toast('Aún no tienes ninguna vuelta en este circuito para compararte', 5000)
+      try {
+        const G = unpackGhost(await fetchGhost(b.dataset.vsg))
+        if (!G.pass) throw new Error('su pasada no encaja con el circuito')
+        box.closest('.modal-bg')?.close()
+        await open(mine.session)
+        const r = await passOf(seg, mine)
+        if (!r) throw new Error('no se encontró tu vuelta')
+        await compareWithFriend({ id: mine.session, meta: mine.meta, pass: r.p }, G)
+      } catch (err) {
+        toast(`No se pudo comparar: ${err.message}`, 5000)
+      }
+    }
     const pub = box.querySelector('[data-k="pub"]')
     if (pub)
       pub.onclick = async () => {
@@ -1482,7 +1525,15 @@ async function renderShared(seg, efforts, box) {
         const e = efforts.find((x) => (x.meta.source || 'real') === 'real')
         if (!e) return toast('Solo se publican tiempos de salidas reales (no de la demo ni del simulador)', 5000)
         try {
-          await publishEffort({ segment_id: seg.remoteId, rider, bike: String(e.meta.rider?.bike || '').slice(0, 30), time_s: e.time, v_max: Math.min(150, e.vmax), lean_max: Math.min(80, e.lean), ridden_at: new Date(e.meta.start + e.t0 * 1000).toISOString(), device: me })
+          // Con la pasada, para que los demás puedan compararse con ella (si no se puede, solo el tiempo)
+          let ghost = null
+          try {
+            const r = await passOf(seg, e)
+            if (r) ghost = await shareGhost(packGhost(r.A, r.p, seg.points, { name: seg.name, rider, bike: e.meta.rider?.bike || '' }))
+          } catch (err) {
+            console.warn('Sin pasada para compartir', err)
+          }
+          await publishEffort({ segment_id: seg.remoteId, rider, bike: String(e.meta.rider?.bike || '').slice(0, 30), time_s: e.time, v_max: Math.min(150, e.vmax), lean_max: Math.min(80, e.lean), ridden_at: new Date(e.meta.start + e.t0 * 1000).toISOString(), device: me, ghost })
           toast('TIEMPO PUBLICADO')
         } catch (err) {
           toast(/duplicate|unique/i.test(err.message) ? 'Ese tiempo ya estaba publicado' : `No se pudo publicar: ${err.message}`, 5000)
@@ -1495,7 +1546,7 @@ async function renderShared(seg, efforts, box) {
 }
 
 function askRider() {
-  const name = prompt('Tu nombre en la clasificación (lo verán los demás):', prefs.rider || '')
+  const name = prompt('Tu nombre (lo verán los demás):', prefs.rider || S.profile?.name || '')
   if (name == null) return null
   const clean = name.trim().slice(0, 30)
   if (!clean) return null
@@ -1651,7 +1702,7 @@ function renderHome() {
         <li><b>2</b><span>Escribe aquí el código de 6 letras que te sale:</span>${codeInput('codeHome')}</li>
         <li><b>3</b><span>Listo: tus salidas, tus récords y tu tema de colores llegan solos.</span></li>
       </ol>
-      <p class="alt"><button class="linkish" data-act="help">¿Cómo se leen los datos?</button> · Otras formas: <button class="linkish" data-act="link">pegar la clave larga</button> · <label class="linkish">importar un archivo .json<input type="file" accept=".json,application/json" multiple hidden data-k="homeFile"></label> · <button class="linkish" data-act="demo">ver la demo</button></p>
+      <p class="alt"><button class="linkish" data-act="help">¿Cómo se leen los datos?</button> · Otras formas: <button class="linkish" data-act="link">pegar la clave larga</button> · <label class="linkish" title="El .json del móvil, o de otro aparato: RaceBox, RaceChrono, VBOX, GPX o NMEA">importar un archivo<input type="file" accept=".json,application/json,.gpx,.csv,.vbo,.nmea,.nma,.txt" multiple hidden data-k="homeFile"></label> · <button class="linkish" data-act="demo">ver la demo</button></p>
     </section>`
   if (!p) {
     el.innerHTML = `${linked ? `<section class="onboard"><h2>VINCULADO</h2><p>${S.list.length ? 'Tus salidas llegan solas. Elige una a la izquierda o aquí abajo.' : 'Aún no ha llegado nada: el móvil sube cada salida al terminarla (con conexión). Si acabas de vincularlo, abre la app en el móvil un momento.'}</p></section>` : onboarding}${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : ''}${evolutionHtml()}`
@@ -1963,6 +2014,307 @@ function exportCsv() {
   setTimeout(() => URL.revokeObjectURL(a.href), 10000)
 }
 
+// ---------- Vídeo ----------
+// El vídeo de la salida al lado del mapa (o en su propia ventana, en otra pantalla). Se guarda por salida
+// su nombre, tamaño y desfase; el archivo se vuelve a elegir al abrirla (en Chrome, Edge y la app de
+// Windows basta un clic: se recuerda el archivo).
+let vpanel = null
+const videoShown = () => VISTA === 'video' || (VISTA === 'todo' && !document.body.classList.contains('det-video'))
+const plain = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+function ensureVideo() {
+  vpanel ??= createVideoPanel(K('vid'), {
+    onCursor: (i) => setCursor(i, 'video'),
+    onClose: () => closeVideo(),
+    onSync: (c) => {
+      saveVideoEntry(S.id, c)
+      send({ type: 'videoSync', id: S.id, name: c.name, size: c.size, off: c.off, how: c.how })
+    },
+  })
+  vpanel.setSession(S.A)
+  return vpanel
+}
+
+function showVideo(on) {
+  const box = root.querySelector('.mapbox')
+  K('vid').hidden = !on
+  box.classList.toggle('with-video', on)
+  if (!on) box.classList.remove('video-only')
+  root.querySelector('[data-k="vidBtn"]')?.classList.toggle('on', on)
+  setTimeout(() => S.map?.resize(), 30)
+}
+
+function closeVideo() {
+  vpanel?.clear()
+  showVideo(VISTA === 'video')
+  if (!SAT) send({ type: 'videos', id: S.id, clips: [] })
+}
+
+/** Al abrir una salida: los vídeos de otra se quitan y el botón dice si esta tiene alguno guardado. */
+async function sessionVideos(A) {
+  if (vpanel) {
+    vpanel.setSession(A)
+    if (!vpanel.on && VISTA !== 'video') showVideo(false)
+  }
+  const list = await getVideos(A.meta.id)
+  const b = root.querySelector('[data-k="vidBtn"]')
+  if (b && S.A === A) b.textContent = list.length ? `VIDEO (${list.length})` : 'VIDEO'
+}
+
+async function saveVideoEntry(id, c, handle) {
+  if (!id) return
+  const list = await getVideos(id)
+  const k = list.findIndex((x) => x.name === c.name && x.size === c.size)
+  const e = { ...(k >= 0 ? list[k] : {}), name: c.name, size: c.size, lastModified: c.lastModified, off: c.off, how: c.how, err: c.err ?? null, dur: c.dur }
+  if (handle) e.handle = handle
+  if (k >= 0) list[k] = e
+  else list.push(e)
+  await putVideos(id, list)
+  if (S.A && S.id === id) sessionVideos(S.A)
+}
+
+/** Lee, sincroniza y enseña uno o varios vídeos. Si son de otra salida (por la hora del GPS), la abre. */
+async function attachVideos(files, handles = []) {
+  const busy = K('busy')
+  const label = busy.querySelector('span')
+  for (const [k, f] of files.entries()) {
+    busy.hidden = false
+    label.textContent = `LEYENDO ${plain(f.name).toUpperCase()}…`
+    try {
+      const info = await readVideo(fileReader(f), (p) => (label.textContent = `LEYENDO EL GPS DEL VIDEO… ${Math.round(p * 100)} %`))
+      const span = videoSpan(info)
+      const covers = (m) => span && span[0] < m.end + 60000 && span[1] > m.start - 60000
+      // ¿Es de otra salida? Por la hora del GPS de la cámara (o la de grabación)
+      if (span && (!S.A || !covers(S.A.meta))) {
+        const m = S.list.find(covers)
+        if (m) {
+          busy.hidden = true
+          await open(m.id)
+          toast(`${f.name}: es de esta salida`, 4000)
+        }
+      }
+      if (!S.A) {
+        toast(`${f.name}: abre primero la salida de este vídeo (no se ha encontrado por la hora)`, 6000)
+        continue
+      }
+      const saved = (await getVideos(S.id)).find((x) => x.name === f.name && x.size === f.size)
+      const sync = saved ? { off: saved.off, how: saved.how, err: saved.err } : syncOffset(S.A, info)
+      ensureVideo()
+      showVideo(true)
+      const c = vpanel.add(f, { ...sync, dur: info.dur })
+      await saveVideoEntry(S.id, c, handles[k])
+      if (!saved) toast(sync.how === 'gps' ? `${f.name}: sincronizado solo con su GPS` : sync.how === 'none' ? `${f.name}: no trae GPS ni hora; sincronízalo a mano con AQUÍ` : `${f.name}: ${HOW[sync.how]}`, 6000)
+      send({ type: 'videos', id: S.id, clips: vpanel.clips.map(clipMsg) })
+    } catch (e) {
+      console.error(e)
+      toast(`${f.name}: ${e.message}`, 6000)
+    } finally {
+      busy.hidden = true
+      label.textContent = 'ANALIZANDO…'
+    }
+  }
+}
+const clipMsg = (c) => ({ file: c.file, off: c.off, how: c.how, err: c.err, dur: c.dur })
+
+/** Elegir vídeos: con el selector del sistema que recuerda el archivo si lo hay; si no, el de siempre. */
+async function pickVideos() {
+  if (window.showOpenFilePicker) {
+    try {
+      const hs = await window.showOpenFilePicker({ multiple: true, types: [{ description: 'Vídeo', accept: { 'video/mp4': ['.mp4', '.MP4', '.m4v', '.lrv'], 'video/quicktime': ['.mov', '.MOV'] } }] })
+      return attachVideos(await Promise.all(hs.map((h) => h.getFile())), hs)
+    } catch (e) {
+      if (e?.name === 'AbortError') return
+    }
+  }
+  const inp = document.createElement('input')
+  inp.type = 'file'
+  inp.accept = 'video/mp4,video/quicktime,.mp4,.mov,.m4v,.lrv'
+  inp.multiple = true
+  inp.onchange = () => attachVideos([...inp.files])
+  inp.click()
+}
+
+async function fileFromHandle(h) {
+  if (!h?.getFile) return null
+  try {
+    if ((await h.queryPermission?.({ mode: 'read' })) !== 'granted' && (await h.requestPermission?.({ mode: 'read' })) !== 'granted') return null
+    return await h.getFile()
+  } catch {
+    return null
+  }
+}
+
+async function videoButton() {
+  if (!S.A) return
+  // Ya abierto: enseñar u ocultar
+  if (vpanel?.on) return showVideo(K('vid').hidden)
+  const list = await getVideos(S.id)
+  if (!list.length) return pickVideos()
+  const fmtD = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`
+  const el = modal(`<h2>VIDEOS DE ESTA SALIDA</h2>
+    <p class="note">El vídeo no se guarda aquí (se queda en tu disco): elígelo otra vez y saldrá ya sincronizado.</p>
+    <table class="grid"><tbody>${list.map((v, k) => `<tr><td><b>${esc(v.name)}</b></td><td>${fmtD(v.dur || 0)}</td><td>${esc(HOW[v.how] || '')}</td><td class="acts"><button class="btn small" data-vopen="${k}">ABRIR</button><button class="btn ghost small" data-vdel="${k}" title="Olvidar este vídeo">×</button></td></tr>`).join('')}</tbody></table>
+    <div class="actions"><button class="btn ghost small" data-close>CERRAR</button><button class="btn small" data-k="add">${list.length > 1 ? 'ELEGIR LOS ARCHIVOS' : 'ELEGIR OTRO VIDEO'}</button></div>`, { wide: true })
+  el.addEventListener('click', async (e) => {
+    const b = e.target.closest('button')
+    if (!b) return
+    if (b.dataset.k === 'add') return el.close(), pickVideos()
+    if (b.dataset.vdel != null) {
+      list.splice(Number(b.dataset.vdel), 1)
+      await putVideos(S.id, list)
+      el.close()
+      return sessionVideos(S.A)
+    }
+    if (b.dataset.vopen != null) {
+      const v = list[Number(b.dataset.vopen)]
+      const f = await fileFromHandle(v.handle)
+      el.close()
+      if (f && f.size === v.size) return attachVideos([f], [v.handle])
+      toast(`Elige ${v.name}`, 4000)
+      return pickVideos()
+    }
+  })
+}
+
+// ---------- Pasadas de amigos ----------
+const FRIENDS = 'sc-bb-friends' // las últimas que has abierto: código, de quién y qué
+const friendList = () => {
+  try {
+    return JSON.parse(localStorage.getItem(FRIENDS) || '[]')
+  } catch {
+    return []
+  }
+}
+function rememberFriend(code, g) {
+  const list = [{ code, rider: g.rider, name: g.name, time: g.time, length: g.length, riddenAt: g.riddenAt }, ...friendList().filter((x) => x.code !== code)]
+  try {
+    localStorage.setItem(FRIENDS, JSON.stringify(list.slice(0, 20)))
+  } catch {}
+}
+const WEB = 'https://pepe-a-d.github.io/streetchaos/'
+const ghostLink = (code) => `${desktop || !/^https?:/.test(location.protocol) ? WEB : location.origin + import.meta.env.BASE_URL}blackbox/#g=${code}`
+const fmtCode = (c) => `${c.slice(0, 4)} ${c.slice(4)}`
+
+/** COMPARTIR: el tramo que estás viendo, empaquetado con un código para un amigo. */
+async function shareDialog() {
+  const A = S.A
+  if (!cloudAvailable()) return toast('Esta versión no tiene servidor')
+  if (isFull(S.range)) return toast('Primero elige qué compartir: arrastra sobre las gráficas para coger un tramo, o pulsa una curva', 6000)
+  const [i0, i1] = S.range
+  if (A.d[i1] - A.d[i0] < 100) return toast('Elige un tramo de al menos 100 m: arrastra sobre una gráfica')
+  const pts = pathPoints(A, i0, i1)
+  if (pts.length < 2) return toast('En lo que ves no hay GPS (un hueco de la señal): elige otro tramo')
+  const P = makePath(pts)
+  const own = findPasses(P, A, { from: i0 - 150, to: i1 + 150 })
+  const ref = own.find((p) => p.i0 <= i0 + 60 && p.i1 >= i1 - 60) || own[0]
+  if (!ref) return toast('No se pudo usar este tramo')
+  const rider = askRider()
+  if (rider == null) return
+  // Un nombre que le diga algo a tu amigo (los minutos de tu salida no le sirven)
+  const f = S.focus
+  const name = f && f.kind !== 'zoom' ? `${FOCUS_NAME[f.kind].charAt(0)}${FOCUS_NAME[f.kind].slice(1).toLowerCase()} ${f.n}` : `Tramo de ${fmtLen(P.length)}`
+  const el = modal(`<h2>COMPARTIR CON UN AMIGO</h2>
+    <p class="note">${esc(name)} · <b>${fmtLap(ref.time)}</b> · ${when(A.meta, ref.t0)}</p>
+    <div data-k="out"><p class="note">Subiendo…</p></div>
+    <div class="actions"><button class="btn small" data-close>HECHO</button></div>`)
+  const out = el.querySelector('[data-k="out"]')
+  try {
+    const g = packGhost(A, ref, pts, { name, rider, bike: A.meta.rider?.bike || S.profile?.bike || '' })
+    const code = await shareGhost(g)
+    const link = ghostLink(code)
+    out.innerHTML = `<p class="note">Pásale este código. En su Blackbox: <b>PASADA DE UN AMIGO</b> y el código (o que abra el enlace). Verá metro a metro dónde le ganas y dónde te gana.</p>
+      <div class="ghost-code" data-k="code">${fmtCode(code)}</div>
+      <div class="win-btns"><button class="btn small" data-copy="${code}">COPIAR CODIGO</button><button class="btn ghost small" data-copy="${esc(link)}">COPIAR ENLACE</button></div>
+      <p class="note">Solo lleva este trozo (el trazado y tu velocidad, inclinación y G en él), tu nombre y tu moto: ni el resto de la salida ni de dónde vienes.</p>`
+    out.onclick = async (e) => {
+      const b = e.target.closest('[data-copy]')
+      if (!b) return
+      try {
+        await navigator.clipboard.writeText(b.dataset.copy)
+        toast('Copiado')
+      } catch {
+        toast(b.dataset.copy, 8000)
+      }
+    }
+  } catch (e) {
+    out.innerHTML = `<p class="note">No se pudo compartir: ${esc(e.message)}</p>`
+  }
+}
+
+/** PASADA DE UN AMIGO: con su código, busca tus pasadas por el mismo sitio y te compara con él. */
+function friendDialog(preset = '') {
+  if (!cloudAvailable()) return toast('Esta versión no tiene servidor')
+  const recent = friendList()
+  const el = modal(`<h2>PASADA DE UN AMIGO</h2>
+    <p class="note">Escribe el código de 8 letras que te ha pasado (él lo saca con COMPARTIR, encima de las gráficas).</p>
+    <div class="code-in"><input data-k="gcode" maxlength="9" placeholder="ABCD 2345" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Código de 8 letras" value="${esc(preset)}"><button class="btn small" data-k="go">ABRIR</button></div>
+    <div data-k="res"></div>
+    ${recent.length ? `<h4 class="h">LAS ULTIMAS QUE HAS ABIERTO</h4><table class="grid"><tbody>${recent.map((r) => `<tr class="link" data-gc="${esc(r.code)}"><td><b>${esc(r.rider || 'Sin nombre')}</b></td><td>${esc(r.name || '')}</td><td>${fmtLen(r.length || 0)}</td><td><b>${fmtLap(r.time)}</b></td><td>${fmtCode(r.code)}</td></tr>`).join('')}</tbody></table>` : ''}
+    <div class="actions"><button class="btn ghost small" data-close>CERRAR</button></div>`, { wide: true })
+  const input = el.querySelector('[data-k="gcode"]')
+  const res = el.querySelector('[data-k="res"]')
+  const go = (code) => loadFriend(normGhostCode(code), res, el)
+  el.querySelector('[data-k="go"]').onclick = () => go(input.value)
+  input.addEventListener('keydown', (e) => e.key === 'Enter' && go(input.value))
+  el.addEventListener('click', (e) => {
+    const tr = e.target.closest('[data-gc]')
+    if (tr) (input.value = fmtCode(tr.dataset.gc)), go(tr.dataset.gc)
+  })
+  if (preset) go(preset)
+  else input.focus()
+}
+
+async function loadFriend(code, res, el) {
+  if (!validGhostCode(code)) return (res.innerHTML = '<p class="note">El código son 8 letras y números (sin I, L, O, 0 ni 1).</p>')
+  res.innerHTML = '<p class="note">Bajando su pasada…</p>'
+  let G
+  try {
+    const g = await fetchGhost(code)
+    G = unpackGhost(g)
+    if (!G.pass) throw new Error('La pasada no encaja con su propio trazado')
+    rememberFriend(code, g)
+  } catch (e) {
+    return (res.innerHTML = `<p class="note">No se pudo abrir: ${esc(e.message)}</p>`)
+  }
+  const { B, P, pass } = G
+  const who = B.ghost.rider || 'tu amigo'
+  const head = `<div class="friend-card"><b>${esc(who)}</b>${B.ghost.bike ? ` · ${esc(B.ghost.bike)}` : ''} · ${esc(B.ghost.name || 'tramo')} · ${fmtLen(P.length)} · <b>${fmtLap(pass.time)}</b> · ${fmtDateTime(Date.parse(B.ghost.riddenAt))}</div>`
+  res.innerHTML = `${head}<p class="note">Buscando tus pasadas por el mismo sitio…</p>`
+  const found = await passesEverywhere(P, (m) => el.isConnected && (res.innerHTML = `${head}<p class="note">Buscando en ${fmtDateTime(m.start)}…</p>`))
+  if (!el.isConnected) return
+  const save = `<button class="btn ghost small" data-k="saveSeg" title="Se cronometrará en todas tus salidas, y verás tus tiempos ahí">GUARDAR COMO TRAMO</button>`
+  if (!found.length) {
+    res.innerHTML = `${head}<p class="note">Aún no tienes ninguna pasada completa por aquí (en el mismo sentido). Guárdalo como tramo y, cuando pases, compárate desde aquí con el mismo código.</p><div class="actions">${save}</div>`
+  } else {
+    found.sort((a, b) => a.pass.time - b.pass.time)
+    res.innerHTML = `${head}<h4 class="h">TUS PASADAS POR AQUI</h4><table class="grid"><thead><tr><th>#</th><th>SALIDA</th><th>TU TIEMPO</th><th>CONTRA EL SUYO</th><th></th></tr></thead><tbody>
+      ${found.map((f, k) => `<tr class="link" data-pick="${k}"><td>${k + 1}</td><td>${when(f.meta, f.pass.t0)}</td><td><b>${fmtLap(f.pass.time)}</b></td><td class="${f.pass.time < pass.time ? 'gain' : 'loss'}">${f.pass.time < pass.time ? '−' : '+'}${Math.abs(f.pass.time - pass.time).toFixed(2)} s</td><td>COMPARAR</td></tr>`).join('')}
+      </tbody></table><div class="actions">${save}</div>`
+  }
+  res.onclick = async (e) => {
+    if (e.target.closest('[data-k="saveSeg"]')) {
+      const seg = { id: `seg-g-${code}`, name: `${B.ghost.name || 'Tramo'} (de ${who})`.slice(0, 60), points: G.points, length: P.length, closed: P.closed, circuit: false, bbox: P.bbox, createdAt: Date.now(), friend: code }
+      await saveSegment(seg)
+      await refreshSegs()
+      toast('TRAMO GUARDADO')
+      return
+    }
+    const tr = e.target.closest('[data-pick]')
+    if (!tr) return
+    const f = found[Number(tr.dataset.pick)]
+    el.close()
+    await compareWithFriend(f, G)
+  }
+}
+
+/** Abre tu pasada y la compara con la del amigo (la tuya es la azul; la suya, la rosa). */
+async function compareWithFriend(f, { B, P, pass }) {
+  if (S.id !== f.id) await open(f.id)
+  if (S.id !== f.id) return
+  const who = B.ghost.rider || 'tu amigo'
+  startCompare(f.pass, { id: B.meta.id, meta: B.meta, pass, B }, P.length, { refLabel: `Tú · ${when(f.meta, f.pass.t0)}`, cmpLabel: `${who} · ${fmtDateTime(Date.parse(B.ghost.riddenAt))}`, kind: 'route', who })
+}
+
 // ---------- Ventanas: abrir, repartir en pantallas y sincronizar ----------
 const desktop = window.bbDesktop || null // la app de Windows (preload de desktop/)
 // Dentro de la app de escritorio no hay «app del móvil» que abrir
@@ -2037,6 +2389,8 @@ function markDetached() {
   const now = Date.now()
   for (const v of Object.keys(VISTAS)) document.body.classList.toggle(`det-${v}`, now - (detached.get(v) || 0) < 8000)
   S.charts?.resize?.()
+  // El vídeo, si está en su ventana, solo allí
+  if (vpanel?.on && !videoShown()) vpanel.pause()
 }
 if (SAT) {
   setInterval(() => send({ type: 'alive' }), 3000)
@@ -2049,7 +2403,11 @@ SYNC?.addEventListener('message', async ({ data: m }) => {
   if (m.type === 'bye') detached.delete(m.vista)
   if (!SAT && ['alive', 'hello', 'bye'].includes(m.type)) markDetached()
   // Una ventana nueva pregunta qué hay abierto: contesta la principal
-  if (m.type === 'hello' && !SAT && S.id) send({ type: 'open', id: S.id, range: S.range, work: S.work, focus: S.focus, cur: S.cur, prefs })
+  if (m.type === 'hello' && !SAT && S.id) {
+    send({ type: 'open', id: S.id, range: S.range, work: S.work, focus: S.focus, cur: S.cur, prefs })
+    // A la ventana del vídeo, los vídeos abiertos (los archivos viajan por el canal, sin copiarse al disco)
+    if (m.vista === 'video' && vpanel?.on) send({ type: 'videos', id: S.id, clips: vpanel.clips.map(clipMsg) })
+  }
   remote = true
   try {
     if (m.type === 'prefs' || m.prefs) {
@@ -2073,6 +2431,14 @@ SYNC?.addEventListener('message', async ({ data: m }) => {
       S.focus = m.focus
       setRange(...m.range, { kind: 'restore' })
     } else if (m.type === 'cursor' && S.A && S.id === m.id) setCursor(m.i, 'remote')
+    else if (m.type === 'videos' && VISTA === 'video' && S.A && S.id === m.id) {
+      ensureVideo().clear()
+      for (const c of m.clips) vpanel.add(c.file, c)
+      vpanel.follow(S.cur)
+    } else if (m.type === 'videoSync' && vpanel && S.id === m.id) {
+      const c = vpanel.clips.find((x) => x.name === m.name && x.size === m.size)
+      if (c) (c.off = m.off), (c.how = m.how), vpanel.follow(S.cur)
+    }
     else if (m.type === 'home' && SAT) goHome()
   } finally {
     remote = false
@@ -2089,10 +2455,12 @@ const want = decodeURIComponent((location.hash.match(/s=([^&]+)/) || [])[1] || '
 if (SAT) {
   // Ventana secundaria: su título, y lo que tenga abierto la principal
   document.title = `${VISTAS[VISTA]} · Blackbox`
+  if (VISTA === 'video') K('vid').hidden = false
   // Se abre sin avisar a las demás (si no, la principal perdería su tramo) y luego se pregunta dónde están
   remote = true
   if (want && S.list.some((m) => m.id === want)) await open(want)
   remote = false
+  if (VISTA === 'video') ensureVideo().hint('Abre el vídeo en la ventana principal (botón VIDEO, debajo del mapa) y saldrá aquí')
   send({ type: 'hello' })
 } else {
   refreshSegs()
@@ -2101,5 +2469,11 @@ if (SAT) {
   // Con un enlace a una salida (#s=…) se abre; si no, el inicio (perfil y últimas salidas)
   if (want && S.list.some((m) => m.id === want)) open(want)
   else renderHome()
+  // Enlace de una pasada de un amigo (#g=CÓDIGO)
+  const g = normGhostCode((location.hash.match(/g=([A-Za-z0-9 -]+)/) || [])[1])
+  if (g) {
+    history.replaceState(null, '', location.pathname + location.search)
+    friendDialog(g)
+  }
 }
 window.__bb = { S, prefs, open, setRange, setCursor }

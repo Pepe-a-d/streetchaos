@@ -33,6 +33,7 @@ function menu() {
           { label: 'Mapa en otra ventana', accelerator: 'CmdOrCtrl+1', click: open('mapa') },
           { label: 'Gráficas en otra ventana', accelerator: 'CmdOrCtrl+2', click: open('graficas') },
           { label: 'Datos en otra ventana', accelerator: 'CmdOrCtrl+3', click: open('datos') },
+          { label: 'Vídeo en otra ventana', accelerator: 'CmdOrCtrl+4', click: open('video') },
           { type: 'separator' },
           { label: 'Pantalla completa', role: 'togglefullscreen' },
           { label: 'Minimizar', role: 'minimize' },
@@ -80,6 +81,12 @@ app.whenReady().then(() => {
       await new Promise((r2) => setTimeout(r2, 2500))
       const mapa = views.wins.get('mapa')
       r.mapa = mapa ? await mapa.webContents.executeJavaScript('({ vista: document.body.dataset.vista, title: document.title })').catch((e) => String(e)) : null
+      // La ventana del vídeo y qué vídeos sabe reproducir (H.264 y HEVC, el de las GoPro modernas)
+      await main.webContents.executeJavaScript("window.open(location.pathname + '?vista=video', 'sc-bb-video')").catch(() => {})
+      await new Promise((r2) => setTimeout(r2, 2500))
+      const video = views.wins.get('video')
+      r.video = video ? await video.webContents.executeJavaScript('({ vista: document.body.dataset.vista, panel: !document.querySelector(\'[data-k="vid"]\').hidden })').catch((e) => String(e)) : null
+      r.codecs = await main.webContents.executeJavaScript(`(() => { const v = document.createElement('video'); return { h264: v.canPlayType('video/mp4; codecs="avc1.640028"'), hevc: v.canPlayType('video/mp4; codecs="hvc1.1.6.L150.B0"') } })()`).catch((e) => String(e))
       r.spread = await views.spread({ base: BASE, preload: PRELOAD })
       await new Promise((r2) => setTimeout(r2, 1500))
       r.windows = [...views.wins.keys()]

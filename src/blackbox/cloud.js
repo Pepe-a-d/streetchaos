@@ -84,5 +84,13 @@ async function rest(path, { method = 'GET', body } = {}) {
 export const sharedCircuits = () => rest('bb_segments?select=id,name,author,length_m,closed,created_at&order=created_at.desc&limit=200')
 export const sharedCircuit = async (id) => (await rest(`bb_segments?id=eq.${encodeURIComponent(id)}&select=*`))[0]
 export const shareCircuit = async (seg, author) => (await rest('bb_segments', { method: 'POST', body: { name: seg.name, author, points: seg.points, length_m: seg.length, closed: seg.closed } }))[0]
-export const ranking = (segmentId) => rest(`bb_efforts?segment_id=eq.${encodeURIComponent(segmentId)}&select=rider,bike,time_s,v_max,lean_max,ridden_at,device&order=time_s.asc&limit=100`)
+export const ranking = (segmentId) => rest(`bb_efforts?segment_id=eq.${encodeURIComponent(segmentId)}&select=rider,bike,time_s,v_max,lean_max,ridden_at,device,ghost&order=time_s.asc&limit=100`)
 export const publishEffort = (e) => rest('bb_efforts', { method: 'POST', body: e })
+
+// ---------- Pasadas de amigos ----------
+// Se guardan con la función (sin clave de móvil) y se bajan con su código de 8 letras: no se pueden listar.
+export const normGhostCode = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
+export const validGhostCode = (c) => /^[A-Z2-9]{8}$/.test(c)
+/** Sube una pasada empaquetada (ghost.js) y devuelve su código. */
+export const shareGhost = async (ghost) => (await call({ action: 'ghost-put', ghost })).code
+export const fetchGhost = async (code) => (await call({ action: 'ghost-get', code: normGhostCode(code) })).ghost

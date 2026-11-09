@@ -74,6 +74,8 @@ const STORES = [
   ['efforts', { keyPath: ['seg', 'session'] }],
   // Análisis ya hechos (para no repetirlos cada vez que se abre la página): { id, size, v, A }
   ['analysis', { keyPath: 'id' }],
+  // Vídeos de cada salida (solo nombre, tamaño y desfase; el vídeo se queda en el disco): { id, list }
+  ['videos', { keyPath: 'id' }],
 ]
 const blockedSubs = new Set()
 export const onDbBlocked = (fn) => (blockedSubs.add(fn), () => blockedSubs.delete(fn))
@@ -175,16 +177,21 @@ export async function loadSession(id) {
 }
 
 export async function deleteSession(id) {
-  await run(['meta', 'data', 'analysis'], 'readwrite', (tx) => {
+  await run(['meta', 'data', 'analysis', 'videos'], 'readwrite', (tx) => {
     tx.objectStore('meta').delete(id)
     tx.objectStore('data').delete(id)
     tx.objectStore('analysis').delete(id)
+    tx.objectStore('videos').delete(id)
   })
 }
 
 /** Análisis guardado de una salida (o undefined). */
 export const getAnalysis = (id) => run(['analysis'], 'readonly', (tx) => tx.objectStore('analysis').get(id)).catch(() => undefined)
 export const putAnalysis = (rec) => run(['analysis'], 'readwrite', (tx) => tx.objectStore('analysis').put(rec)).catch(() => {})
+
+/** Vídeos guardados de una salida: [{ name, size, lastModified, off, how, err, dur, handle? }]. */
+export const getVideos = async (id) => (await run(['videos'], 'readonly', (tx) => tx.objectStore('videos').get(id)).catch(() => null))?.list || []
+export const putVideos = (id, list) => run(['videos'], 'readwrite', (tx) => tx.objectStore('videos').put({ id, list })).catch(() => {})
 
 // ---------- Tramos ----------
 

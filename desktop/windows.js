@@ -6,7 +6,7 @@ const { BrowserWindow, screen, shell } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 
-const NAMES = { todo: 'Blackbox', mapa: 'Mapa', graficas: 'Gráficas', datos: 'Datos' }
+const NAMES = { todo: 'Blackbox', mapa: 'Mapa', graficas: 'Gráficas', datos: 'Datos', video: 'Vídeo' }
 const SMOKE = process.argv.includes('--smoke') // prueba sin enseñar ventanas
 const wins = new Map() // vista → BrowserWindow
 let statePath = null

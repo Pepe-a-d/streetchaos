@@ -138,6 +138,7 @@ body.dragging::after {
 .src { font: 7px var(--pixel); font-style: normal; padding: 3px 4px; border: 1px solid currentColor; color: var(--green); }
 .src.sim { color: var(--orange); }
 .src.demo { color: var(--violet); }
+.src.logger { color: var(--cyan); }
 .note { color: var(--dim); margin: 6px 0; }
 
 /* ---------- Zona principal ---------- */
@@ -473,3 +474,59 @@ body[data-vista='todo'].det-graficas .row1 { height: calc(100vh - 90px); }
 .coach-row.gain b { color: var(--green); }
 .coach-row em { font-style: normal; color: var(--dim); }
 
+
+/* ---------- Vídeo ---------- */
+.mapbox.with-video { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.mapbox.with-video .map { grid-column: 1; grid-row: 1; }
+.mapbox .vid { grid-column: 2; grid-row: 1; }
+.mapbox.with-video .map-bar { grid-column: 1 / -1; }
+.mapbox.video-only .map { display: none; }
+.mapbox.video-only .vid { grid-column: 1 / -1; }
+.vid { display: grid; grid-template-rows: minmax(0, 1fr) auto auto; min-height: 0; min-width: 0; border-left: 2px solid var(--line); background: #000; }
+.vid[hidden] { display: none; }
+.vid-stage { position: relative; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+.vid-stage video { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+.vid-hud { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 10px; align-items: flex-end; pointer-events: none; }
+.vid-hud > div { background: rgb(0 0 0 / 0.55); border: 2px solid rgb(255 255 255 / 0.15); padding: 6px 9px; display: flex; align-items: baseline; gap: 5px; color: #fff; }
+.vid-hud b { font: 22px var(--mono); font-variant-numeric: tabular-nums; font-weight: 700; text-shadow: 1px 1px 0 #000; }
+.vid-hud small { font: 7px var(--pixel); opacity: 0.8; }
+.vh-v b { font-size: 30px; color: var(--cyan); }
+.vh-lean { position: relative; padding-left: 34px !important; }
+.vh-lean i { position: absolute; left: 12px; top: 50%; width: 3px; height: 22px; margin-top: -11px; background: var(--yellow); transform-origin: 50% 100%; }
+.vh-lean b { font-size: 18px; }
+.vh-g b { font-size: 18px; color: var(--green); }
+.vid-msg { position: absolute; inset: auto 10px 50% 10px; transform: translateY(50%); text-align: center; color: #fff; background: rgb(0 0 0 / 0.6); padding: 10px; font-size: 13px; }
+.vid-msg[hidden] { display: none; }
+.vid-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 8px; background: var(--panel); border-top: 2px solid var(--line); }
+.vid-time { font: 12px var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; min-width: 92px; }
+.vid-sync { display: inline-flex; gap: 3px; align-items: center; }
+.vid-how { margin: 0; padding: 4px 8px 6px; font-size: 11px; color: var(--faint); background: var(--panel); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vid-btn.on { background: var(--cyan); color: var(--onbright); border-color: #000; }
+.map-bar .grow { flex: 1; }
+/* En su propia ventana (otra pantalla): solo el vídeo */
+body[data-vista='video'] .side,
+body[data-vista='video'] .charts-box,
+body[data-vista='video'] .mapbox .map,
+body[data-vista='video'] .mapbox .map-bar { display: none; }
+body[data-vista='video'] .row1 { grid-template-columns: minmax(0, 1fr); height: calc(100vh - 70px); }
+body[data-vista='video'] .mapbox { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: auto; min-height: 0; }
+body[data-vista='video'] .mapbox .vid { grid-column: 1; border-left: 0; }
+body[data-vista='video'] [data-v='big'], body[data-vista='video'] [data-v='close'] { display: none; }
+body[data-vista='todo'].det-video .mapbox .vid { display: none; }
+body[data-vista='todo'].det-video .mapbox { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1100px) {
+  .mapbox.with-video { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto; }
+  .mapbox.with-video .vid { grid-column: 1; grid-row: 2; border-left: 0; border-top: 2px solid var(--line); }
+  .mapbox.with-video .map-bar { grid-row: 3; }
+}
+
+/* ---------- Pasadas de amigos ---------- */
+.ghost-code { font: 26px var(--pixel); color: var(--yellow); text-align: center; letter-spacing: 4px; padding: 18px 8px; margin: 10px 0; border: 2px dashed var(--line2); user-select: all; }
+.friend-card { padding: 10px; margin: 10px 0; border: 2px solid var(--pink); background: color-mix(in srgb, var(--pink) 8%, transparent); }
+.friend-card b:first-child { color: var(--pink); }
+.grid td.acts { white-space: nowrap; }
+.vid-bar { gap: 4px; padding: 5px 6px; }
+.vid-bar .chip { padding: 5px 5px; font-size: 7px; }
+.vid-bar .btn.small { padding: 5px 9px; }
+.vid-bar .grow { flex: 1; }
+.vid-time { min-width: 0; font-size: 11px; }

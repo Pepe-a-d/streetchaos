@@ -12,6 +12,8 @@
 //   profile-get             → lo devuelve
 //   pair-new                → código de 6 letras para vincular un ordenador (10 min, un uso)
 //   pair-claim { code }     → (sin clave) cambia el código por la clave
+//   ghost-put { ghost }     → (sin clave) guarda una pasada para compartir y da su código de 8 letras
+//   ghost-get { code }      → (sin clave) la devuelve
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const BUCKET = 'telemetry'
@@ -23,6 +25,8 @@ const CORS = {
 }
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 const PAIR_MIN = 10
+const GHOST_MAX = 400000 // bytes por pasada compartida
+const GHOSTS_MAX = 20000 // pasadas guardadas en total (para que nadie llene la base)
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
 function secretKey() {
@@ -61,6 +65,37 @@ Deno.serve(async (req) => {
       if (!data) return json({ error: 'Ese código no existe o ha caducado: pide otro en el móvil' }, 404)
       await sb.from('bb_pair').delete().eq('code', code)
       return json({ key: data.key })
+    } catch (e) {
+      return json({ error: String((e as Error)?.message ?? e) }, 500)
+    }
+  }
+  // Pasadas de amigos: se comparten con un código, sin clave de móvil
+  if (body.action === 'ghost-put') {
+    const ghost = body.ghost as Record<string, unknown> | null
+    const text = JSON.stringify(ghost ?? null)
+    if (!ghost || typeof ghost !== 'object' || ghost.v !== 1 || !Array.isArray(ghost.points) || typeof ghost.data !== 'string' || text.length > GHOST_MAX) return json({ error: 'Pasada no válida o demasiado grande' }, 400)
+    try {
+      const { count } = await sb.from('bb_ghosts').select('code', { count: 'exact', head: true })
+      if ((count ?? 0) > GHOSTS_MAX) return json({ error: 'No caben más pasadas compartidas' }, 507)
+      for (let i = 0; i < 5; i++) {
+        const r = crypto.getRandomValues(new Uint8Array(8))
+        const code = [...r].map((b) => ALPHA[b % ALPHA.length]).join('')
+        const { error } = await sb.from('bb_ghosts').insert({ code, data: ghost, size: text.length })
+        if (!error) return json({ code })
+      }
+      throw new Error('No se pudo crear el código')
+    } catch (e) {
+      return json({ error: String((e as Error)?.message ?? e) }, 500)
+    }
+  }
+  if (body.action === 'ghost-get') {
+    const code = String(body.code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (!/^[A-Z2-9]{8}$/.test(code)) return json({ error: 'Código no válido' }, 400)
+    try {
+      const { data, error } = await sb.from('bb_ghosts').select('data, created_at').eq('code', code).maybeSingle()
+      if (error) throw error
+      if (!data) return json({ error: 'No hay ninguna pasada con ese código' }, 404)
+      return json({ ghost: data.data, created_at: data.created_at })
     } catch (e) {
       return json({ error: String((e as Error)?.message ?? e) }, 500)
     }

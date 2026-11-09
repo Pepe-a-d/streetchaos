@@ -82,7 +82,8 @@ function cleanFixes(g) {
   for (let i = 0; i < g.n; i++) {
     if (!Number.isFinite(g.lat[i]) || !Number.isFinite(g.lon[i]) || !Number.isFinite(g.t[i])) continue
     if (Number.isFinite(g.acc[i]) && g.acc[i] > 60) continue
-    if (g.t[i] <= lastT + 0.05) continue
+    // (los GPS externos dan hasta 25 fixes por segundo: 0,04 s entre uno y otro)
+    if (g.t[i] <= lastT + 0.01) continue
     idx.push(i)
     lastT = g.t[i]
   }
@@ -533,10 +534,17 @@ export function analyze(session) {
       hRate[i] = 0
       continue
     }
-    if (Number.isFinite(F.hdg[k]) && Number.isFinite(F.hdg[k + 1]) && F.v[k] >= 2 && F.v[k + 1] >= 2) hRate[i] = wrap(F.hdg[k + 1] - F.hdg[k]) / (F.t[k + 1] - F.t[k])
+    // Con un GPS rápido (10-25 Hz) el rumbo entre dos fixes seguidos es casi todo ruido: entre fixes a
+    // unos 0,4 s (con el del móvil, a 1 Hz, son los dos de siempre)
+    let a = k
+    let b = k + 1
+    while (b < F.n - 1 && F.t[b] - F.t[a] < 0.4 && F.seg[b + 1] === F.seg[k]) b++
+    while (a > 0 && F.t[b] - F.t[a] < 0.4 && F.seg[a - 1] === F.seg[k]) a--
+    if (Number.isFinite(F.hdg[a]) && Number.isFinite(F.hdg[b]) && F.v[a] >= 2 && F.v[b] >= 2) hRate[i] = wrap(F.hdg[b] - F.hdg[a]) / (F.t[b] - F.t[a])
     else if (valid[i - 1] && valid[i + 1] && Number.isFinite(hdg[i - 1]) && Number.isFinite(hdg[i + 1])) hRate[i] = wrap(hdg[i + 1] - hdg[i - 1]) / (2 * DT)
   }
-  const yawGps = movAvg(hRate, 11)
+  const fastGps = (F.n - 1) / Math.max(1, F.t[F.n - 1] - F.t[0]) > 5
+  const yawGps = movAvg(hRate, fastGps ? 5 : 11)
 
   // Aceleración que ve el GPS (de su velocidad)
   const vS = movAvg(P.v, 5)
@@ -678,6 +686,29 @@ export function analyze(session) {
       }
     }
   }
+
+  // Archivos de otros aparatos (RaceBox, RaceChrono, VBOX...): su propia inclinación y su G si las traen
+  // (la de un RaceBox en modo moto sale de sus sensores). El sentido se comprueba con los giros del GPS.
+  if (meta?.logger && calc.n > 10) {
+    info.logger = meta.logger
+    const dl = interp(t, calc.t, calc.lean)
+    if (dl.filter(Number.isFinite).length > n * 0.3) {
+      const rs = corrSign(dl, yawGps, (i) => valid[i] && v[i] > 6 && Math.abs(yawGps[i]) > 3)
+      if (rs.corr > 0.3) {
+        lean = Float64Array.from(dl, (x, i) => (Number.isFinite(x) ? rs.sign * x * RAD : leanDyn[i]))
+        info.leanFrom = 'device'
+        info.leanCorr = rs.corr
+      }
+    }
+    const dg = interp(t, calc.t, calc.gLong)
+    if (dg.filter(Number.isFinite).length > n * 0.3) {
+      const gs = corrSign(dg, aGpsS, (i) => valid[i] && v[i] > 3)
+      if (gs.corr > 0.5) {
+        aLong = Float64Array.from(dg, (x, i) => (Number.isFinite(x) ? gs.sign * x * G : aGpsS[i]))
+        info.longFrom = 'device'
+      }
+    }
+  } else if (meta?.logger) info.logger = meta.logger
 
   // Altitud suavizada, precisión del GPS y lo que calculaba el móvil
   const alt = movAvg(interp(t, F.t, F.alt), 31)

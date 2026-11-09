@@ -127,8 +127,12 @@ export function findPasses(P, A, { from = 0, to = A.n - 1, tol = 25, maxMiss = 6
       const expect = last + A.v[i] * DT
       // En las horquillas la proyección puede saltar varias decenas de metros de una muestra a otra
       const hi = last + Math.max(40, A.v[i] * DT * 6 + 30)
+      // El punto del trazado más creíble: cerca de donde debería ir y cerca de la moto. Antes solo miraba lo
+      // primero y, justo antes de la salida, cogía un punto ya dentro del tramo a 20 m de la moto: la
+      // pasada empezaba hasta 0,9 s antes según cómo cayera la línea de salida
+      const score = (c) => Math.abs(c.s - expect) + 2 * c.d
       let best = null
-      for (const c of cands) if (c.s >= last - 8 && c.s <= hi && (!best || Math.abs(c.s - expect) < Math.abs(best.s - expect))) best = c
+      for (const c of cands) if (c.s >= last - 8 && c.s <= hi && (!best || score(c) < score(best))) best = c
       // Perdido un momento: se engancha al primer punto por delante (en el mismo sentido)
       if (!best && miss >= 1) for (const c of cands) if (c.s > last - 8 && c.s <= last + 200 && (!best || c.s < best.s)) best = c
       const nearEnd = last >= L - Math.min(15, L * 0.03)
