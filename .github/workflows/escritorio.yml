@@ -31,4 +31,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_KEY }}
-        run: npm run release:win -- -c.win.signAndEditExecutable=true
+        run: npm run release:win -- --config.win.signAndEditExecutable=true
