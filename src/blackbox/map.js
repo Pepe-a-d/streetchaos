@@ -70,7 +70,7 @@ async function loadStyle() {
   }
 }
 
-export async function createMap(el, { onHover, onPick }) {
+export async function createMap(el, { onHover, onPick, onMark = () => {} }) {
   const style = await loadStyle()
   const map = new maplibregl.Map({
     container: el,
@@ -154,9 +154,15 @@ export async function createMap(el, { onHover, onPick }) {
     })
   })
   map.on('click', (e) => {
+    // Un clic en el número de una curva (o en una pasada) la abre; si no, el cursor va al punto
+    const hit = map.getLayer('marks-label') ? map.queryRenderedFeatures([[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]], { layers: ['marks-label'] }) : []
+    const m = hit.find((f) => f.properties.kind === 'corner' || f.properties.kind === 'run')
+    if (m) return onMark(m.properties.kind, Number(m.properties.n))
     const i = nearest(e.point)
     if (i != null) onPick(i)
   })
+  for (const ev of ['mouseenter', 'mouseleave'])
+    map.on(ev, 'marks-label', (e) => (map.getCanvas().style.cursor = ev === 'mouseenter' && ['corner', 'run'].includes(e.features?.[0]?.properties.kind) ? 'pointer' : ''))
 
   return {
     map,
@@ -204,7 +210,7 @@ export async function createMap(el, { onHover, onPick }) {
     setMarks(list) {
       map.getSource('marks').setData({
         type: 'FeatureCollection',
-        features: list.filter((m) => A?.valid[m.i]).map((m) => ({ type: 'Feature', properties: { label: m.label, color: m.color, kind: m.kind }, geometry: { type: 'Point', coordinates: [A.lon[m.i], A.lat[m.i]] } })),
+        features: list.filter((m) => A?.valid[m.i]).map((m) => ({ type: 'Feature', properties: { label: m.label, color: m.color, kind: m.kind, n: m.n ?? 0 }, geometry: { type: 'Point', coordinates: [A.lon[m.i], A.lat[m.i]] } })),
       })
     },
     fit(i0, i1, animate = true) {

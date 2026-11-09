@@ -103,7 +103,7 @@ export function createCharts(el, { onCursor, onRange }) {
                 if (u.select.width > 4) {
                   const a = idxOf(u.posToVal(u.select.left, 'x'))
                   const b = idxOf(u.posToVal(u.select.left + u.select.width, 'x'))
-                  if (b - a > 5) onRange(a, b)
+                  if (b - a > 5) onRange(a, b, 'select')
                 }
                 u.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false)
               },
@@ -126,11 +126,11 @@ export function createCharts(el, { onCursor, onRange }) {
           const f = e.deltaY > 0 ? 1.25 : 0.8
           const na = x - (x - a) * f
           const nb = x + (b - x) * f
-          onRange(idxOf(Math.max(xs[0], na)), Math.min(A.n - 1, idxOf(Math.min(xs[A.n - 1], nb))))
+          onRange(idxOf(Math.max(xs[0], na)), Math.min(A.n - 1, idxOf(Math.min(xs[A.n - 1], nb))), 'wheel')
         },
         { passive: false },
       )
-      box.addEventListener('dblclick', () => onRange(0, A.n - 1))
+      box.addEventListener('dblclick', () => onRange(0, A.n - 1, 'all'))
     })
 
     // Vista general: velocidad de toda la sesión con el tramo visible marcado; arrastra para elegir
@@ -163,7 +163,7 @@ export function createCharts(el, { onCursor, onRange }) {
           ],
           setSelect: [
             (u) => {
-              if (u.select.width > 3) onRange(idxOf(u.posToVal(u.select.left, 'x')), idxOf(u.posToVal(u.select.left + u.select.width, 'x')))
+              if (u.select.width > 3) onRange(idxOf(u.posToVal(u.select.left, 'x')), idxOf(u.posToVal(u.select.left + u.select.width, 'x')), 'select')
               u.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false)
             },
           ],

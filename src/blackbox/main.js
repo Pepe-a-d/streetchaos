@@ -34,7 +34,10 @@ const savePrefs = () => {
 }
 units.speed = prefs.units
 
-const S = { list: [], segs: [], id: null, A: null, range: [0, 0], cur: 0, map: null, charts: null, cmp: null, cmpView: null, profile: savedProfile(), fresh: new Set() }
+// range: lo que se ve (zoom); work: el tramo que has elegido arrastrando (las listas de curvas, frenadas
+// y tirones son siempre de este); focus: qué estás mirando dentro (una curva, una frenada, una pasada o un
+// zoom); hist: para volver atrás; memo: dónde estabas en cada salida
+const S = { list: [], segs: [], id: null, A: null, range: [0, 0], work: [0, 0], focus: null, hist: [], memo: new Map(), cur: 0, map: null, charts: null, cmp: null, cmpView: null, profile: savedProfile(), fresh: new Set() }
 // Con el tema del móvil desde el primer momento (el perfil guardado de la última vez)
 applyProfileTheme(S.profile)
 if (S.profile?.units && !localStorage.getItem(PREFS)) prefs.units = units.speed = S.profile.units === 'mph' ? 'mph' : 'kmh'
@@ -58,7 +61,7 @@ root.innerHTML = `
     <button class="sync" data-k="sync" data-act="syncPill"></button>
     <div class="seg" data-k="xmode" title="Eje de las gráficas"><button data-x="t">TIEMPO</button><button data-x="d">DISTANCIA</button></div>
     <div class="seg" data-k="units"><button data-u="kmh">KM/H</button><button data-u="mph">MPH</button></div>
-    <button class="btn ghost" data-act="csv" disabled title="Canales a 10 Hz para Excel u otras herramientas">CSV</button>
+    <button class="btn ghost" data-act="csv" disabled title="Canales a 10 Hz para Excel u otras herramientas (del tramo elegido, o de toda la salida)">CSV</button>
     <a class="btn ghost" href="../?app" title="Abrir la app del móvil en este ordenador (para probarla)">APP</a>
   </header>
   <aside class="lib">
@@ -106,12 +109,13 @@ root.innerHTML = `
           <label class="toggle"><input type="checkbox" data-k="showApp"> comparar con lo que calculó el móvil</label>
           <span class="grow"></span>
           <span class="range" data-k="range"></span>
-          <button class="btn ghost small" data-act="all">VER TODO</button>
+          <button class="btn ghost small" data-act="back" data-k="back" title="Vuelve a lo que veías antes (Esc)">← ATRAS</button>
+          <button class="btn ghost small" data-act="all" title="Toda la salida (doble clic en una gráfica)">VER TODO</button>
           <button class="btn cyan small" data-act="compare" title="Busca otras pasadas por este tramo (en esta salida o en otras) y compara">COMPARAR</button>
           <button class="btn ghost small" data-act="saveSeg" title="Guarda este tramo para cronometrarlo en todas tus salidas">GUARDAR TRAMO</button>
         </div>
         <div class="charts" data-k="charts"></div>
-        <p class="hint">Arrastra sobre una gráfica o la tira de arriba para elegir un tramo · Ctrl/⌘ + rueda (o pellizca) para acercar · doble clic o Esc para verlo todo · ← → mueven el cursor</p>
+        <p class="hint">Arrastra sobre una gráfica o la tira de arriba para elegir un tramo · Ctrl/⌘ + rueda (o pellizca) para acercar · Esc vuelve atrás y doble clic lo enseña todo · ← → mueven el cursor · [ ] curva o frenada anterior y siguiente</p>
         </div>
       </div>
     </section>
@@ -252,6 +256,7 @@ const nextFrame = () => new Promise((r) => setTimeout(r, 30))
 
 async function open(id, { range, cur } = {}) {
   if (S.cmp) exitCompare()
+  rememberPlace()
   K('busy').hidden = false
   await nextFrame()
   try {
@@ -261,6 +266,9 @@ async function open(id, { range, cur } = {}) {
     S.id = id
     S.A = A
     S.range = [0, A.n - 1]
+    S.work = [0, A.n - 1]
+    S.focus = null
+    S.hist = []
     S.cur = A.valid.indexOf(1)
     history.replaceState(null, '', `#s=${encodeURIComponent(id)}`)
     K('empty').hidden = true
@@ -277,8 +285,17 @@ async function open(id, { range, cur } = {}) {
     buildCharts()
     renderAll()
     refreshList()
-    if (range) setRange(...range)
+    // Con un tramo pedido (tramos guardados, comparar), ese; si no, donde lo dejaste en esta salida
+    const memo = S.memo.get(id)
+    if (range) setRange(...range, { kind: 'select', push: false })
+    else if (memo) {
+      S.hist = memo.hist
+      S.work = memo.work
+      S.focus = memo.focus
+      setRange(...memo.range, { kind: 'restore' })
+    }
     if (cur != null) setCursor(cur, 'list')
+    else if (!range && memo) setCursor(memo.cur, 'list')
   } catch (e) {
     toast(`No se pudo abrir: ${e.message}`, 5000)
     console.error(e)
@@ -290,11 +307,11 @@ async function open(id, { range, cur } = {}) {
 // Las gráficas salen ya; el mapa (librería grande y teselas por la red) llega cuando esté
 function ensureViews() {
   if (S.charts) return
-  S.charts = createCharts(K('charts'), { onCursor: (i, from) => setCursor(i, from), onRange: (a, b) => setRange(a, b) })
+  S.charts = createCharts(K('charts'), { onCursor: (i, from) => setCursor(i, from), onRange: (a, b, how) => setRange(a, b, { kind: how === 'wheel' ? 'view' : how === 'all' ? 'all' : 'select' }) })
   new ResizeObserver(() => S.charts.resize()).observe(K('charts'))
   K('maploading').hidden = false
   import('./map.js')
-    .then(({ createMap }) => createMap(K('map'), { onHover: (i) => setCursor(i, 'map'), onPick: (i) => setCursor(i, 'map') }))
+    .then(({ createMap }) => createMap(K('map'), { onHover: (i) => setCursor(i, 'map'), onPick: (i) => setCursor(i, 'map'), onMark: (kind, n) => focusFromMap(kind, n) }))
     .then((map) => {
       S.map = map
       new ResizeObserver(() => map.resize()).observe(K('map'))
@@ -320,11 +337,11 @@ function marks(A) {
   const first = A.valid.indexOf(1)
   const last = A.valid.lastIndexOf(1)
   out.push({ i: first, label: 'SALIDA', color: pal('green'), kind: 'start' }, { i: last, label: 'FIN', color: pal('ink'), kind: 'end' })
-  for (const r of A.runs) {
+  A.runs.forEach((r, k) => {
     const head = r.marks?.['k0-100'] ?? r.marks?.['m0-60']
-    out.push({ i: r.i, label: head != null ? `PASADA ${head.toFixed(2)} s` : 'PASADA', color: pal('yellow'), kind: 'run' })
-  }
-  for (const c of A.corners) out.push({ i: c.apex, label: `${c.n}`, color: pal('yellow'), kind: 'corner' })
+    out.push({ i: r.i, label: head != null ? `PASADA ${head.toFixed(2)} s` : 'PASADA', color: pal('yellow'), kind: 'run', n: k + 1 })
+  })
+  for (const c of A.corners) out.push({ i: c.apex, label: `${c.n}`, color: pal('yellow'), kind: 'corner', n: c.n })
   return out
 }
 
@@ -360,12 +377,25 @@ function setCursor(i, from) {
   })
 }
 
-function setRange(a, b, { fit = true } = {}) {
+/**
+ * Cambia lo que se ve. kind:
+ * - 'select': has elegido un tramo (arrastrando): pasa a ser el tramo de trabajo
+ * - 'view': un zoom dentro del tramo (una curva, una frenada, una pasada, la rueda); focus dice qué es
+ * - 'work': volver al tramo de trabajo entero
+ * - 'all': toda la salida
+ * - 'restore': volver a un estado guardado (atrás, otra salida) sin apuntarlo en el historial
+ */
+function setRange(a, b, { fit = true, kind = 'select', focus = null, push = true } = {}) {
   const A = S.A
   if (!A) return
   let i0 = Math.max(0, Math.min(a, b))
   let i1 = Math.min(A.n - 1, Math.max(a, b))
   if (i1 - i0 < 10) i1 = Math.min(A.n - 1, i0 + 10)
+  if (push && kind !== 'restore') pushHist(kind)
+  if (kind === 'select') (S.work = [i0, i1]), (S.focus = null)
+  else if (kind === 'all') (S.work = [0, A.n - 1]), (S.focus = null)
+  else if (kind === 'view') S.focus = focus || { kind: 'zoom' }
+  else if (kind === 'work') S.focus = null
   S.range = [i0, i1]
   S.charts.setRange(i0, i1)
   S.map?.setTrack(A, prefs.mapCh, S.range)
@@ -373,6 +403,89 @@ function setRange(a, b, { fit = true } = {}) {
   if (S.cur < i0 || S.cur > i1) setCursor(Math.round((i0 + i1) / 2), 'range')
   renderRange()
   renderTab()
+}
+
+// Historial para volver atrás. Los zooms seguidos de la rueda cuentan como uno.
+let lastPush = { t: 0, kind: '' }
+function pushHist(kind) {
+  const now = performance.now()
+  if (kind === 'wheel' && lastPush.kind === 'wheel' && now - lastPush.t < 1500) return (lastPush.t = now)
+  lastPush = { t: now, kind }
+  const top = S.hist[S.hist.length - 1]
+  if (top && top.range[0] === S.range[0] && top.range[1] === S.range[1] && top.work[0] === S.work[0] && top.work[1] === S.work[1]) return
+  S.hist.push({ range: [...S.range], work: [...S.work], focus: S.focus })
+  if (S.hist.length > 40) S.hist.shift()
+}
+
+/** Vuelve a lo que veías antes; sin historial, a toda la salida. */
+function goBack() {
+  const A = S.A
+  if (!A) return
+  const h = S.hist.pop()
+  if (!h) return S.range[0] !== 0 || S.range[1] !== A.n - 1 ? setRange(0, A.n - 1, { kind: 'all', push: false }) : null
+  S.work = h.work
+  S.focus = h.focus
+  setRange(...h.range, { kind: 'restore' })
+}
+
+/** Lo que se puede recorrer con [ ] según lo que estás mirando: curvas, frenadas o pasadas del tramo. */
+function focusItems(kind) {
+  const A = S.A
+  const [w0, w1] = S.work
+  if (kind === 'corner') {
+    const by = { n: (a, b) => a.n - b.n, lean: (a, b) => b.lean - a.lean, v: (a, b) => b.vMin - a.vMin }
+    return A.corners.filter((c) => c.i0 >= w0 && c.i1 <= w1).sort(by[prefs.sort] || by.n).map((c) => ({ n: c.n, i0: c.i0, i1: c.i1, at: c.apex }))
+  }
+  if (kind === 'brake') return A.brakes.filter((c) => c.i0 >= w0 && c.i1 <= w1).map((c) => ({ n: c.n, i0: c.i0, i1: c.i1, at: c.iMax }))
+  if (kind === 'run') return A.runs.map((r, k) => ({ n: k + 1, ...runSpan(r) }))
+  return []
+}
+function runSpan(r) {
+  const A = S.A
+  const end = Math.max(0, ...Object.values(r.marks || {}))
+  return { i0: Math.max(0, r.i - 30), i1: Math.min(A.n - 1, r.i + Math.round((end + 4) / DT)), at: r.i }
+}
+const PAD = Math.round(3 / DT)
+/** Acerca a una curva, frenada o pasada (sin cambiar el tramo de trabajo). */
+function focusOn(kind, it, { push = true } = {}) {
+  setRange(it.i0 - (kind === 'run' ? 0 : PAD), it.i1 + (kind === 'run' ? 0 : PAD), { kind: 'view', focus: { kind, n: it.n }, push })
+  setCursor(it.at, 'list')
+  K('tabbody').querySelector('.focus')?.scrollIntoView({ block: 'nearest' })
+}
+/** La curva (o frenada o pasada) anterior o siguiente del tramo. */
+function stepFocus(dir) {
+  const f = S.focus
+  if (!f || f.kind === 'zoom') return
+  const items = focusItems(f.kind)
+  const k = items.findIndex((x) => x.n === f.n)
+  const it = items[k + dir]
+  if (it) focusOn(f.kind, it, { push: false })
+}
+
+/** Clic en el número de una curva o en una pasada del mapa: se abre su lista y se acerca a ella. */
+function focusFromMap(kind, n) {
+  const A = S.A
+  if (!A) return
+  let it = null
+  if (kind === 'corner') {
+    const c = A.corners.find((x) => x.n === n)
+    if (!c) return
+    // Si la curva está fuera del tramo, el tramo pasa a ser toda la salida (para poder recorrerlas)
+    if (c.i0 < S.work[0] || c.i1 > S.work[1]) S.work = [0, A.n - 1]
+    it = { n, i0: c.i0, i1: c.i1, at: c.apex }
+    if (prefs.tab !== 'curvas') (prefs.tab = 'curvas'), savePrefs(), renderAll()
+  } else if (kind === 'run') {
+    const r = A.runs[n - 1]
+    if (!r) return
+    it = { n, ...runSpan(r) }
+    if (prefs.tab !== 'pasadas') (prefs.tab = 'pasadas'), savePrefs(), renderAll()
+  }
+  if (it) focusOn(kind, it)
+}
+
+/** Guarda dónde estabas en la salida abierta (para volver a ella tal cual). */
+function rememberPlace() {
+  if (S.id && S.A) S.memo.set(S.id, { range: [...S.range], work: [...S.work], focus: S.focus, hist: S.hist.slice(-40), cur: S.cur })
 }
 
 // ---------- Pintar ----------
@@ -412,12 +525,33 @@ function renderReadout() {
   set('hdg', Number.isFinite(A.hdg[i]) ? `${String(Math.round((A.hdg[i] + 360) % 360)).padStart(3, '0')}°` : '—')
 }
 
+const FOCUS_NAME = { corner: 'CURVA', brake: 'FRENADA', run: 'PASADA', zoom: 'ZOOM' }
+const span = (i0, i1) => `${fmtElapsed(S.A.t[i0] - S.A.t[0])} → ${fmtElapsed(S.A.t[i1] - S.A.t[0])}`
+const isFull = ([a, b]) => a === 0 && b === S.A.n - 1
+
+/** Dónde estás: «Toda la salida», «Tramo 2:10 → 5:40», «Tramo … › Curva 7 (2 de 9)». */
+function placeLabel() {
+  const A = S.A
+  const parts = [isFull(S.work) ? 'Toda la salida' : `Tramo ${span(...S.work)} · ${toDist(A.d[S.work[1]] - A.d[S.work[0]]).toFixed(2)} ${distUnit()}`]
+  const f = S.focus
+  if (f) {
+    const items = f.kind === 'zoom' ? [] : focusItems(f.kind)
+    const k = items.findIndex((x) => x.n === f.n)
+    parts.push(f.kind === 'zoom' ? `zoom ${span(...S.range)}` : `${FOCUS_NAME[f.kind]} ${f.n}${k >= 0 ? ` (${k + 1} de ${items.length})` : ''}`)
+  }
+  return parts
+}
+
 function renderRange() {
   const A = S.A
   if (!A) return
-  const [i0, i1] = S.range
-  const full = i0 === 0 && i1 === A.n - 1
-  K('range').textContent = full ? `toda la salida · eje: ${S.charts.xLabel()}` : `${fmtElapsed(A.t[i0] - A.t[0])} → ${fmtElapsed(A.t[i1] - A.t[0])} · ${toDist(A.d[i1] - A.d[i0]).toFixed(2)} ${distUnit()}`
+  const parts = placeLabel()
+  const f = S.focus
+  const items = f && f.kind !== 'zoom' ? focusItems(f.kind) : []
+  const k = items.findIndex((x) => x.n === f?.n)
+  const nav = f && f.kind !== 'zoom' ? `<button class="btn ghost small" data-act="prev" ${k > 0 ? '' : 'disabled'} title="Anterior ([)">◀</button><button class="btn ghost small" data-act="next" ${k >= 0 && k < items.length - 1 ? '' : 'disabled'} title="Siguiente (])">▶</button>` : ''
+  K('range').innerHTML = `${parts.map((p, i) => (i < parts.length - 1 && f ? `<button class="crumb" data-act="toWork" title="Volver al tramo">${esc(p)}</button>` : `<b>${esc(p)}</b>`)).join(' › ')}${nav}${isFull(S.range) ? ` <small>· eje: ${S.charts.xLabel()}</small>` : ''}`
+  K('back').disabled = !S.hist.length && isFull(S.range)
 }
 
 const row = (label, value, i) => `<tr ${i != null && i >= 0 ? `data-i="${i}" class="link"` : ''}><th>${label}</th><td>${value}</td></tr>`
@@ -439,7 +573,9 @@ function renderTab() {
       const p = getKey() ? S.profile?.totals : null
       // ¿Récord de tu móvil? (comparado con lo que tenía guardado)
       const pr = (v, best) => (p && Number.isFinite(best) && best > 0 && v >= best - 0.01 ? ' best' : '')
-      return `<p class="scope">${full ? 'TODA LA SALIDA' : `TRAMO ELEGIDO · ${fmtElapsed(A.t[i0] - A.t[0])} → ${fmtElapsed(A.t[i1] - A.t[0])}`}${full ? '' : ' <button class="linkish" data-act="all">ver toda</button>'}</p>
+      // Mirando una curva o un zoom: volver al tramo; mirando el tramo: ver toda la salida
+      const up = S.focus ? ' <button class="linkish" data-act="toWork">volver al tramo</button>' : full ? '' : ' <button class="linkish" data-act="all">ver toda</button>'
+      return `<p class="scope">${esc(placeLabel().at(-1).toUpperCase())}${up}</p>
       <div class="stats">
         ${card('DISTANCIA', `${toDist(s.dist).toFixed(2)}<small> ${distUnit()}</small>`)}
         ${card('EN MARCHA', fmtDur(s.moving))}
@@ -467,25 +603,29 @@ function renderTab() {
       return `<canvas class="gg" data-k="gg"></canvas><h4 class="h">TIEMPO A CADA INCLINACION</h4><canvas class="hist" data-k="hist"></canvas>`
     },
     curvas() {
-      const list = A.corners.filter((c) => c.i0 >= i0 && c.i1 <= i1)
+      const [w0, w1] = S.work
+      const list = A.corners.filter((c) => c.i0 >= w0 && c.i1 <= w1)
       const by = { n: (a, b) => a.n - b.n, lean: (a, b) => b.lean - a.lean, v: (a, b) => b.vMin - a.vMin }
       list.sort(by[prefs.sort] || by.n)
       if (!list.length) return '<p class="note">Sin curvas en este tramo (se cuentan las de más de 12° durante al menos 1 s).</p>'
+      const foc = (k, n) => (S.focus?.kind === k && S.focus.n === n ? ' focus' : '')
       return `<div class="sort">ORDEN ${[['n', 'RECORRIDO'], ['lean', 'INCLINACION'], ['v', 'VEL. MIN']].map(([k, l]) => `<button class="chip ${prefs.sort === k ? 'on' : ''}" data-sort="${k}">${l}</button>`).join('')}</div>
         <table class="grid"><thead><tr><th>#</th><th></th><th>INCL</th><th>ENTRA</th><th>MIN</th><th>SALE</th><th>G LAT</th><th>s</th></tr></thead><tbody>
         ${list
           .map(
             (c) =>
-              `<tr class="link" data-zoom="${c.i0},${c.i1},${c.apex}"><td>${c.n}</td><td class="${c.dir === 'L' ? 'l' : 'r'}">${c.dir === 'L' ? 'IZQ' : 'DER'}</td><td><b>${c.lean.toFixed(1)}°</b></td><td>${toSpeed(c.vIn).toFixed(0)}</td><td>${toSpeed(c.vMin).toFixed(0)}</td><td>${toSpeed(c.vOut).toFixed(0)}</td><td>${c.gLat.toFixed(2)}</td><td>${c.dur.toFixed(1)}</td></tr>`,
+              `<tr class="link${foc('corner', c.n)}" data-zoom="${c.i0},${c.i1},${c.apex}" data-fk="corner" data-fn="${c.n}"><td>${c.n}</td><td class="${c.dir === 'L' ? 'l' : 'r'}">${c.dir === 'L' ? 'IZQ' : 'DER'}</td><td><b>${c.lean.toFixed(1)}°</b></td><td>${toSpeed(c.vIn).toFixed(0)}</td><td>${toSpeed(c.vMin).toFixed(0)}</td><td>${toSpeed(c.vOut).toFixed(0)}</td><td>${c.gLat.toFixed(2)}</td><td>${c.dur.toFixed(1)}</td></tr>`,
           )
-          .join('')}</tbody></table><p class="note">Velocidades en ${speedUnit()}. Clic en una curva para verla.</p>`
+          .join('')}</tbody></table><p class="note">${list.length} ${list.length === 1 ? 'curva' : 'curvas'} en ${isFull(S.work) ? 'toda la salida' : 'el tramo'} · velocidades en ${speedUnit()}. Clic en una para verla de cerca; ◀ ▶ (o [ ]) pasan a la anterior y la siguiente sin perder el tramo.</p>`
     },
     frenadas() {
-      const list = A.brakes.filter((c) => c.i0 >= i0 && c.i1 <= i1)
+      const [w0, w1] = S.work
+      const list = A.brakes.filter((c) => c.i0 >= w0 && c.i1 <= w1)
+      const foc = (n) => (S.focus?.kind === 'brake' && S.focus.n === n ? ' focus' : '')
       if (!list.length) return '<p class="note">Sin frenadas en este tramo (se cuentan las de más de 0,25 g durante al menos 0,6 s).</p>'
       return `<table class="grid"><thead><tr><th>#</th><th>G MAX</th><th>DE</th><th>A</th><th>s</th><th>m</th></tr></thead><tbody>
-        ${list.map((c) => `<tr class="link" data-zoom="${c.i0},${c.i1},${c.iMax}"><td>${c.n}</td><td><b>${c.g.toFixed(2)}</b></td><td>${toSpeed(c.vIn).toFixed(0)}</td><td>${toSpeed(c.vOut).toFixed(0)}</td><td>${c.dur.toFixed(1)}</td><td>${Math.round(c.len)}</td></tr>`).join('')}
-        </tbody></table><p class="note">Velocidades en ${speedUnit()}.</p>`
+        ${list.map((c) => `<tr class="link${foc(c.n)}" data-zoom="${c.i0},${c.i1},${c.iMax}" data-fk="brake" data-fn="${c.n}"><td>${c.n}</td><td><b>${c.g.toFixed(2)}</b></td><td>${toSpeed(c.vIn).toFixed(0)}</td><td>${toSpeed(c.vOut).toFixed(0)}</td><td>${c.dur.toFixed(1)}</td><td>${Math.round(c.len)}</td></tr>`).join('')}
+        </tbody></table><p class="note">${list.length} ${list.length === 1 ? 'frenada' : 'frenadas'} en ${isFull(S.work) ? 'toda la salida' : 'el tramo'} · velocidades en ${speedUnit()}. Clic en una para verla; ◀ ▶ (o [ ]) pasan a la siguiente.</p>`
     },
     pasadas() {
       if (!A.runs.length) return '<p class="note">Las pasadas del crono que hagas mientras graba aparecen aquí, con sus parciales.</p>'
@@ -493,8 +633,8 @@ function renderTab() {
       return A.runs
         .map((r, k) => {
           const ms = Object.entries(r.marks || {})
-          const end = Math.max(0, ...ms.map(([, t]) => t))
-          return `<div class="run link" data-zoom="${Math.max(0, r.i - 30)},${Math.min(A.n - 1, r.i + Math.round((end + 4) / DT))},${r.i}">
+          const sp = runSpan(r)
+          return `<div class="run link${S.focus?.kind === 'run' && S.focus.n === k + 1 ? ' focus' : ''}" data-zoom="${sp.i0},${sp.i1},${r.i}" data-fk="run" data-fn="${k + 1}">
             <h4>PASADA ${k + 1} · ${fmtClock(A.meta.start + r.t * 1000)} · punta ${toSpeed(r.maxV || 0).toFixed(0)} ${speedUnit()} <button class="btn cyan small" data-runcmp="${k}">COMPARAR</button></h4>
             <table class="kv">${ms.map(([id, t]) => row(NAMES[id] || id, `${t.toFixed(2)} s`)).join('')}</table></div>`
         })
@@ -502,7 +642,8 @@ function renderTab() {
     },
     potencia() {
       const d = prefs.dyno
-      const pulls = findPulls(A, i0, i1)
+      // Los tirones, de todo el tramo de trabajo (aunque estés mirando un trozo)
+      const pulls = findPulls(A, ...S.work)
       return `<div class="dyno-cfg">
           <label>Moto <input type="number" data-dyno="bike" value="${d.bike}" min="50" max="600" step="5"> kg</label>
           <label>Piloto <input type="number" data-dyno="rider" value="${d.rider}" min="30" max="200" step="1"> kg</label>
@@ -530,7 +671,12 @@ function renderTab() {
         if (Number.isFinite(A.appV[i])) dv += (A.v[i] - A.appV[i]) ** 2
       }
       const vec = (v) => (v ? `(${v.map((x) => x.toFixed(2)).join(', ')})` : '—')
-      const LEAN = { 'gyro+roll': 'giroscopio (giro + alabeo)', gyro: 'giroscopio (giro)', gps: 'rumbo del GPS' }
+      const LEAN = { gravity: 'gravedad del propio móvil', 'gyro+roll': 'giroscopio (giro + alabeo)', gyro: 'giroscopio (giro)', gps: 'rumbo del GPS' }
+      const c = m.calib || {}
+      const calib =
+        c.axes || c.leanSign != null || c.gpsLag != null
+          ? `ejes ${c.axes || '—'} · sentido ${c.leanSign ?? '—'} · retraso GPS ${c.gpsLag != null ? `${c.gpsLag} s` : '—'}${c.fwd ? ' · delante aprendido' : ''}`
+          : `cero ${c.leanZero != null ? `${((c.leanZero * 180) / Math.PI).toFixed(1)}°` : '—'} · signo giro ${c.gyroSign ?? '—'} (versión antigua)`
       return `<table class="kv">
         ${row('Origen', `${(SRC[m.source] || [m.source])[0]}${m.sim ? ` · ${m.sim.hz} Hz, ${esc(m.sim.bike)}` : ''}`)}
         ${row('Estado', m.state === 'rec' ? 'a medias (se exportó grabando)' : 'cerrada')}
@@ -541,10 +687,13 @@ function renderTab() {
         ${row('Postura: arriba', vec(I.mount?.up))}
         ${row('Postura: adelante', I.mount?.fwd ? `${vec(I.mount.fwd)} · R² ${I.mount.r2.toFixed(2)}` : 'no se pudo sacar (pocas aceleraciones)')}
         ${row('G longitudinal de', I.longFrom === 'imu' ? 'acelerómetro (calibrado con el GPS)' : 'velocidad del GPS')}
-        ${row('Inclinación de', `${LEAN[I.leanFrom]}${I.yawCorr ? ` · correlación ${I.yawCorr.toFixed(2)}` : ''}`)}
+        ${row('Inclinación de', `${LEAN[I.leanFrom] || I.leanFrom}${I.leanCorr ? ` · cuadra con el GPS ${I.leanCorr.toFixed(2)}` : I.yawCorr ? ` · correlación ${I.yawCorr.toFixed(2)}` : ''}`)}
+        ${row('Ejes del giroscopio', I.gyroAxes === 'xyz' ? 'los del iPhone (alpha = x)' : I.gyroAxes === 'w3c' ? 'los del estándar' : '—')}
+        ${row('Retraso del GPS', Number.isFinite(I.gpsLag) ? `${I.gpsLag.toFixed(1)} s medido${I.appLag ? ` · el móvil ya descontaba ${I.appLag} s` : ''}` : '—')}
+        ${row('Velocidad del GPS', Number.isFinite(I.doppler) ? `en el ${Math.round(I.doppler * 100)} % de los fixes (el resto, rellenada)` : '—')}
         ${row('vs. el móvil: inclinación', dc ? `±${Math.sqrt(dl / dc).toFixed(1)}° de diferencia` : '—')}
         ${row('vs. el móvil: velocidad', dc ? `±${toSpeed(Math.sqrt(dv / dc)).toFixed(1)} ${speedUnit()}` : '—')}
-        ${row('Calibración guardada', `cero ${m.calib?.leanZero != null ? `${((m.calib.leanZero * 180) / Math.PI).toFixed(1)}°` : '—'} · signo giro ${m.calib?.gyroSign ?? '—'}`)}
+        ${row('Calibración del móvil', calib)}
         ${row('Móvil', `<span class="ua">${esc(m.device?.ua || '—')}</span>`)}
         ${row('Id', `<code>${esc(m.id)}</code>`)}
       </table>`
@@ -612,7 +761,11 @@ root.addEventListener('click', async (e) => {
   }
   if (d.act === 'csv') return exportCsv()
   if (!S.A) return
-  if (d.act === 'all') return setRange(0, S.A.n - 1)
+  if (d.act === 'all') return setRange(0, S.A.n - 1, { kind: 'all' })
+  if (d.act === 'back') return goBack()
+  if (d.act === 'prev') return stepFocus(-1)
+  if (d.act === 'next') return stepFocus(1)
+  if (d.act === 'toWork') return setRange(...S.work, { kind: 'work' })
   if (d.act === 'compare') return compareDialog()
   if (d.act === 'saveSeg') return saveSegDialog()
   if (d.runcmp != null) return compareRunDialog(Number(d.runcmp))
@@ -661,8 +814,8 @@ root.addEventListener('click', async (e) => {
   }
   if (d.zoom) {
     const [a, z, c] = d.zoom.split(',').map(Number)
-    const pad = Math.round(3 / DT)
-    setRange(a - pad, z + pad)
+    if (d.fk) return focusOn(d.fk, { n: Number(d.fn), i0: a, i1: z, at: c })
+    setRange(a - PAD, z + PAD, { kind: 'view' })
     return setCursor(c, 'list')
   }
   if (d.i) return setCursor(Number(d.i), 'list')
@@ -693,11 +846,13 @@ K('showApp').addEventListener('change', (e) => {
 })
 
 addEventListener('keydown', (e) => {
-  if (!S.A || e.target.tagName === 'INPUT') return
+  if (!S.A || ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) || document.querySelector('.modal-bg')) return
   const step = e.shiftKey ? 10 : 1
   if (e.key === 'ArrowRight') setCursor(Math.min(S.range[1], S.cur + step), 'key')
   else if (e.key === 'ArrowLeft') setCursor(Math.max(S.range[0], S.cur - step), 'key')
-  else if (e.key === 'Escape') setRange(0, S.A.n - 1)
+  else if (e.key === 'Escape' || e.key === 'Backspace') goBack()
+  else if (e.key === '[') stepFocus(-1)
+  else if (e.key === ']') stepFocus(1)
   else return
   e.preventDefault()
 })
@@ -833,7 +988,7 @@ function exitCompare() {
   K('cmp').hidden = true
   K('chartsMain').hidden = false
   S.map?.setCompare(null)
-  if (S.A) (buildCharts(), setRange(...S.range))
+  if (S.A) (buildCharts(), setRange(...S.range, { kind: 'restore' }))
 }
 
 // ---------- Tramos ----------
@@ -1209,6 +1364,7 @@ function renderHome() {
 /** Vuelve al inicio (perfil y salidas). */
 function goHome() {
   if (S.cmp) exitCompare()
+  rememberPlace()
   S.id = null
   S.A = null
   history.replaceState(null, '', location.pathname + location.search)
@@ -1313,17 +1469,19 @@ document.addEventListener('visibilitychange', () => document.visibilityState ===
 function exportCsv() {
   const A = S.A
   if (!A) return
+  // Si has elegido un tramo, solo ese
+  const [w0, w1] = S.work
   const cols = ['t_s', 'hora', 'lat', 'lon', `dist_${distUnit()}`, `vel_${speedUnit().replace('/', '')}`, 'incl_grados', 'g_long', 'g_lat', 'alt_m', 'rumbo', 'giro_grados_s', 'vib_ms2', 'gps_precision_m']
   const lines = [cols.join(',')]
   const f = (x, d) => (Number.isFinite(x) ? x.toFixed(d) : '')
-  for (let i = 0; i < A.n; i++) {
+  for (let i = w0; i <= w1; i++) {
     if (!A.valid[i]) continue
     lines.push([f(A.t[i] - A.t[0], 1), new Date(A.meta.start + A.t[i] * 1000).toISOString(), f(A.lat[i], 7), f(A.lon[i], 7), f(toDist(A.d[i]), 4), f(toSpeed(A.v[i]), 2), f(A.lean[i], 2), f(A.gLong[i], 3), f(A.gLat[i], 3), f(A.alt[i], 1), f(A.hdg[i], 1), f(A.yaw[i], 2), f(A.vib[i], 3), f(A.acc[i], 1)].join(','))
   }
   const a = document.createElement('a')
   a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }))
   const d = new Date(A.meta.start)
-  a.download = `streetchaos-${d.toISOString().slice(0, 16).replace(/[:T]/g, '-')}.csv`
+  a.download = `streetchaos-${d.toISOString().slice(0, 16).replace(/[:T]/g, '-')}${isFull(S.work) ? '' : `-tramo-${Math.round(A.t[w0] - A.t[0])}s-${Math.round(A.t[w1] - A.t[0])}s`}.csv`
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 10000)
 }

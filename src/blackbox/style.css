@@ -184,6 +184,10 @@ table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nu
 .link { cursor: pointer; }
 .link:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 tr.cur, .run.cur { background: color-mix(in srgb, var(--yellow) 12%, transparent); }
+/* La curva, frenada o pasada que estás mirando */
+tr.focus td { background: color-mix(in srgb, var(--cyan) 16%, transparent); }
+tr.focus td:first-child { box-shadow: inset 3px 0 0 var(--cyan); }
+.run.focus { border-color: var(--cyan); }
 .sort { display: flex; gap: 4px; align-items: center; font: 7px var(--pixel); color: var(--faint); margin-bottom: 8px; }
 .run { border: 1px solid var(--line); padding: 8px; margin-bottom: 8px; }
 .run h4 { font: 8px var(--pixel); color: var(--yellow); margin: 0 0 6px; font-weight: normal; }
@@ -197,7 +201,11 @@ code { font-size: 11px; color: var(--dim); }
 .ch-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .toggle { color: var(--dim); display: flex; gap: 6px; align-items: center; cursor: pointer; }
 .grow { flex: 1; }
-.range { font: 12px var(--mono); color: var(--yellow); }
+.range { font: 12px var(--mono); color: var(--yellow); display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.range b { font-weight: 600; }
+.range small { color: var(--dim); }
+.range .btn.small { padding: 4px 7px; }
+.crumb { font: 12px var(--mono); color: var(--cyan); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .overview { border: 1px solid var(--line); margin-bottom: 6px; cursor: ew-resize; }
 .chart { position: relative; border-top: 1px solid var(--sep); }
 .ch-head { position: absolute; left: 62px; top: 4px; z-index: 2; display: flex; gap: 10px; align-items: baseline; pointer-events: none; }
