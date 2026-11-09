@@ -46,7 +46,7 @@ const newId = (epoch) => epoch.toString(36) + Math.random().toString(36).slice(2
  * @param {() => object} [o.context]   datos fijos de la sesión (móvil, calibración, fuente...)
  * @param {() => number[] | null} [o.snapshot]  [v, gLong, gLat, lean°] que calcula la app ahora mismo
  */
-export function createLogger({ store, now, enabled = () => true, context = () => ({}), snapshot = () => null, rules = RULES }) {
+export function createLogger({ store, now, enabled = () => true, context = () => ({}), snapshot = () => null, onEnd = () => {}, rules = RULES }) {
   const S = {
     ready: false,
     on: false,
@@ -209,7 +209,10 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
     m.state = 'done'
     m.end = m.start + Math.round((S.lastData - S.t0) * 1000)
     const snap = { ...m, rows: { ...m.rows } }
-    return queue(() => store.putMeta(snap))
+    return queue(async () => {
+      await store.putMeta(snap)
+      onEnd(snap)
+    })
   }
 
   /** Al abrir la app: sigue la sesión que se cortó hace poco y cierra las viejas. */
@@ -244,7 +247,17 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
   async function summary() {
     const metas = await store.listMeta()
     const sum = (k) => metas.reduce((s, m) => s + (m[k] || 0), 0)
-    return { sessions: metas.length, bytes: sum('bytes'), dist: sum('dist'), moving: sum('moving'), recording: S.on, error: S.error }
+    const pending = metas.filter((m) => m.state === 'done' && m.uploadedBytes !== m.bytes).length
+    return { sessions: metas.length, bytes: sum('bytes'), dist: sum('dist'), moving: sum('moving'), recording: S.on, error: S.error, pending }
+  }
+
+  /** Apunta que una sesión cerrada ya está en la nube (con su tamaño de entonces). */
+  async function markUploaded(id, bytes) {
+    const m = (await store.listMeta()).find((x) => x.id === id)
+    if (!m || m.state !== 'done') return
+    m.uploadedBytes = bytes
+    m.uploadedAt = now().epoch
+    await queue(() => store.putMeta(m))
   }
 
   /** Borra toda la telemetría (y la sesión en curso, sin guardarla). */
@@ -265,6 +278,7 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
     end,
     recover,
     summary,
+    markUploaded,
     wipe,
     list: () => store.listMeta(),
     read: (meta) => readSession(store, meta),
@@ -368,3 +382,49 @@ export function memoryStore() {
     },
   }
 }
+
+// ---------- Archivo binario de una sesión (subida a la nube) ----------
+// «SCB1» + longitud de la cabecera (uint32 LE) + cabecera JSON (rellena con espacios hasta múltiplo
+// de 8) + bytes de gps, imu y calc tal cual (little-endian). Se sube comprimido con gzip.
+
+const MAGIC = [0x53, 0x43, 0x42, 0x31]
+
+/** Sesión → bytes. `extra` va en la cabecera (móvil, piloto...). */
+export function packSession(s, extra = {}) {
+  const head = { format: FORMAT, streams: STREAMS, meta: s.meta, events: s.ev || [], bytes: { gps: s.gps.byteLength, imu: s.imu.byteLength, calc: s.calc.byteLength }, ...extra }
+  const h = new TextEncoder().encode(JSON.stringify(head))
+  const padded = Math.ceil((8 + h.length) / 8) * 8 - 8
+  const total = 8 + padded + head.bytes.gps + head.bytes.imu + head.bytes.calc
+  const u8 = new Uint8Array(total)
+  u8.set(MAGIC, 0)
+  new DataView(u8.buffer).setUint32(4, padded, true)
+  u8.fill(0x20, 8, 8 + padded)
+  u8.set(h, 8)
+  let o = 8 + padded
+  for (const k of ['gps', 'imu', 'calc']) {
+    u8.set(new Uint8Array(s[k].buffer, s[k].byteOffset, s[k].byteLength), o)
+    o += s[k].byteLength
+  }
+  return u8
+}
+
+/** Bytes → { meta, gps, imu, calc, ev, head }. */
+export function unpackSession(u8) {
+  if (!MAGIC.every((b, i) => u8[i] === b)) throw new Error('No es una sesión de la caja negra')
+  const H = new DataView(u8.buffer, u8.byteOffset).getUint32(4, true)
+  const head = JSON.parse(new TextDecoder().decode(u8.subarray(8, 8 + H)))
+  let o = 8 + H
+  const take = (k, T) => {
+    const n = head.bytes[k]
+    const out = new T(u8.slice(o, o + n).buffer)
+    o += n
+    return out
+  }
+  return { head, meta: head.meta, gps: take('gps', Float64Array), imu: take('imu', Float32Array), calc: take('calc', Float32Array), ev: head.events || [] }
+}
+
+const stream = async (u8, S) => new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new S('gzip'))).arrayBuffer())
+/** gzip si el navegador sabe (si no, tal cual). */
+export const gzip = (u8) => (typeof CompressionStream === 'function' ? stream(u8, CompressionStream) : Promise.resolve(u8))
+/** Deshace gzip si lo es. */
+export const gunzip = (u8) => (u8[0] === 0x1f && u8[1] === 0x8b ? stream(u8, DecompressionStream) : Promise.resolve(u8))

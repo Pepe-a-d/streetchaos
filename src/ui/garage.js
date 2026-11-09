@@ -10,6 +10,7 @@ import { sfx } from '../core/audio.js'
 import { geoPermission, isIOS, isStandalone } from '../core/device.js'
 import { sendForAnalysis, buildExport, shareFile } from '../core/share.js'
 import { logger } from '../core/logger.js'
+import { cloud, cloudAvailable, syncNow, syncKey, blackboxLink, onCloud } from '../core/cloud.js'
 import { $, esc, layer, toast, toSpeed, speedUnit, toDist, distUnit, fmtT, fmtDate, fmtBytes, markLabel } from './util.js'
 import { bikeSvg, pixelSvg } from './pixel.js'
 import { editRider } from './title.js'
@@ -101,7 +102,24 @@ export function mountGarage(el, { applySource }) {
       : 'Aún vacía: empieza a grabar sola al pasar de 9 km/h'
     if (sum.error) txt.textContent += ` · ERROR: ${sum.error}`
     badge.innerHTML = !settings.logTelemetry ? state('APAGADA', 'off') : sum.recording ? state('GRABANDO', 'on') : state('EN ESPERA', '')
+    const nube = $(el, '[data-k="cloud"]')
+    if (nube) {
+      cloud.pending = sum.pending
+      nube.textContent = !cloudAvailable()
+        ? 'Esta versión no tiene servidor'
+        : !settings.cloudSync
+          ? 'Apagada: solo se guarda en el móvil'
+          : cloud.busy
+            ? `Subiendo… quedan ${cloud.pending}`
+            : cloud.error
+              ? `No se pudo subir (${cloud.error}). Se reintenta sola.`
+              : sum.pending
+                ? `${sum.pending} ${sum.pending === 1 ? 'salida pendiente' : 'salidas pendientes'}: se suben al cerrar cada salida y al abrir la app`
+                : `Todo subido${cloud.last ? ` (${new Date(cloud.last).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })})` : ''}`
+    }
   }
+  // Mientras se ve la página, el estado de la subida al día
+  onCloud(() => sub === 'data' && fillTele())
 
   const onOff = (key, label, small = '') =>
     `<div class="set"><span>${label}${small ? `<small>${small}</small>` : ''}</span><button class="chip ${settings[key] ? 'on' : ''}" data-toggle="${key}">${settings[key] ? 'SI' : 'NO'}</button></div>`
@@ -208,7 +226,9 @@ export function mountGarage(el, { applySource }) {
           'TELEMETRIA',
           `<div class="set"><span>Caja negra<small data-k="tele">Mirando lo guardado…</small></span><span data-k="teleState">${settings.logTelemetry ? state('EN ESPERA', '') : state('APAGADA', 'off')}</span></div>
            <div class="set"><span>Exportar todo<small>Archivo .json con la telemetría, las pasadas y los duelos. Pásalo al ordenador (AirDrop, Drive, correo) y ábrelo en <b>${esc(location.host + import.meta.env.BASE_URL)}blackbox</b></small></span><button class="btn small cyan" data-act="export">EXPORTAR</button></div>
-           <div class="set"><span>Borrar telemetría<small>Después de pasarla al ordenador, para liberar espacio</small></span><button class="btn small ghost" data-act="wipeTele">BORRAR</button></div>`,
+           <div class="set"><span>Subir a la nube<small data-k="cloud">…</small></span><button class="chip ${settings.cloudSync ? 'on' : ''}" data-toggle="cloudSync">${settings.cloudSync ? 'SI' : 'NO'}</button></div>
+           ${cloudAvailable() ? `<div class="set"><span>Abrir en el ordenador<small>Enlace al Blackbox con la clave de este móvil (${esc(syncKey())}). Quien lo tenga puede ver tus salidas.</small></span><button class="btn small cyan" data-act="bbLink">ENLACE</button></div>` : ''}
+           <div class="set"><span>Borrar telemetría<small>Del móvil (lo subido sigue en la nube). Para liberar espacio</small></span><button class="btn small ghost" data-act="wipeTele">BORRAR</button></div>`,
         )}
         ${group(
           'PASADAS Y DUELOS',
@@ -266,6 +286,21 @@ export function mountGarage(el, { applySource }) {
         sfx.error()
         toast(`NO SE PUDO EXPORTAR: ${err?.message || err}`, 4000)
       }
+    } else if (b.dataset.act === 'bbLink') {
+      const url = blackboxLink()
+      try {
+        if (navigator.share) await navigator.share({ title: 'Blackbox · Street Chaos', url })
+        else {
+          await navigator.clipboard.writeText(url)
+          toast('ENLACE COPIADO')
+        }
+      } catch (err) {
+        if (err?.name !== 'AbortError') {
+          await navigator.clipboard?.writeText(url).catch(() => {})
+          toast('ENLACE COPIADO')
+        }
+      }
+      return
     } else if (b.dataset.act === 'wipeTele') {
       if (confirm('¿Borrar toda la telemetría guardada en este móvil? No se puede deshacer: expórtala antes si la quieres.')) {
         await logger()?.wipe()

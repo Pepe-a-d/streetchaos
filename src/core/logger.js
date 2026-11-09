@@ -5,6 +5,9 @@ import { settings, onSetting } from './store.js'
 import { isStandalone } from './device.js'
 
 let L = null
+const endSubs = new Set()
+/** Cuando se cierra una sesión (para subirla). */
+export const onSessionEnd = (fn) => (endSubs.add(fn), () => endSubs.delete(fn))
 
 export function initLogger() {
   if (L || typeof indexedDB === 'undefined') return L
@@ -25,6 +28,7 @@ export function initLogger() {
       },
     }),
     snapshot: () => [T.vDisp, T.gLong, T.gLat, (T.lean * 180) / Math.PI],
+    onEnd: (meta) => endSubs.forEach((fn) => fn(meta)),
   })
   onSample((s) => L.gps(s))
   onRawMotion((e, t) => L.motion(e, t))

@@ -33,10 +33,16 @@ export function parseExport(text) {
 let dbp = null
 function db() {
   dbp ??= new Promise((res, rej) => {
-    const r = indexedDB.open('sc-blackbox', 1)
+    const r = indexedDB.open('sc-blackbox', 2)
     r.onupgradeneeded = () => {
-      r.result.createObjectStore('meta', { keyPath: 'id' })
-      r.result.createObjectStore('data', { keyPath: 'id' })
+      const d = r.result
+      for (const [name, opts] of [
+        ['meta', { keyPath: 'id' }],
+        ['data', { keyPath: 'id' }],
+        ['segments', { keyPath: 'id' }],
+        ['efforts', { keyPath: ['seg', 'session'] }],
+      ])
+        if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, opts)
     }
     r.onsuccess = () => res(r.result)
     r.onerror = () => rej(r.error)
@@ -55,6 +61,20 @@ async function run(stores, mode, fn) {
 }
 
 const size = (s) => s.gps.length + s.imu.length + s.calc.length
+
+/** Caja [oeste, sur, este, norte] de los fixes de GPS (para saber rápido qué salidas pasan por un sitio). */
+export function gpsBbox(gps) {
+  const w = STREAMS.gps.fields.length
+  let b = null
+  for (let i = 0; i + w <= gps.length; i += w) {
+    const la = gps[i + 2]
+    const lo = gps[i + 3]
+    if (!Number.isFinite(la) || !Number.isFinite(lo)) continue
+    if (!b) b = [lo, la, lo, la]
+    else (b[0] = Math.min(b[0], lo)), (b[1] = Math.min(b[1], la)), (b[2] = Math.max(b[2], lo)), (b[3] = Math.max(b[3], la))
+  }
+  return b
+}
 
 /** Lista de sesiones guardadas (solo la ficha), la más reciente primero. */
 export async function listSessions() {
@@ -75,7 +95,7 @@ export async function addSessions(sessions, from) {
     if (old && old.size >= size(s)) continue
     if (old) grown++
     else added++
-    const meta = { ...s.meta, size: size(s), from, importedAt: Date.now(), nEv: s.ev.length }
+    const meta = { ...s.meta, size: size(s), from, importedAt: Date.now(), nEv: s.ev.length, nRuns: s.ev.filter((e) => e.type === 'run').length, bbox: gpsBbox(s.gps) }
     await run(['meta', 'data'], 'readwrite', (tx) => {
       tx.objectStore('meta').put(meta)
       tx.objectStore('data').put({ id: s.meta.id, gps: s.gps, imu: s.imu, calc: s.calc, ev: s.ev })
@@ -96,6 +116,21 @@ export async function deleteSession(id) {
     tx.objectStore('data').delete(id)
   })
 }
+
+// ---------- Tramos ----------
+
+export const listSegments = async () => (await run(['segments'], 'readonly', (tx) => tx.objectStore('segments').getAll())).sort((a, b) => a.name.localeCompare(b.name, 'es'))
+export const saveSegment = (seg) => run(['segments'], 'readwrite', (tx) => tx.objectStore('segments').put(seg))
+export async function deleteSegment(id) {
+  await run(['segments', 'efforts'], 'readwrite', (tx) => {
+    tx.objectStore('segments').delete(id)
+    tx.objectStore('efforts').delete(IDBKeyRange.bound([id, ''], [id, '\uffff']))
+  })
+}
+/** Tiempos de un tramo ya buscados en una salida (se rehacen si la salida ha crecido). */
+export const getEfforts = (seg, session) => run(['efforts'], 'readonly', (tx) => tx.objectStore('efforts').get([seg, session]))
+export const putEfforts = (rec) => run(['efforts'], 'readwrite', (tx) => tx.objectStore('efforts').put(rec))
+export const updateMeta = (meta) => run(['meta'], 'readwrite', (tx) => tx.objectStore('meta').put(meta))
 
 /** Sesiones de la caja negra de este mismo dispositivo (si el analizador se abre en el móvil). */
 export async function deviceSessions() {

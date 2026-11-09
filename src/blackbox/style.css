@@ -237,3 +237,39 @@ code { font-size: 11px; color: var(--dim); }
   .main { overflow: visible; padding: 8px; }
   .readout { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ---------- Ventanas ---------- */
+.modal-bg { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(5, 2, 15, 0.78); }
+.modal { width: min(100%, 460px); max-height: 88vh; overflow-y: auto; background: var(--panel); border: 2px solid var(--line2); box-shadow: 4px 4px 0 #000; padding: 18px; display: grid; gap: 10px; align-content: start; }
+.modal.wide { width: min(100%, 760px); }
+.modal h2 { font: 12px var(--pixel); color: var(--yellow); margin: 0; font-weight: normal; line-height: 1.5; }
+.modal .h { margin-top: 10px; }
+.actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 6px; }
+.field { display: grid; gap: 4px; color: var(--dim); }
+.field input, .dyno-cfg input { font: 14px var(--mono); color: var(--ink); background: var(--bg); border: 2px solid var(--line2); padding: 7px 8px; }
+.field input:focus, .dyno-cfg input:focus { outline: none; border-color: var(--cyan); }
+td.acts { display: flex; gap: 4px; justify-content: flex-end; }
+.gain { color: var(--green); }
+.loss { color: var(--red); }
+
+/* ---------- Nube y tramos ---------- */
+.cloud .note { margin: 0 0 6px; }
+.cloud code { color: var(--cyan); }
+.lib > .btn { justify-self: start; align-self: flex-start; }
+
+/* ---------- Comparar ---------- */
+.cmp-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font: 12px var(--mono); margin-bottom: 4px; }
+.cmp-head i { display: inline-block; width: 18px; height: 4px; margin-right: 6px; vertical-align: middle; }
+.cmp-delta { font: 11px var(--pixel); padding: 5px 7px; border: 2px solid currentColor; }
+.cmp-delta.gain { color: var(--green); }
+.cmp-delta.loss { color: var(--red); }
+.ch-val small { color: var(--dim); }
+
+/* ---------- Potencia ---------- */
+.dyno-cfg { display: grid; gap: 8px; margin-bottom: 10px; }
+.dyno-cfg label { display: flex; gap: 8px; align-items: center; color: var(--dim); }
+.dyno-cfg input[type='number'] { width: 80px; }
+.dyno-peak { font: 13px var(--mono); margin: 4px 0; }
+.dyno-peak b { color: var(--yellow); font-size: 18px; }
+.dyno-chart { margin-bottom: 8px; }
+.run h4 { display: flex; gap: 8px; align-items: center; justify-content: space-between; }

@@ -105,6 +105,19 @@ Ejes del móvil (W3C): x hacia la derecha de la pantalla, y hacia arriba de la p
 | `orientation` | El móvil giró la pantalla (`type`) |
 | `resume` | Siguió tras cerrarse la app (`gap` en s) |
 
+## Archivo de la nube (`.scb`)
+
+Lo que sube el móvil (una sesión por archivo, comprimido con gzip si el navegador sabe; `packSession`/`unpackSession` en `src/core/blackbox.js`):
+
+| Bytes | Qué es |
+| --- | --- |
+| 0-3 | `SCB1` |
+| 4-7 | Longitud H de la cabecera (uint32 little-endian) |
+| 8 … 8+H | Cabecera JSON en UTF-8, rellena con espacios hasta múltiplo de 8: `format`, `streams`, `meta`, `events`, `bytes` {gps, imu, calc}, y `device`, `rider`, `bike` |
+| luego | Los bytes de `gps`, `imu` y `calc`, seguidos y tal cual (el mismo formato de flujos que arriba) |
+
+Se guarda en el almacén privado `telemetry` como `<huella de la clave>/<id>.scb`, y su ficha en `bb_cloud`. Para leerlo desde fuera del Blackbox hace falta la clave del móvil y la función `caja-negra` (`action: 'list'` y `'get'`).
+
 ## Leerlo en Python
 
 ```python

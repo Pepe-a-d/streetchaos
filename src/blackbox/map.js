@@ -94,6 +94,12 @@ export async function createMap(el, { onHover, onPick }) {
       layout: { 'text-field': ['get', 'label'], 'text-font': FONT, 'text-size': ['case', ['==', ['get', 'kind'], 'corner'], 10, 11], 'text-offset': [0, -1.2], 'text-anchor': 'bottom', 'text-allow-overlap': false },
       paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#000', 'text-halo-width': 1.5 },
     })
+  // Comparación: la otra pasada encima, verde donde gana tiempo y roja donde lo pierde
+  map.addSource('cmp', { type: 'geojson', data: empty, tolerance: 0 })
+  map.addSource('cmp-cursor', { type: 'geojson', data: empty })
+  map.addLayer({ id: 'cmp-case', type: 'line', source: 'cmp', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#000', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 16, 7] } })
+  map.addLayer({ id: 'cmp', type: 'line', source: 'cmp', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.6, 16, 3.5], 'line-dasharray': [2, 1] } })
+  map.addLayer({ id: 'cmp-cursor', type: 'circle', source: 'cmp-cursor', paint: { 'circle-radius': 5, 'circle-color': '#ff2e88', 'circle-stroke-color': '#000', 'circle-stroke-width': 2 } })
   map.addLayer({ id: 'cursor-halo', type: 'circle', source: 'cursor', paint: { 'circle-radius': 12, 'circle-color': '#fff', 'circle-opacity': 0.18 } })
   map.addLayer({ id: 'cursor', type: 'circle', source: 'cursor', paint: { 'circle-radius': 5.5, 'circle-color': '#fff', 'circle-stroke-color': '#000', 'circle-stroke-width': 2 } })
 
@@ -214,6 +220,28 @@ export async function createMap(el, { onHover, onPick }) {
       const p = map.project([A.lon[i], A.lat[i]])
       const { clientWidth: W, clientHeight: H } = map.getContainer()
       if (p.x < 30 || p.y < 30 || p.x > W - 30 || p.y > H - 30) map.panTo([A.lon[i], A.lat[i]], { duration: 300 })
+    },
+    /** Otra pasada encima: puntos [lon, lat] y un color por punto (null = quitar). */
+    setCompare(coords, colors) {
+      if (!coords) {
+        map.getSource('cmp').setData(empty)
+        map.getSource('cmp-cursor').setData(empty)
+        return
+      }
+      const features = []
+      let cur = null
+      for (let k = 0; k < coords.length; k++) {
+        if (!cur || cur.properties.c !== colors[k]) {
+          if (cur) cur.geometry.coordinates.push(coords[k])
+          if (cur && cur.geometry.coordinates.length > 1) features.push(cur)
+          cur = { type: 'Feature', properties: { c: colors[k] }, geometry: { type: 'LineString', coordinates: [coords[k]] } }
+        } else cur.geometry.coordinates.push(coords[k])
+      }
+      if (cur && cur.geometry.coordinates.length > 1) features.push(cur)
+      map.getSource('cmp').setData({ type: 'FeatureCollection', features })
+    },
+    setCompareCursor(lon, lat) {
+      map.getSource('cmp-cursor').setData(Number.isFinite(lon) ? { type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: {} } : empty)
     },
     resize: () => map.resize(),
   }

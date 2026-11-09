@@ -38,6 +38,8 @@ const DEFAULTS = {
   gyroSign: null,
   onboarded: false,
   logTelemetry: true,
+  cloudSync: true,
+  syncKey: null,
 }
 
 export const settings = { ...DEFAULTS, ...load('settings', {}) }
