@@ -79,6 +79,10 @@ El análisis (`src/blackbox/process.js`) es offline y por eso más fino que el d
 
 No se guarda para usar sin conexión: la app del móvil (PWA) deja fuera sus archivos (`bb-*`).
 
+## Si la app no arranca
+
+`index.html` lleva un **modo rescate** aparte del código de la app: si esta no llega a arrancar, enseña el error y deja buscar una versión nueva, reintentar o exportar los datos del móvil (ajustes, pasadas, duelos y la caja negra) en un `.json` que el Blackbox importa. No hay que borrar la app de la pantalla de inicio: en iPhone eso borra sus datos.
+
 ## Publicar
 
 `.github/workflows/publicar.yml` construye y publica en GitHub Pages con cada push a `main`. Para el modo online, añade `VITE_SUPABASE_URL` y `VITE_SUPABASE_KEY` como secretos del repositorio.
