@@ -207,6 +207,24 @@ code { font-size: 11px; color: var(--dim); }
 .busy span { font: 12px var(--pixel); color: var(--cyan); animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0.2; } }
 
+.blocked {
+  position: fixed;
+  left: 50%;
+  top: 70px;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: grid;
+  gap: 6px;
+  max-width: min(92vw, 560px);
+  padding: 14px 16px;
+  color: #000;
+  background: var(--yellow);
+  border: 2px solid #000;
+  box-shadow: 4px 4px 0 #000;
+  line-height: 1.4;
+}
+.blocked b { font: 10px var(--pixel); font-weight: normal; }
+
 .toast {
   position: fixed;
   left: 50%;

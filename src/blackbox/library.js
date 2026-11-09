@@ -30,22 +30,49 @@ export function parseExport(text) {
 
 // ---------- IndexedDB ----------
 
-let dbp = null
-function db() {
-  dbp ??= new Promise((res, rej) => {
-    const r = indexedDB.open('sc-blackbox', 2)
+// La base se abre en la versión que tenga y solo se sube de versión si le falta alguna tienda.
+// Mientras otra pestaña la tenga abierta con la versión vieja, el navegador no deja subirla: se avisa
+// (onDbBlocked) y, en cuanto la otra se cierra, sigue sola. Las pestañas de ahora sueltan la base si
+// otra más nueva la necesita (onversionchange), así esto no vuelve a atascarse.
+const STORES = [
+  ['meta', { keyPath: 'id' }],
+  ['data', { keyPath: 'id' }],
+  ['segments', { keyPath: 'id' }],
+  ['efforts', { keyPath: ['seg', 'session'] }],
+]
+const blockedSubs = new Set()
+export const onDbBlocked = (fn) => (blockedSubs.add(fn), () => blockedSubs.delete(fn))
+
+function openDb(version) {
+  return new Promise((res, rej) => {
+    const r = version ? indexedDB.open('sc-blackbox', version) : indexedDB.open('sc-blackbox')
     r.onupgradeneeded = () => {
-      const d = r.result
-      for (const [name, opts] of [
-        ['meta', { keyPath: 'id' }],
-        ['data', { keyPath: 'id' }],
-        ['segments', { keyPath: 'id' }],
-        ['efforts', { keyPath: ['seg', 'session'] }],
-      ])
-        if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, opts)
+      for (const [name, opts] of STORES) if (!r.result.objectStoreNames.contains(name)) r.result.createObjectStore(name, opts)
     }
+    r.onblocked = () => blockedSubs.forEach((fn) => fn(true))
     r.onsuccess = () => res(r.result)
     r.onerror = () => rej(r.error)
+  })
+}
+
+let dbp = null
+function db() {
+  dbp ??= (async () => {
+    let d = await openDb()
+    if (STORES.some(([name]) => !d.objectStoreNames.contains(name))) {
+      const v = d.version + 1
+      d.close()
+      d = await openDb(v)
+    }
+    blockedSubs.forEach((fn) => fn(false))
+    d.onversionchange = () => {
+      d.close()
+      dbp = null
+    }
+    return d
+  })().catch((e) => {
+    dbp = null
+    throw e
   })
   return dbp
 }

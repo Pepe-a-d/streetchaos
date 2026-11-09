@@ -3,7 +3,7 @@
 // mapa, gráficas sincronizadas, G-G, curvas, frenadas, pasadas y calidad de los datos.
 import '@fontsource/press-start-2p'
 import './style.css'
-import { listSessions, addSessions, loadSession, deleteSession, parseExport, deviceSessions, listSegments, saveSegment, deleteSegment, getEfforts, putEfforts, updateMeta, gpsBbox } from './library.js'
+import { onDbBlocked, listSessions, addSessions, loadSession, deleteSession, parseExport, deviceSessions, listSegments, saveSegment, deleteSegment, getEfforts, putEfforts, updateMeta, gpsBbox } from './library.js'
 import { analyze, rangeStats, DT } from './process.js'
 import { makePath, findPasses, compare, pathPoints, runPass, bboxHit } from './align.js'
 import { findPulls, pullCurve, envelope, DYNO, CDA_PRESETS } from './dyno.js'
@@ -177,14 +177,34 @@ addEventListener('drop', (e) => {
 })
 
 async function loadDemo() {
+  const busy = K('busy')
+  busy.querySelector('span').textContent = 'CARGANDO DEMO…'
+  busy.hidden = false
   try {
     const res = await fetch(`${import.meta.env.BASE_URL}demo/telemetria-demo.json`)
+    if (!res.ok) throw new Error(`no se pudo bajar (HTTP ${res.status})`)
     const sessions = await importText(await res.text(), 'demo')
-    open(sessions.sort((a, b) => b.meta.start - a.meta.start)[0].meta.id)
+    busy.hidden = true
+    await open(sessions.sort((a, b) => b.meta.start - a.meta.start)[0].meta.id)
   } catch (e) {
-    toast(`No se pudo cargar la demo: ${e.message}`, 5000)
+    console.error(e)
+    toast(`No se pudo cargar la demo: ${e.message}`, 8000)
+  } finally {
+    busy.hidden = true
+    busy.querySelector('span').textContent = 'ANALIZANDO…'
   }
 }
+
+// Otra pestaña con el Blackbox viejo abierto bloquea la base de datos: se dice qué hacer
+onDbBlocked((on) => {
+  let b = document.querySelector('.blocked')
+  if (on && !b) {
+    b = document.createElement('div')
+    b.className = 'blocked'
+    b.innerHTML = '<b>HAY OTRA PESTAÑA DEL BLACKBOX ABIERTA</b><span>Tiene la versión anterior y bloquea tus datos. Ciérrala (o recárgala) y esta seguirá sola.</span>'
+    document.body.append(b)
+  } else if (!on) b?.remove()
+})
 
 let deviceCache = null
 async function checkDevice() {
