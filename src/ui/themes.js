@@ -61,7 +61,26 @@ export const DIGITS = [
 export const themeOf = (id) => THEMES.find((t) => t.id === id) || THEMES[0]
 
 /** Variables CSS de un tema como texto para `style=""` (para las vistas previas). */
-export const themeStyle = (t) => Object.entries({ ...BASE, ...t.vars }).map(([k, v]) => `--${k}:${v}`).join(';')
+export const themeStyle = (t) => Object.entries({ ...BASE, ...t.vars, ...onVars(t.vars) }).map(([k, v]) => `--${k}:${v}`).join(';')
+
+/** Luminancia relativa (0 negro – 1 blanco) de un #rrggbb. */
+export function luminance(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '')
+  if (!m) return 0
+  const [r, g, b] = [0, 2, 4].map((k) => {
+    const c = parseInt(m[1].slice(k, k + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+/** Texto que se lee sobre ese color: negro sobre los claros, blanco sobre los oscuros. */
+export const textOn = (hex) => (luminance(hex) > 0.22 ? '#0b0b0b' : '#ffffff')
+
+// Colores de acento que hacen de fondo de botones y marcas: cada uno lleva su --on-… (el texto encima).
+// Antes había un solo color de texto para todos y en CARRERAS (donde el «cian» es blanco) los botones
+// elegidos salían en blanco sobre blanco.
+export const ACCENTS = ['pink', 'cyan', 'yellow', 'green', 'orange', 'red', 'violet']
+export const onVars = (vars) => Object.fromEntries(ACCENTS.map((k) => [`on-${k}`, textOn(vars[k])]))
 
 /** Aplica el tema, el estilo de números y el acento de los ajustes. */
 export function applyTheme() {
@@ -69,6 +88,7 @@ export function applyTheme() {
   const root = document.documentElement
   const vars = { ...BASE, ...t.vars }
   if (settings.accentBike && settings.color) vars.pink = settings.color
+  Object.assign(vars, onVars(vars))
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(`--${k}`, v)
   root.dataset.theme = t.id
   root.dataset.light = t.light ? '1' : ''

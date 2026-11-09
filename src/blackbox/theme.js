@@ -1,7 +1,7 @@
 // Tema y perfil del piloto en el Blackbox: los colores de la app del móvil vinculado (los mismos temas
 // de src/ui/themes.js). El perfil se guarda en este navegador para pintar con su tema desde el primer
 // momento, antes de que conteste la nube.
-import { themeOf } from '../ui/themes.js'
+import { themeOf, textOn, onVars } from '../ui/themes.js'
 import { resetPalette } from './palette.js'
 
 const LS = 'sc-bb-profile'
@@ -30,7 +30,10 @@ export function applyProfileTheme(p) {
     line2: v.line,
     // La rejilla de las gráficas, un poco por debajo de las líneas
     grid: v.dash || v.sep,
-    onbright: t.light ? '#ffffff' : '#000000',
+    // Texto sobre los botones de color, por contraste (en CARRERAS el «cian» es blanco)
+    onbright: textOn(v.cyan),
+    onacc: textOn(v.pink),
+    ...onVars(v),
   }
   const root = document.documentElement
   const before = root.dataset.theme + (root.dataset.accent || '')

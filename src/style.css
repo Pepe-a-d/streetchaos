@@ -29,6 +29,14 @@
   --deep: #05020f; /* pozos más oscuros que el fondo */
   --dash: #241a4e; /* líneas discontinuas */
   --onacc: #12061f; /* texto sobre un botón de color */
+  /* Texto sobre cada acento (themes.js los calcula por contraste para cada tema) */
+  --on-pink: #0b0b0b;
+  --on-cyan: #0b0b0b;
+  --on-yellow: #0b0b0b;
+  --on-green: #0b0b0b;
+  --on-orange: #0b0b0b;
+  --on-red: #ffffff;
+  --on-violet: #0b0b0b;
   --glow: #22e3ff66; /* brillo de los dígitos */
   --pixel: 'Press Start 2P', monospace;
   --term: 'VT323', monospace;
@@ -217,7 +225,7 @@ main {
   height: 32px;
 }
 .tab.on {
-  color: var(--bg);
+  color: var(--on-pink);
   background: var(--pink);
   box-shadow: inset 0 -4px 0 color-mix(in srgb, var(--pink) 62%, #000);
 }
@@ -289,7 +297,7 @@ main {
   font-size: 11px;
   line-height: 1.3;
   padding: 12px 14px 14px;
-  color: var(--onacc);
+  color: var(--on-pink);
   background: var(--pink);
   border: 3px solid #000;
   box-shadow: inset -3px -4px 0 rgba(0, 0, 0, 0.3), inset 3px 3px 0 rgba(255, 255, 255, 0.35), 3px 3px 0 #000;
@@ -300,9 +308,9 @@ main {
   transform: translate(2px, 2px);
   box-shadow: inset -3px -4px 0 rgba(0, 0, 0, 0.3), 1px 1px 0 #000;
 }
-.btn.cyan { background: var(--cyan); }
-.btn.yellow { background: var(--yellow); }
-.btn.green { background: var(--green); }
+.btn.cyan { background: var(--cyan); color: var(--on-cyan); }
+.btn.yellow { background: var(--yellow); color: var(--on-yellow); }
+.btn.green { background: var(--green); color: var(--on-green); }
 .btn.ghost {
   background: var(--panel2);
   color: var(--ink);
@@ -333,7 +341,7 @@ main {
   white-space: nowrap;
 }
 .chip.on {
-  color: var(--onacc);
+  color: var(--on-cyan);
   background: var(--cyan);
   border-color: #000;
   box-shadow: 2px 2px 0 #000;
@@ -400,7 +408,7 @@ main {
 .status .record {
   font-family: var(--pixel);
   font-size: min(5cqh, 12px);
-  color: #000;
+  color: var(--on-yellow);
   background: var(--yellow);
   padding: 6px 8px;
   animation: blink 0.5s steps(1) infinite;
@@ -683,17 +691,18 @@ main {
 .hist b { font-family: var(--seg); font-style: italic; font-size: clamp(14px, 4vmin, 18px); color: var(--cyan); white-space: nowrap; }
 .set {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   padding: 10px 0;
   border-bottom: 2px dashed var(--dash);
 }
 .set:last-child { border-bottom: 0; }
-.set > span:first-child { font-size: clamp(18px, 4.8vmin, 22px); min-width: 0; flex: 1; }
+.set > span:first-child { font-size: clamp(18px, 4.8vmin, 22px); min-width: min(100%, 170px); flex: 1 1 170px; }
 .set > :last-child:not(:first-child) { flex-shrink: 0; }
 .set small { display: block; font-size: clamp(15px, 4vmin, 18px); color: var(--dim); line-height: 1.1; margin-top: 2px; }
-.set .chips { flex-wrap: nowrap; }
+.set .chips { flex-wrap: wrap; justify-content: flex-end; }
 .wl { display: flex; gap: 14px; font-family: var(--pixel); font-size: 11px; margin-bottom: 10px; }
 .wl .w { color: var(--green); }
 .wl .l { color: var(--red); }
@@ -1019,8 +1028,8 @@ main {
   color: var(--ink);
   touch-action: none;
 }
-.simpad .gas { background: var(--green); color: #000; width: 70px; height: 70px; }
-.simpad .brk { background: var(--red); color: #000; }
+.simpad .gas { background: var(--green); color: var(--on-green); width: 70px; height: 70px; }
+.simpad .brk { background: var(--red); color: var(--on-red); }
 .simpad .pressed { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; filter: brightness(1.3); }
 .simpad .col { display: grid; gap: 6px; }
 
@@ -1033,7 +1042,7 @@ main {
   font-family: var(--pixel);
   font-size: 10px;
   padding: 10px 12px;
-  color: #000;
+  color: var(--on-yellow);
   background: var(--yellow);
   border: 3px solid #000;
   box-shadow: var(--shadow);
