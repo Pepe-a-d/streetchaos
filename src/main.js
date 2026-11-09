@@ -222,6 +222,8 @@ setTimeout(syncNow, 12000)
 addEventListener('online', () => syncNow())
 onSetting((key, val) => key === 'cloudSync' && val && syncNow())
 requestAnimationFrame(frame)
+// Arrancada: el modo rescate de index.html ya no hace falta
+window.__scBooted = true
 
 // Lo que no necesita un toque: GPS, radar, pantalla encendida y (fuera de iPhone) el acelerómetro
 let started = false

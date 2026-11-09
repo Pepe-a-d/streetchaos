@@ -15,6 +15,140 @@
   </head>
   <body class="crt">
     <div id="app"></div>
+    <script>
+      // MODO RESCATE. Va aquí, aparte del código de la app, para funcionar aunque ese falle al arrancar.
+      // Si la app no llega a arrancar (main.js pone window.__scBooted), en vez de una pantalla vacía
+      // explica qué pasa y deja reintentar, buscar una versión nueva o sacar los datos de este móvil
+      // (localStorage y la caja negra) en un archivo que el Blackbox sabe leer.
+      ;(function () {
+        var errors = []
+        var shown = false
+        function note(m) {
+          errors.push(String(m || 'error'))
+          setTimeout(check, 1500)
+        }
+        addEventListener('error', function (e) {
+          note(e.message || (e.error && e.error.message))
+        })
+        addEventListener('unhandledrejection', function (e) {
+          note(e.reason && (e.reason.message || e.reason))
+        })
+        setTimeout(check, 10000)
+        function check() {
+          if (shown || window.__scBooted) return
+          // Sin errores, solo si ya ha terminado de cargar (en una red lenta puede tardar)
+          if (!errors.length && document.readyState !== 'complete') return setTimeout(check, 3000)
+          show()
+        }
+        function b64(t) {
+          if (!t || !t.buffer) return ''
+          var u = new Uint8Array(t.buffer, t.byteOffset, t.byteLength)
+          var s = ''
+          for (var i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000))
+          return btoa(s)
+        }
+        function dumpBlackbox() {
+          return new Promise(function (res) {
+            if (!window.indexedDB) return res(null)
+            var rq = indexedDB.open('sc-telemetria')
+            // Si no existía, no se crea (la app la creará bien cuando arranque)
+            rq.onupgradeneeded = function () {
+              rq.transaction.abort()
+            }
+            rq.onerror = function () {
+              res(null)
+            }
+            rq.onsuccess = function () {
+              var db = rq.result
+              if (!db.objectStoreNames.contains('sessions') || !db.objectStoreNames.contains('chunks')) {
+                db.close()
+                return res(null)
+              }
+              var out = { sessions: [], chunks: [] }
+              var tx = db.transaction(['sessions', 'chunks'], 'readonly')
+              tx.objectStore('sessions').getAll().onsuccess = function (e) {
+                out.sessions = e.target.result
+              }
+              tx.objectStore('chunks').getAll().onsuccess = function (e) {
+                out.chunks = e.target.result.map(function (c) {
+                  return { id: c.id, seq: c.seq, ev: c.ev, gps: b64(c.gps), imu: b64(c.imu), calc: b64(c.calc) }
+                })
+              }
+              tx.oncomplete = tx.onerror = function () {
+                db.close()
+                res(out)
+              }
+            }
+          })
+        }
+        function show() {
+          shown = true
+          var box = document.createElement('div')
+          box.id = 'rescue'
+          box.setAttribute('style', 'position:fixed;inset:0;z-index:5000;overflow:auto;padding:calc(24px + env(safe-area-inset-top)) 20px 24px;background:#0a0618;color:#efeaff;font:17px/1.4 system-ui,-apple-system,sans-serif')
+          var btn = 'display:block;width:100%;margin:10px 0;padding:14px;font:600 15px system-ui,-apple-system,sans-serif;border:3px solid #000;box-shadow:3px 3px 0 #000;'
+          box.innerHTML =
+            '<h1 style="font-size:20px;color:#ffd23f;margin:0 0 10px">La app no ha podido arrancar</h1>' +
+            '<p style="margin:0 0 8px">Tus datos siguen guardados en el móvil. <b>No borres la app de la pantalla de inicio</b>: se borrarían.</p>' +
+            '<p style="margin:0 0 6px;color:#8a80c4">Error:</p><pre id="rs-err" style="white-space:pre-wrap;font-size:13px;color:#ff8a8a;background:#140a30;padding:10px;margin:0 0 12px"></pre>' +
+            '<button id="rs-update" style="' + btn + 'background:#22e3ff;color:#000">BUSCAR VERSIÓN NUEVA Y REINTENTAR</button>' +
+            '<button id="rs-retry" style="' + btn + 'background:#1a1040;color:#efeaff;border-color:#3a2a7a">REINTENTAR</button>' +
+            '<button id="rs-export" style="' + btn + 'background:#ff2e88;color:#000">EXPORTAR MIS DATOS</button>' +
+            '<p id="rs-msg" style="color:#8a80c4;font-size:15px"></p>'
+          document.body.appendChild(box)
+          document.getElementById('rs-err').textContent = errors.length ? errors.join('\n') : 'No ha terminado de cargar.'
+          var msg = document.getElementById('rs-msg')
+          document.getElementById('rs-retry').onclick = function () {
+            location.reload()
+          }
+          document.getElementById('rs-update').onclick = function () {
+            msg.textContent = 'Buscando versión nueva…'
+            var go = function () {
+              location.reload()
+            }
+            if (!navigator.serviceWorker) return go()
+            navigator.serviceWorker.addEventListener('controllerchange', go)
+            navigator.serviceWorker
+              .getRegistration()
+              .then(function (r) {
+                return r && r.update()
+              })
+              .catch(function () {})
+              .then(function () {
+                setTimeout(go, 6000)
+              })
+          }
+          var file = null
+          document.getElementById('rs-export').onclick = function () {
+            var b = this
+            if (file) return save(file)
+            b.textContent = 'PREPARANDO…'
+            var ls = {}
+            for (var i = 0; i < localStorage.length; i++) {
+              var k = localStorage.key(i)
+              if (k && k.indexOf('sc-') === 0) ls[k] = localStorage.getItem(k)
+            }
+            dumpBlackbox().then(function (tele) {
+              var d = new Date()
+              var name = 'streetchaos-rescate-' + d.toISOString().slice(0, 10) + '.json'
+              var json = JSON.stringify({ format: 'streetchaos-rescue', version: 1, exportedAt: d.toISOString(), ua: navigator.userAgent, errors: errors, localStorage: ls, telemetry: tele })
+              file = new File([json], name, { type: 'application/json' })
+              b.textContent = 'GUARDAR EL ARCHIVO (' + (file.size / 1048576).toFixed(1) + ' MB)'
+              msg.textContent = (tele ? tele.sessions.length + ' salidas de la caja negra, ' : '') + Object.keys(ls).length + ' grupos de datos. Pulsa otra vez para guardarlo o mandarlo (AirDrop).'
+            })
+          }
+          function save(f) {
+            if (navigator.canShare && navigator.canShare({ files: [f] }))
+              return navigator.share({ files: [f], title: 'Street Chaos' }).catch(function () {})
+            var a = document.createElement('a')
+            a.href = URL.createObjectURL(f)
+            a.download = f.name
+            a.click()
+          }
+          window.__scRescue = { errors: errors, dumpBlackbox: dumpBlackbox }
+        }
+      })()
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

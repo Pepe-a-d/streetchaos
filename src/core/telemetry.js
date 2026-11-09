@@ -132,6 +132,17 @@ export function tick(dt) {
 
 // ---------- Acelerómetro y giroscopio ----------
 
+// OJO: estas van ANTES de M, que las usa al cargar el módulo. Con `const` no se pueden usar antes de
+// su línea: con un cero de inclinómetro guardado, la app entera fallaba al arrancar (pantalla morada).
+const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a))
+const QUARTER = Math.PI / 2
+/** Lo que sobra de un ángulo respecto al múltiplo de 90° más cercano (entre -45° y 45°). */
+const quarterRest = (a) => a - Math.round(a / QUARTER) * QUARTER
+/** Los ajustes antiguos guardaban el ángulo absoluto: se convierte a desviación. */
+function leanOffset(saved) {
+  return Number.isFinite(saved) ? quarterRest(saved) : 0
+}
+
 // Signo del giroscopio. Con el estándar (gravedad aparente hacia ARRIBA en reposo y giros por la
 // regla de la mano derecha) una curva a derecha da w < 0, así que se empieza en -1. Si este móvil
 // usa el convenio contrario, alignGyro() lo descubre en la primera curva y lo guarda.
@@ -216,15 +227,6 @@ function onMotion(e) {
   } else M.over = null
 
   updateLean(dt)
-}
-
-const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a))
-const QUARTER = Math.PI / 2
-/** Lo que sobra de un ángulo respecto al múltiplo de 90° más cercano (entre -45° y 45°). */
-const quarterRest = (a) => a - Math.round(a / QUARTER) * QUARTER
-/** Los ajustes antiguos guardaban el ángulo absoluto: se convierte a desviación. */
-function leanOffset(saved) {
-  return Number.isFinite(saved) ? quarterRest(saved) : 0
 }
 
 /** El signo del giroscopio depende del móvil: se alinea con el giro que marca el GPS. */

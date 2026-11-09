@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { synthRide, exportJson } from '../src/blackbox/synth.js'
 import { analyze, rangeStats } from '../src/blackbox/process.js'
 import { parseExport } from '../src/blackbox/library.js'
+import { toBase64 } from '../src/core/blackbox.js'
 
 const RAD = Math.PI / 180
 const ORIGIN = [43.37, -8.4]
@@ -118,6 +119,38 @@ describe('analizador', () => {
     expect(S.leanR).toBeCloseTo(c.lean, 5)
     expect(S.leanL).toBe(0)
     expect(S.dist).toBeCloseTo(c.len, 5)
+  })
+
+  it('lee el archivo del modo rescate (caja negra en trozos y localStorage)', () => {
+    const ride = synthRide({ path })
+    // Dos trozos por flujo, partiendo por filas enteras
+    const half = (arr, w) => {
+      const rows = arr.length / w
+      const cut = Math.floor(rows / 2) * w
+      return [arr.slice(0, cut), arr.slice(cut)]
+    }
+    const [g1, g2] = half(ride.gps, 11)
+    const [i1, i2] = half(ride.imu, 10)
+    const [c1, c2] = half(ride.calc, 5)
+    const rescue = {
+      format: 'streetchaos-rescue',
+      localStorage: { 'sc-runs': JSON.stringify([{ id: 'r1' }]), 'sc-races': '[]', 'sc-settings': '{"units":"kmh"}' },
+      telemetry: {
+        sessions: [ride.meta],
+        chunks: [
+          { id: ride.meta.id, seq: 1, gps: toBase64(g2), imu: toBase64(i2), calc: toBase64(c2), ev: [] },
+          { id: ride.meta.id, seq: 0, gps: toBase64(g1), imu: toBase64(i1), calc: toBase64(c1), ev: ride.ev },
+        ],
+      },
+    }
+    const file = parseExport(JSON.stringify(rescue))
+    expect(file.runs).toEqual([{ id: 'r1' }])
+    expect(file.sessions).toHaveLength(1)
+    const s = file.sessions[0]
+    expect(Array.from(s.gps)).toEqual(Array.from(ride.gps))
+    expect(s.imu.length).toBe(ride.imu.length)
+    expect(s.imu[1234]).toBe(ride.imu[1234])
+    expect(s.ev).toEqual(ride.ev)
   })
 
   it('lee el archivo exportado igual que la app lo escribe', () => {

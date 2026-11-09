@@ -13,9 +13,42 @@ function fromBase64(b64) {
   return u8
 }
 
-/** Texto de un archivo exportado → sesiones con sus flujos como arrays tipados. */
+/** Archivo del modo rescate (index.html de la app): localStorage tal cual y la caja negra en trozos. */
+function parseRescue(j) {
+  const ls = j.localStorage || {}
+  const get = (k, d) => {
+    try {
+      return JSON.parse(ls['sc-' + k]) ?? d
+    } catch {
+      return d
+    }
+  }
+  const t = j.telemetry || { sessions: [], chunks: [] }
+  const byId = new Map()
+  for (const c of t.chunks || []) byId.set(c.id, [...(byId.get(c.id) || []), c])
+  const sessions = (t.sessions || [])
+    .map((meta) => {
+      const cs = (byId.get(meta.id) || []).sort((a, b) => a.seq - b.seq)
+      const cat = (k, T) => {
+        const parts = cs.map((c) => {
+          const u = fromBase64(c[k] || '')
+          return new T(u.buffer, u.byteOffset, u.byteLength / T.BYTES_PER_ELEMENT)
+        })
+        const out = new T(parts.reduce((s, p) => s + p.length, 0))
+        let o = 0
+        for (const p of parts) (out.set(p, o), (o += p.length))
+        return out
+      }
+      return { meta, gps: cat('gps', Float64Array), imu: cat('imu', Float32Array), calc: cat('calc', Float32Array), ev: cs.flatMap((c) => c.ev || []) }
+    })
+    .filter((s) => s.gps.length)
+  return { device: null, exportedAt: j.exportedAt, runs: get('runs', []), races: get('races', []), settings: get('settings', {}), sessions }
+}
+
+/** Texto de un archivo exportado (o del modo rescate) → sesiones con sus flujos como arrays tipados. */
 export function parseExport(text) {
   const j = typeof text === 'string' ? JSON.parse(text) : text
+  if (j?.format === 'streetchaos-rescue') return parseRescue(j)
   if (j?.format !== 'streetchaos-export' || !j.telemetry) throw new Error('No es un archivo exportado de Street Chaos')
   const streams = j.telemetry.streams || STREAMS
   const sessions = (j.telemetry.sessions || []).map(({ events, gps, imu, calc, ...meta }) => {
