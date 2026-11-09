@@ -1,0 +1,37 @@
+{
+  "name": "streetchaos-blackbox",
+  "productName": "Blackbox Street Chaos",
+  "version": "2.0.0",
+  "description": "Analizador de la telemetría de Street Chaos para el ordenador, en varias pantallas",
+  "main": "main.js",
+  "author": "Pepe",
+  "license": "MIT",
+  "scripts": {
+    "web": "cd .. && npx vite build --mode desktop --base / --outDir desktop/app --emptyOutDir",
+    "start": "npm run web && electron .",
+    "build:win": "npm run web && electron-builder --win nsis portable --x64",
+    "release:win": "npm run web && electron-builder --win nsis portable --x64 --publish always"
+  },
+  "build": {
+    "appId": "com.pepe.streetchaos.blackbox",
+    "productName": "Blackbox Street Chaos",
+    "files": ["main.js", "preload.js", "windows.js", "app/**/*", "!app/datos/**"],
+    "directories": { "output": "dist", "buildResources": "build" },
+    "win": { "icon": "build/icon.png", "signAndEditExecutable": false },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Blackbox-StreetChaos-Setup.exe",
+      "shortcutName": "Blackbox Street Chaos"
+    },
+    "portable": { "artifactName": "Blackbox-StreetChaos-portable.exe" },
+    "publish": [{ "provider": "github", "owner": "Pepe-a-d", "repo": "streetchaos", "releaseType": "release" }]
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.12"
+  }
+}

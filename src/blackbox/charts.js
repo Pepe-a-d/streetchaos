@@ -19,7 +19,13 @@ const nulls = (A, fn) => {
   return out
 }
 
-export function createCharts(el, { onCursor, onRange }) {
+export function createCharts(el, { onCursor, onRange, fill = null }) {
+  // fill(): alto disponible para todas las gráficas (en su propia ventana se reparten la pantalla entera)
+  const plotH = (last, n) => {
+    if (!fill) return last ? 150 : 124
+    const h = Math.max(100, Math.floor((fill() - 54 - 40 - n * 22) / Math.max(1, n)))
+    return last ? h + 26 : h
+  }
   el.innerHTML = `<div class="overview" data-k="ov"></div><div class="stack" data-k="stack"></div>`
   const ovEl = el.querySelector('[data-k="ov"]')
   const stackEl = el.querySelector('[data-k="stack"]')
@@ -80,7 +86,7 @@ export function createCharts(el, { onCursor, onRange }) {
       const u = new uPlot(
         {
           width: width(),
-          height: last ? 150 : 124,
+          height: plotH(last, ids.length),
           legend: { show: false },
           scales: { x: { time: false }, y: { range: (u, mn, mx) => padRange(id, mn, mx) } },
           cursor: { sync: { key: 'bb', setSeries: false }, drag: { x: true, y: false, setScale: false }, points: { size: 7, fill: contrast() } },
@@ -210,7 +216,7 @@ export function createCharts(el, { onCursor, onRange }) {
     },
     resize() {
       const w = width()
-      for (const { u } of plots) u.setSize({ width: w, height: u.height })
+      plots.forEach(({ u }, k) => u.setSize({ width: w, height: fill ? plotH(k === plots.length - 1, plots.length) : u.height }))
       ov?.setSize({ width: w, height: 54 })
     },
     xLabel: () => (xMode === 't' ? 'tiempo (min:s)' : `distancia (${distUnit()})`),

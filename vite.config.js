@@ -20,7 +20,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     // `npm run dev:movil`: HTTPS autofirmado para abrirla desde el móvil en la red local (el GPS exige HTTPS)
     mode === 'movil' ? basicSsl() : null,
-    VitePWA({
+    // La app de escritorio (desktop/) lleva el Blackbox dentro: sin la parte de app instalable del móvil
+    mode === 'desktop' ? null : VitePWA({
       registerType: 'autoUpdate',
       includeManifestIcons: false,
       manifest: {

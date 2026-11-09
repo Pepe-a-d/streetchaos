@@ -1,0 +1,34 @@
+# App de Windows del Blackbox: se construye en una máquina con Windows (así el .exe lleva su icono) y se
+# publica en las «Releases» del repositorio, de donde se descarga y desde donde se actualiza sola.
+# Se lanza al subir una etiqueta v* igual a la versión de desktop/package.json (v2.0.0) o a mano desde Actions.
+name: App de Windows
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Dependencias de la app
+        working-directory: desktop
+        run: npm ci
+      - name: Construir y publicar
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_KEY }}
+        run: npm run release:win -- -c.win.signAndEditExecutable=true

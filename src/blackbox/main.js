@@ -32,7 +32,26 @@ const savePrefs = () => {
   try {
     localStorage.setItem(PREFS, JSON.stringify(prefs))
   } catch {}
+  // Las otras ventanas, con lo mismo (unidades, canales, pestaña...)
+  send({ type: 'prefs', prefs })
 }
+
+// ---------- Varias ventanas ----------
+// Cada parte (mapa, gráficas, datos) se puede abrir en su propia ventana, en otra pantalla. Todas van a
+// una: abrir una salida, elegir un tramo, mover el cursor o cambiar las unidades en una lo hace en las
+// demás (BroadcastChannel, dentro de este navegador o de la app de Windows). La principal («todo») es la
+// que tiene la biblioteca y sincroniza con la nube; las otras solo enseñan su parte, a pantalla completa.
+const VISTAS = { mapa: 'MAPA', graficas: 'GRAFICAS', datos: 'DATOS' }
+const VISTA = VISTAS[new URLSearchParams(location.search).get('vista')] ? new URLSearchParams(location.search).get('vista') : 'todo'
+const SAT = VISTA !== 'todo'
+document.body.dataset.vista = VISTA
+const WIN = Math.random().toString(36).slice(2, 8)
+const SYNC = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('sc-bb-sync') : null
+let remote = false // aplicando lo que llega de otra ventana: no se vuelve a mandar
+function send(msg, force = false) {
+  if (!remote || force) SYNC?.postMessage({ ...msg, from: WIN, vista: VISTA })
+}
+const shows = (part) => VISTA === 'todo' || VISTA === part
 units.speed = prefs.units
 
 // range: lo que se ve (zoom); work: el tramo que has elegido arrastrando (las listas de curvas, frenadas
@@ -64,12 +83,14 @@ const root = document.getElementById('bb')
 root.innerHTML = `
   <header class="top">
     <button class="logo" data-act="home" title="Inicio: tu perfil y tus salidas">STREET<span>CHAOS</span></button>
-    <b class="tag">BLACKBOX</b>
+    <b class="tag">BLACKBOX V2</b>
     <div class="title" data-k="title">Analizador de telemetría</div>
     <button class="sync" data-k="sync" data-act="syncPill"></button>
     <div class="seg" data-k="xmode" title="Eje de las gráficas"><button data-x="t">TIEMPO</button><button data-x="d">DISTANCIA</button></div>
     <div class="seg" data-k="units"><button data-u="kmh">KM/H</button><button data-u="mph">MPH</button></div>
     <button class="btn ghost" data-act="csv" disabled title="Canales a 10 Hz para Excel u otras herramientas (del tramo elegido, o de toda la salida)">CSV</button>
+    <button class="btn ghost dl-btn" data-act="download" title="La app de Windows: más fluida y con una ventana en cada pantalla">⬇ WINDOWS</button>
+    <button class="btn ghost win-btn" data-act="windows" title="Abrir el mapa, las gráficas o los datos en otra ventana y repartirlas en tus pantallas">VENTANAS</button>
     <button class="btn ghost help-btn" data-act="help" title="Cómo se leen tus datos y atajos">?</button>
     <a class="btn ghost" href="../?app" title="Abrir la app del móvil en este ordenador (para probarla)">APP</a>
   </header>
@@ -334,6 +355,7 @@ async function open(id, { range, cur } = {}) {
     }
     if (cur != null) setCursor(cur, 'list')
     else if (!range && memo) setCursor(memo.cur, 'list')
+    send({ type: 'open', id, range: S.range, work: S.work, focus: S.focus, cur: S.cur })
   } catch (e) {
     toast(`No se pudo abrir: ${e.message}`, 5000)
     console.error(e)
@@ -343,10 +365,20 @@ async function open(id, { range, cur } = {}) {
 }
 
 // Las gráficas salen ya; el mapa (librería grande y teselas por la red) llega cuando esté
+// Gráficas de mentira para las ventanas que no las enseñan (así el resto del código no cambia)
+const NO_CHARTS = { build() {}, setRange() {}, setCursor() {}, resize() {}, xLabel: () => (prefs.xMode === 't' ? 'tiempo (min:s)' : `distancia (${distUnit()})`) }
+
 function ensureViews() {
   if (S.charts) return
-  S.charts = createCharts(K('charts'), { onCursor: (i, from) => setCursor(i, from), onRange: (a, b, how) => setRange(a, b, { kind: how === 'wheel' ? 'view' : how === 'all' ? 'all' : 'select', wheel: how === 'wheel' }) })
-  new ResizeObserver(() => S.charts.resize()).observe(K('charts'))
+  S.charts = shows('graficas')
+    ? createCharts(K('charts'), {
+        onCursor: (i, from) => setCursor(i, from),
+        onRange: (a, b, how) => setRange(a, b, { kind: how === 'wheel' ? 'view' : how === 'all' ? 'all' : 'select', wheel: how === 'wheel' }),
+        fill: VISTA === 'graficas' ? () => innerHeight : null,
+      })
+    : NO_CHARTS
+  if (shows('graficas')) new ResizeObserver(() => S.charts.resize()).observe(K('charts'))
+  if (!shows('mapa')) return
   K('maploading').hidden = false
   import('./map.js')
     .then(({ createMap }) => createMap(K('map'), { onHover: (i) => setCursor(i, 'map'), onPick: (i) => setCursor(i, 'map'), onMark: (kind, n) => focusFromMap(kind, n) }))
@@ -396,6 +428,7 @@ function setCursor(i, from) {
   if (!A) return
   i = Math.max(0, Math.min(A.n - 1, i))
   S.cur = i
+  if (from !== 'remote') send({ type: 'cursor', id: S.id, i })
   if (from !== 'chart') S.charts.setCursor(i, from)
   else S.charts.setCursor(i, 'chart')
   S.map?.setCursor(i)
@@ -426,6 +459,8 @@ function setCursor(i, from) {
 function setRange(a, b, { fit = true, kind = 'select', focus = null, push = true, wheel = false } = {}) {
   const A = S.A
   if (!A) return
+  // (se decide ahora si se manda: lo que llega de otra ventana no se devuelve, o rebotaría sin fin)
+  if (!remote) queueMicrotask(() => send({ type: 'range', id: S.id, range: S.range, work: S.work, focus: S.focus }, true))
   let i0 = Math.max(0, Math.min(a, b))
   let i1 = Math.min(A.n - 1, Math.max(a, b))
   if (i1 - i0 < 10) i1 = Math.min(A.n - 1, i0 + 10)
@@ -817,6 +852,8 @@ root.addEventListener('click', async (e) => {
   if (d.act === 'link') return linkDialog()
   if (d.act === 'home') return goHome()
   if (d.act === 'help') return modal(helpHtml(), { wide: true })
+  if (d.act === 'windows') return windowsMenu()
+  if (d.act === 'download') return downloadDialog()
   if (d.act === 'syncPill') return getKey() ? cloudSync() : linkDialog()
   if (d.act === 'claim') return claim(root.querySelector(`[data-k="${d.from}"]`)?.value)
   if (d.act === 'cloudSync') return cloudSync()
@@ -1545,6 +1582,7 @@ function renderHome() {
 function goHome() {
   if (S.cmp) exitCompare()
   rememberPlace()
+  send({ type: 'home' })
   S.id = null
   S.A = null
   history.replaceState(null, '', location.pathname + location.search)
@@ -1663,8 +1701,8 @@ function cloudSync({ quiet = false } = {}) {
 
 // Sola: cada minuto mientras se ve la página, y al volver a ella
 let lastSync = 0
-setInterval(() => document.visibilityState === 'visible' && getKey() && cloudSync({ quiet: true }), 60000)
-document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && getKey() && Date.now() - lastSync > 15000 && cloudSync({ quiet: true }))
+setInterval(() => !SAT && document.visibilityState === 'visible' && getKey() && cloudSync({ quiet: true }), 60000)
+document.addEventListener('visibilitychange', () => !SAT && document.visibilityState === 'visible' && getKey() && Date.now() - lastSync > 15000 && cloudSync({ quiet: true }))
 
 // ---------- CSV ----------
 function exportCsv() {
@@ -1687,17 +1725,143 @@ function exportCsv() {
   setTimeout(() => URL.revokeObjectURL(a.href), 10000)
 }
 
+// ---------- Ventanas: abrir, repartir en pantallas y sincronizar ----------
+const desktop = window.bbDesktop || null // la app de Windows (preload de desktop/)
+// Dentro de la app de escritorio no hay «app del móvil» que abrir
+if (desktop) document.querySelector('.top a[href="../?app"]')?.remove()
+if (desktop) document.querySelector('.top [data-act="download"]')?.remove()
+document.body.classList.toggle('in-app', !!desktop)
+const satUrl = (v) => `${location.pathname}?vista=${v}${S.id ? `#s=${encodeURIComponent(S.id)}` : ''}`
+function openWindow(v, box = null) {
+  const feat = box ? `popup,left=${box.left},top=${box.top},width=${box.width},height=${box.height}` : 'popup,width=1280,height=800'
+  return window.open(satUrl(v), `sc-bb-${v}`, feat)
+}
+
+/** Reparte las ventanas: esta con los datos y la biblioteca, el mapa y las gráficas en las otras pantallas. */
+async function spread() {
+  if (desktop?.spread) return desktop.spread()
+  // En Chrome/Edge se puede saber qué pantallas hay (te pedirá permiso); si no, ventanas normales
+  try {
+    if ('getScreenDetails' in window) {
+      const sd = await window.getScreenDetails()
+      const others = sd.screens.filter((x) => x !== sd.currentScreen)
+      const place = (scr) => scr && { left: scr.availLeft, top: scr.availTop, width: scr.availWidth, height: scr.availHeight }
+      if (others.length >= 2) return (openWindow('mapa', place(others[0])), openWindow('graficas', place(others[1])))
+      if (others.length === 1) {
+        const o = place(others[0])
+        return (openWindow('mapa', { ...o, width: Math.round(o.width / 2) }), openWindow('graficas', { ...o, left: o.left + Math.round(o.width / 2), width: Math.round(o.width / 2) }))
+      }
+    }
+  } catch {}
+  openWindow('mapa')
+  openWindow('graficas')
+  toast('Lleva cada ventana a la pantalla que quieras: se quedan sincronizadas', 6000)
+}
+
+// La app de Windows, de las Releases del repositorio (con nombres fijos: siempre la última)
+const RELEASES = 'https://github.com/Pepe-a-d/streetchaos/releases'
+const DL = { setup: `${RELEASES}/latest/download/Blackbox-StreetChaos-Setup.exe`, portable: `${RELEASES}/latest/download/Blackbox-StreetChaos-portable.exe` }
+function downloadDialog() {
+  modal(`<h2>BLACKBOX PARA WINDOWS</h2>
+    <p class="note">El mismo Blackbox como programa: va más suelto, funciona sin conexión (salvo el mapa y la nube) y pone el mapa, las gráficas y los datos cada uno en una pantalla, acordándose de dónde los dejas.</p>
+    <div class="win-btns">
+      <a class="btn" href="${DL.setup}" rel="noopener">⬇ DESCARGAR EL INSTALADOR <small>(~105 MB · se actualiza solo)</small></a>
+      <a class="btn ghost small" href="${DL.portable}" rel="noopener">VERSION PORTABLE <small>(sin instalar, ~95 MB)</small></a>
+    </div>
+    <p class="note">Al abrirlo la primera vez, Windows puede avisar de que no lo conoce (no está firmado): pulsa <b>Más información → Ejecutar de todas formas</b>.</p>
+    <p class="note">Tu móvil se vincula igual que aquí, con el código de 6 letras. Las salidas que tengas en este navegador no pasan solas: o las bajas de la nube o las importas.</p>
+    <p class="note"><a class="linkish" href="${RELEASES}" target="_blank" rel="noopener">Todas las versiones</a></p>
+    <div class="actions"><button class="btn ghost small" data-close>CERRAR</button></div>`)
+}
+
+function windowsMenu() {
+  const el = modal(`<h2>VENTANAS Y PANTALLAS</h2>
+    <p class="note">Cada parte puede ir en su propia ventana, en otra pantalla. Van todas a una: el cursor, el tramo y la salida se mueven a la vez en todas.</p>
+    <div class="win-btns">
+      <button class="btn" data-spread>REPARTIR EN MIS PANTALLAS</button>
+      ${Object.entries(VISTAS).map(([v, l]) => `<button class="btn ghost small" data-win="${v}">${l} EN OTRA VENTANA</button>`).join('')}
+    </div>
+    <p class="note">${desktop ? 'La app recuerda dónde dejas cada ventana.' : 'En Chrome o Edge, «Repartir» pide permiso para ver tus pantallas y coloca cada ventana en una. En Safari ábrelas y llévalas tú. La <button class="linkish" data-act="download">app de Windows</button> lo hace sola y recuerda dónde las dejas.'}</p>
+    <div class="actions"><button class="btn ghost small" data-close>CERRAR</button></div>`)
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-act="download"]')) return el.close(), downloadDialog()
+    const b = e.target.closest('[data-win], [data-spread]')
+    if (!b) return
+    el.close()
+    if (b.dataset.win) openWindow(b.dataset.win)
+    else spread()
+  })
+}
+
+// Qué partes están en otra ventana (para no repetirlas aquí): cada ventana avisa cada 3 s
+const detached = new Map()
+function markDetached() {
+  const now = Date.now()
+  for (const v of Object.keys(VISTAS)) document.body.classList.toggle(`det-${v}`, now - (detached.get(v) || 0) < 8000)
+  S.charts?.resize?.()
+}
+if (SAT) {
+  setInterval(() => send({ type: 'alive' }), 3000)
+  addEventListener('pagehide', () => send({ type: 'bye' }))
+} else setInterval(markDetached, 4000)
+
+SYNC?.addEventListener('message', async ({ data: m }) => {
+  if (!m || m.from === WIN) return
+  if (m.type === 'alive' || m.type === 'hello') detached.set(m.vista, Date.now())
+  if (m.type === 'bye') detached.delete(m.vista)
+  if (!SAT && ['alive', 'hello', 'bye'].includes(m.type)) markDetached()
+  // Una ventana nueva pregunta qué hay abierto: contesta la principal
+  if (m.type === 'hello' && !SAT && S.id) send({ type: 'open', id: S.id, range: S.range, work: S.work, focus: S.focus, cur: S.cur, prefs })
+  remote = true
+  try {
+    if (m.type === 'prefs' || m.prefs) {
+      const before = JSON.stringify([prefs.units, prefs.charts, prefs.xMode, prefs.mapCh, prefs.showApp])
+      Object.assign(prefs, m.prefs)
+      units.speed = prefs.units
+      if (S.A && before !== JSON.stringify([prefs.units, prefs.charts, prefs.xMode, prefs.mapCh, prefs.showApp])) (buildCharts(), S.map?.setTrack(S.A, prefs.mapCh, S.range))
+      if (S.A) renderAll()
+      renderUnits()
+    }
+    if (m.type === 'open') {
+      if (S.id !== m.id) await open(m.id, { cur: m.cur })
+      if (S.A && S.id === m.id) {
+        S.work = m.work
+        S.focus = m.focus
+        setRange(...m.range, { kind: 'restore' })
+        if (m.cur != null) setCursor(m.cur, 'remote')
+      }
+    } else if (m.type === 'range' && S.A && S.id === m.id) {
+      S.work = m.work
+      S.focus = m.focus
+      setRange(...m.range, { kind: 'restore' })
+    } else if (m.type === 'cursor' && S.A && S.id === m.id) setCursor(m.i, 'remote')
+    else if (m.type === 'home' && SAT) goHome()
+  } finally {
+    remote = false
+  }
+})
+
 // ---------- Arranque ----------
 keyFromUrl()
 renderUnits()
 renderReadout()
 renderCloud()
 await refreshList()
-refreshSegs()
-checkDevice()
-cloudSync()
-// Con un enlace a una salida (#s=…) se abre; si no, el inicio (perfil y últimas salidas)
 const want = decodeURIComponent((location.hash.match(/s=([^&]+)/) || [])[1] || '')
-if (want && S.list.some((m) => m.id === want)) open(want)
-else renderHome()
+if (SAT) {
+  // Ventana secundaria: su título, y lo que tenga abierto la principal
+  document.title = `${VISTAS[VISTA]} · Blackbox`
+  // Se abre sin avisar a las demás (si no, la principal perdería su tramo) y luego se pregunta dónde están
+  remote = true
+  if (want && S.list.some((m) => m.id === want)) await open(want)
+  remote = false
+  send({ type: 'hello' })
+} else {
+  refreshSegs()
+  checkDevice()
+  cloudSync()
+  // Con un enlace a una salida (#s=…) se abre; si no, el inicio (perfil y últimas salidas)
+  if (want && S.list.some((m) => m.id === want)) open(want)
+  else renderHome()
+}
 window.__bb = { S, prefs, open, setRange, setCursor }

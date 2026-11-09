@@ -3,3 +3,6 @@ dist
 .env.local
 .DS_Store
 datos/
+desktop/node_modules
+desktop/dist
+desktop/app

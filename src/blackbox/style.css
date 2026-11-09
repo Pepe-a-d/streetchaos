@@ -412,3 +412,34 @@ td.acts { display: flex; gap: 4px; justify-content: flex-end; }
 /* Cursor del mapa (un marcador: moverlo no obliga a redibujar el mapa) */
 .map-cursor { width: 11px; height: 11px; border-radius: 50%; background: var(--ink); border: 2px solid var(--bg); box-shadow: 0 0 0 7px color-mix(in srgb, var(--ink) 18%, transparent); pointer-events: none; }
 
+/* ---------- Varias ventanas ---------- */
+.win-btns { display: grid; gap: 8px; }
+/* Ventanas secundarias: solo su parte, a pantalla completa */
+body:not([data-vista='todo']) #bb { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'top' 'main'; }
+body:not([data-vista='todo']) .lib,
+body:not([data-vista='todo']) .top .seg,
+body:not([data-vista='todo']) .top .btn,
+body:not([data-vista='todo']) .top .sync { display: none; }
+body:not([data-vista='todo']) .main { padding: 8px; overflow: hidden; }
+body:not([data-vista='todo']) .empty { display: none; }
+body[data-vista='mapa'] .side,
+body[data-vista='mapa'] .charts-box { display: none; }
+body[data-vista='mapa'] .row1 { grid-template-columns: minmax(0, 1fr); height: calc(100vh - 70px); }
+body[data-vista='graficas'] .row1 { display: none; }
+body[data-vista='graficas'] .work { height: calc(100vh - 66px); }
+body[data-vista='datos'] .mapbox,
+body[data-vista='datos'] .charts-box { display: none; }
+body[data-vista='datos'] .row1 { grid-template-columns: minmax(0, 1fr); height: calc(100vh - 70px); }
+body[data-vista='datos'] .readout { grid-template-columns: repeat(6, 1fr); }
+/* En la principal, lo que está en otra ventana no se repite y lo demás crece */
+body[data-vista='todo'].det-mapa .mapbox { display: none; }
+body[data-vista='todo'].det-datos .side { display: none; }
+body[data-vista='todo'].det-mapa .row1,
+body[data-vista='todo'].det-datos .row1 { grid-template-columns: minmax(0, 1fr); }
+body[data-vista='todo'].det-mapa.det-datos .row1 { display: none; }
+body[data-vista='todo'].det-graficas .charts-box { display: none; }
+body[data-vista='todo'].det-graficas .row1 { height: calc(100vh - 90px); }
+.win-btns a.btn { text-decoration: none; text-align: center; display: block; }
+.win-btns a.btn small { font: 11px var(--ui); opacity: 0.8; }
+.dl-btn { color: var(--green); border-color: var(--green); }
+

@@ -89,6 +89,20 @@ El análisis (`src/blackbox/process.js`) es offline y por eso más fino que el d
 
 No se guarda para usar sin conexión: la app del móvil (PWA) deja fuera sus archivos (`bb-*`).
 
+## Blackbox V2: varias pantallas y app de Windows
+
+**Varias ventanas**: el mapa, las gráficas y los datos se pueden abrir cada uno en su ventana (botón **VENTANAS**). Van todas a una (abrir una salida, elegir un tramo, mover el cursor, cambiar unidades o canales) con un `BroadcastChannel`; la principal esconde lo que está en otra ventana y le da el sitio a lo demás. **Repartir en mis pantallas** pone la principal en tu pantalla y el mapa y las gráficas en las otras (en Chrome/Edge con la Window Management API, que pide permiso; en Safari las colocas tú).
+
+**App de Windows** (`desktop/`, Electron): el Blackbox va dentro de la app (servido desde `app://local`, funciona sin conexión salvo el mapa y la nube, con sus propios datos), coloca cada ventana en su pantalla y **recuerda dónde dejas cada una** (`ventanas.json` en los datos de la app). Menú Ventanas con atajos (Ctrl+1/2/3, Ctrl+Mayús+R para repartir). Se actualiza sola desde las Releases de GitHub.
+
+```bash
+cd desktop && npm install
+npm start               # probarla en el Mac
+npm run build:win       # .exe de instalación y portable en desktop/dist (sin icono propio desde el Mac)
+```
+
+Las versiones oficiales las construye `.github/workflows/escritorio.yml` en Windows al subir una etiqueta `v*` con la versión de `desktop/package.json` (`v2.0.0`) y las publica en Releases (instalador y portable, con nombres fijos para que el botón **WINDOWS** del Blackbox web baje siempre la última). No está firmada: la primera vez Windows avisa («Más información → Ejecutar de todas formas»).
+
 ## Gestos
 
 Como en una app del iPhone (`src/ui/gestures.js`): **deslizar desde el borde izquierdo** vuelve atrás (cierra la ventana abierta, sale del apartado del Garaje o del editor del DASH, o vuelve al DASH desde otra pestaña; en marcha no se sale de una pestaña) y **deslizar hacia abajo** cierra ventanas y hojas. Lo que se cierra sigue al dedo. Las pestañas, los apartados y las ventanas entran con una transición corta y los botones se ven pulsados al momento.
