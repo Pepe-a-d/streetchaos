@@ -36,6 +36,8 @@ export const T = {
   yawGps: 0,
   motion: false,
   gyro: false,
+  // Permiso del acelerómetro: unknown | granted | denied | tap (hay que pedirlo en un toque) | unsupported
+  motionPerm: 'unknown',
 }
 
 const sampleSubs = new Set()
@@ -138,20 +140,39 @@ const M = { grav: null, lin: null, last: 0, offset: leanOffset(settings.leanZero
 export const motionNeedsTap = () => typeof window.DeviceMotionEvent?.requestPermission === 'function'
 
 let motionOn = false
-export async function requestMotion() {
-  try {
-    const DM = window.DeviceMotionEvent
-    if (!DM) return false
-    if (motionNeedsTap()) {
-      const r = await DM.requestPermission()
-      if (r !== 'granted') return false
-    }
-    if (!motionOn) window.addEventListener('devicemotion', onMotion)
-    motionOn = true
-    return true
-  } catch {
-    return false
+let asking = null
+/**
+ * Empieza a escuchar el acelerómetro. En iPhone pide permiso, y eso solo funciona dentro de un toque
+ * de verdad: al levantar el dedo («pointerup», «click», «touchend»), no al apoyarlo («pointerdown»).
+ * Fuera de un toque iOS lo rechaza sin preguntar: queda en «tap» para reintentarlo en el siguiente.
+ */
+export function requestMotion() {
+  const DM = window.DeviceMotionEvent
+  if (!DM) {
+    T.motionPerm = 'unsupported'
+    return Promise.resolve(false)
   }
+  if (motionOn) return Promise.resolve(true)
+  asking ??= (async () => {
+    if (motionNeedsTap()) {
+      let r
+      try {
+        r = await DM.requestPermission()
+      } catch {
+        T.motionPerm = 'tap'
+        return false
+      }
+      if (r !== 'granted') {
+        T.motionPerm = 'denied'
+        return false
+      }
+    }
+    window.addEventListener('devicemotion', onMotion)
+    motionOn = true
+    T.motionPerm = 'granted'
+    return true
+  })().finally(() => (asking = null))
+  return asking
 }
 
 function onMotion(e) {

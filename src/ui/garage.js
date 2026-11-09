@@ -3,7 +3,7 @@
 // en horizontal, menú a la izquierda y apartado a la derecha.
 import { settings, setSetting, runs, races, bests, deleteRun, totals, wipeAll, saveTotals } from '../core/store.js'
 import { marksFor } from '../core/perf.js'
-import { T, zeroLean, resetTrip, motionNeedsTap } from '../core/telemetry.js'
+import { T, zeroLean, resetTrip, motionNeedsTap, requestMotion } from '../core/telemetry.js'
 import { BIKES } from '../core/physics.js'
 import { lobby } from '../core/lobby.js'
 import { sfx } from '../core/audio.js'
@@ -231,19 +231,32 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
     perms() {
       const geoTxt =
         geo === 'granted' ? state('CONCEDIDO', 'on') : geo === 'denied' ? state('DENEGADO', 'off') : T.status === 'ok' ? state('FUNCIONA', 'on') : state('PREGUNTA', '')
-      const motionTxt = T.motion ? state('ACTIVO', 'on') : motionNeedsTap() ? state('TOCA', '') : state('SIN SENSOR', 'off')
+      const motionTxt = T.motion
+        ? state('ACTIVO', 'on')
+        : T.motionPerm === 'denied'
+          ? state('DENEGADO', 'off')
+          : motionNeedsTap() || T.motionPerm === 'granted'
+            ? `<button class="btn small cyan" data-act="motion">ACTIVAR</button>`
+            : state('SIN SENSOR', 'off')
+      const motionHelp =
+        T.motionPerm === 'denied'
+          ? `<div class="tip">Le dijiste que no al movimiento. iOS no vuelve a preguntar hasta que cierres la app del todo: desliza hacia arriba desde abajo, quítala del selector de apps, ábrela otra vez y toca <b>ACTIVAR</b> aquí; cuando pregunte, elige <b>Permitir</b>.</div>`
+          : !T.motion && T.motionPerm === 'granted'
+            ? '<div class="tip">Tiene permiso pero no llegan datos del sensor. Cierra la app del todo y vuelve a abrirla.</div>'
+            : ''
       const ios = isIOS()
       const steps = ios
         ? `<li>${isStandalone() ? 'Ya la tienes en la pantalla de inicio: bien.' : 'Añádela a la pantalla de inicio: <b>Compartir → Añadir a pantalla de inicio</b>. Instalada recuerda mejor los permisos y va a pantalla completa.'}</li>
            <li>Ubicación: cuando pregunte, elige <b>Permitir al usar la app</b>. «Permitir una vez» hace que vuelva a preguntar.</li>
            <li>En Safari (sin instalar): <b>aA → Configuración del sitio web → Ubicación → Permitir</b>.</li>
-           <li>Movimiento: iOS lo pide con tu primer toque al abrirla. Si vuelve a preguntar, es cosa de iOS con las webs: basta con aceptar.</li>`
+           <li>Movimiento: iOS lo pregunta al tocar la pantalla (o con <b>ACTIVAR</b>). Elige <b>Permitir</b>. Si vuelve a preguntar otro día, es cosa de iOS con las webs: basta con aceptar.</li>`
         : `<li>Ubicación: cuando pregunte, elige <b>Permitir</b> (o «Mientras se usa la app»). Chrome lo recuerda.</li>
            <li>Si la bloqueaste: <b>candado de la barra de direcciones → Permisos → Ubicación → Permitir</b>.</li>
            <li>Instálala con <b>⋮ → Añadir a pantalla de inicio</b> para abrirla a pantalla completa.</li>`
       return `
         <div class="set"><span>Ubicación (GPS)<small>Para la velocidad, el crono y el radar</small></span>${geoTxt}</div>
         <div class="set"><span>Movimiento<small>Inclinación, fuerza G y detección de salida</small></span>${motionTxt}</div>
+        ${motionHelp}
         <div class="set"><span>Pantalla encendida<small>Que no se apague en marcha</small></span>${'wakeLock' in navigator ? state('SI', 'on') : state('NO', 'off')}</div>
         <div class="set"><span>Instalada<small>Abierta desde la pantalla de inicio</small></span>${isStandalone() ? state('SI', 'on') : state('NO', '')}</div>
         <h4 class="lbl" style="margin-top:14px">PARA QUE NO VUELVA A PREGUNTAR</h4>
@@ -300,8 +313,13 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
       const raw = b.dataset.v
       setSetting(key, ['radius', 'simHz'].includes(key) ? Number(raw) : raw)
       if (['source', 'simHz', 'simBike'].includes(key)) applySource()
+    } else if (b.dataset.act === 'motion') {
+      // Este clic es un toque de verdad: iOS enseña la pregunta del permiso
+      const ok = await requestMotion()
+      await new Promise((r) => setTimeout(r, 400)) // que lleguen los primeros datos
+      toast(ok ? (T.motion ? 'MOVIMIENTO ACTIVADO' : 'PERMISO DADO: MUEVE EL MOVIL') : T.motionPerm === 'denied' ? 'MOVIMIENTO DENEGADO' : 'NO SE PUDO ACTIVAR', 3500)
     } else if (b.dataset.act === 'zero') {
-      toast(zeroLean() ? 'INCLINOMETRO A 0' : 'SIN SENSOR DE MOVIMIENTO')
+      toast(zeroLean() ? 'INCLINOMETRO A 0' : T.motionPerm === 'denied' ? 'MOVIMIENTO DENEGADO: MIRA PERMISOS' : 'ACTIVA EL MOVIMIENTO EN PERMISOS')
     } else if (b.dataset.act === 'trip') {
       resetTrip()
       toast('VIAJE REINICIADO')

@@ -215,15 +215,22 @@ function start() {
   keepAwake()
   if (!motionNeedsTap()) requestMotion()
 }
-// Lo que el navegador solo permite tras un toque: sonido, acelerómetro en iPhone y pantalla completa
-function firstTouch() {
-  document.removeEventListener('pointerdown', firstTouch, true)
+// Lo que el navegador solo permite dentro de un toque: sonido, acelerómetro en iPhone y pantalla completa.
+// En pantallas táctiles cuenta como toque al LEVANTAR el dedo (pointerup), no al apoyarlo (pointerdown):
+// por eso antes el iPhone rechazaba el permiso de movimiento sin preguntar. Se reintenta en cada toque
+// hasta que esté concedido (si lo deniegas, ya no insiste: se reactiva en Garaje → Permisos).
+let fullscreenTried = false
+function onTap() {
   unlockAudio()
-  requestMotion()
   keepAwake()
-  if (matchMedia('(pointer: coarse)').matches && !isStandalone()) document.documentElement.requestFullscreen?.().catch(() => {})
+  if (!T.motion && (T.motionPerm === 'unknown' || T.motionPerm === 'tap')) requestMotion()
+  if (!fullscreenTried) {
+    fullscreenTried = true
+    if (matchMedia('(pointer: coarse)').matches && !isStandalone()) document.documentElement.requestFullscreen?.().catch(() => {})
+  }
 }
-document.addEventListener('pointerdown', firstTouch, true)
+document.addEventListener('pointerup', onTap, true)
+document.addEventListener('keydown', onTap, true)
 
 // Si ya diste permiso de ubicación, la app arranca sola: el título solo saluda un momento
 geoPermission().then((geo) => {

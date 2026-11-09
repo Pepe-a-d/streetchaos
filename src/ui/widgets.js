@@ -1,7 +1,7 @@
 // Bloques del DASH. Cada uno dice qué tamaños admite y sabe dibujarse en cualquiera de ellos:
 // el contenido se escala con el hueco (container queries en style.css). Colores: siempre las
 // variables del tema, así cada tema los repinta.
-import { T, zeroLean, signalBars } from '../core/telemetry.js'
+import { T, zeroLean, signalBars, motionNeedsTap } from '../core/telemetry.js'
 import { totals, settings, bests, runs } from '../core/store.js'
 import { compassPoint } from '../core/geo.js'
 import { logger } from '../core/logger.js'
@@ -135,7 +135,7 @@ function leanW(el) {
       press = null
       const ok = zeroLean()
       ok ? sfx.armed() : sfx.error()
-      toast(ok ? 'INCLINOMETRO A 0' : 'SIN SENSOR DE MOVIMIENTO')
+      toast(ok ? 'INCLINOMETRO A 0' : noMotionMsg(), 4000)
     }, 700)
   })
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel'])
@@ -143,7 +143,7 @@ function leanW(el) {
       if (!press) return
       clearTimeout(press)
       press = null
-      if (ev === 'pointerup') toast('MANTEN PULSADO CON LA MOTO RECTA PARA PONERLO A 0')
+      if (ev === 'pointerup') toast(T.motion ? 'MANTEN PULSADO CON LA MOTO RECTA PARA PONERLO A 0' : noMotionMsg(), 4000)
     })
   const per = (2 * LEAN_MAX) / LEAN_SEGS
   return {
@@ -163,6 +163,13 @@ function leanW(el) {
       set(k('maxR'), `${Math.round(T.leanMaxR)}°`)
     },
   }
+}
+
+/** Por qué no hay sensor y qué hacer. */
+function noMotionMsg() {
+  if (T.motionPerm === 'denied') return 'MOVIMIENTO DENEGADO: MIRA GARAJE > PERMISOS'
+  if (motionNeedsTap()) return 'TOCA ACTIVAR EN GARAJE > PERMISOS Y ELIGE PERMITIR'
+  return 'ESTE MOVIL NO DA DATOS DE MOVIMIENTO'
 }
 
 // ---------- Círculo de fuerza G ----------
