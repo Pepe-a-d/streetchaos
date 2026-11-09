@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest'
 import { synthRide } from '../src/blackbox/synth.js'
 import { analyze, DT } from '../src/blackbox/process.js'
-import { makePath, findPasses, compare, pathPoints, runPass } from '../src/blackbox/align.js'
+import { makePath, findPasses, compare, pathPoints, runPass, closeLoop, cutAt } from '../src/blackbox/align.js'
 import { findPulls, pullCurve, DYNO } from '../src/blackbox/dyno.js'
 import { packSession, unpackSession } from '../src/core/blackbox.js'
 
@@ -147,3 +147,53 @@ describe('archivo de la nube', () => {
     expect(back.ev).toEqual(ride.ev)
   })
 })
+
+describe('arreglos de la revisión del Blackbox', () => {
+  it('comparar una pasada del crono con la misma más corta: diferencia 0 (antes −0,90 s)', () => {
+    const path = road()
+    const A = analyze(synthRide({ path, seed: 3 }))
+    const r = runPass(A, A.runs[0])
+    const short = cutAt(r, r.length * 0.8)
+    const L = Math.min(r.length, short.length)
+    const C = compare(r, A, short, A, L, 1, { own: true })
+    expect(Math.abs(C.delta[C.n - 1])).toBeLessThan(0.01)
+    expect(Math.abs(C.delta[Math.floor(C.n / 2)])).toBeLessThan(0.01)
+    expect(Math.abs(C.timeA - C.timeB)).toBeLessThan(0.01)
+  })
+
+  it('un tramo que empieza donde arranca la pasada desde parado no inventa segundos', () => {
+    const path = road()
+    const A = analyze(synthRide({ path, seed: 3 }))
+    const run = A.runs[0]
+    // Tramo que empieza 20 m antes de donde la moto sale parada: no cuenta como pasada entera
+    const k0 = Math.max(0, run.i - 40)
+    const P = makePath(pathPoints(A, k0, Math.min(A.n - 1, run.i + 200)))
+    for (const p of findPasses(P, A)) expect(p.t0).toBeGreaterThanOrEqual(A.t[k0] - 2)
+  })
+
+  it('cierra el lazo de un circuito dibujado a mano', () => {
+    const pts = oval(1).loop.slice(0, -1) // la vuelta sin repetir el punto de inicio
+    const n = pts.length
+    // Acaba ~30 m antes del inicio (falta un trozo) y con solape: los dos quedan cerrados en el inicio
+    const under = closeLoop(pts.slice(0, n - 6))
+    expect(under.at(-1)).toEqual(pts[0])
+    const over = closeLoop([...pts, ...pts.slice(1, 7)])
+    expect(over.at(-1)).toEqual(pts[0])
+    expect(makePath(over).closed).toBe(true)
+    // Un tramo abierto no se toca
+    const open = road()
+    expect(closeLoop(open)).toBe(open)
+  })
+
+  it('una salida con el GPS cada más de 5 s se marca vacía (antes salía con NaN)', () => {
+    const ride = synthRide({ path: road(), seed: 4, imu: false })
+    const g = ride.gps
+    // Deja solo una muestra de cada 8 (GPS cada 8 s)
+    const W = 11
+    const out = []
+    for (let k = 0; k < g.length / W; k += 8) out.push(...g.slice(k * W, k * W + W))
+    const A = analyze({ ...ride, gps: Float64Array.from(out), meta: { ...ride.meta, rows: { ...ride.meta.rows, gps: out.length / W } } })
+    expect(A.empty).toBe(true)
+  })
+})
+

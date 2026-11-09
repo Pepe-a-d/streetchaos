@@ -23,6 +23,9 @@ import { screenRight } from '../core/mount.js'
 
 export const G = 9.80665
 export const DT = 0.1 // s entre muestras del análisis (10 Hz)
+// Súbelo cada vez que el análisis cambie lo que sale (velocidades, tiempos, curvas): los tiempos de los
+// tramos guardados en el navegador se rehacen con él
+export const ANALYSIS_VERSION = 3
 const GAP = 5 // s sin GPS que cortan la traza
 const R_EARTH = 6371008.8
 const RAD = Math.PI / 180
@@ -501,6 +504,8 @@ export function analyze(session) {
   for (let i = 0; i < n; i++) t[i] = T0 + i * DT
   const P = trajectory(F, t)
   const { valid } = P
+  // GPS tan espaciado (más de 5 s) que no queda ninguna muestra buena: no hay nada que enseñar
+  if (!valid.some((x) => x)) return { meta, n: 0, empty: true, events: session.ev || [] }
 
   // Rumbo y su ritmo de cambio desde la trayectoria (°/s, + derecha)
   const hdg = new Float64Array(n).fill(NaN)
@@ -541,7 +546,9 @@ export function analyze(session) {
 
   // Sensores
   const B = hasImu ? binImu(imu, T0, n) : null
-  const mount = B ? mountFrom(B, valid, P.v, aGpsS) : null
+  // Sin velocidad Doppler, la de las cuerdas cae en las curvas y torcía «adelante» ~30°: solo rectas
+  const straightOnly = F.doppler < 0.5 ? (i) => Math.abs(yawGps[i]) < 3 : null
+  const mount = B ? mountFrom(B, straightOnly ? Uint8Array.from(valid, (x, i) => (x && straightOnly(i) ? 1 : 0)) : valid, P.v, aGpsS) : null
   const info = {
     hasImu,
     imuHz: hasImu ? imu.n / Math.max(1, imu.t[imu.n - 1] - imu.t[0]) : 0,
@@ -727,7 +734,14 @@ export function analyze(session) {
     A.acc[i] = acc[i]
   }
 
-  A.events = (session.ev || []).map((e) => ({ ...e, i: clamp(Math.round((e.t - T0) / DT), 0, n - 1) }))
+  // En las salidas de antes de que el móvil descontara el retraso del GPS, las pasadas y los duelos
+  // se apuntaron con la hora del GPS (tarde): se adelantan lo mismo que el GPS
+  const evShift = lagFit.lag && !(meta?.calib?.gpsLag > 0) ? lagFit.lag : 0
+  const SHIFT = new Set(['run', 'launch', 'race', 'abort'])
+  A.events = (session.ev || []).map((e) => {
+    const t = SHIFT.has(e.type) ? e.t - evShift : e.t
+    return { ...e, t, i: clamp(Math.round((t - T0) / DT), 0, n - 1) }
+  })
   A.corners = findCorners(A)
   A.brakes = findBrakes(A)
   A.runs = A.events.filter((e) => e.type === 'run')
@@ -787,7 +801,9 @@ function complementary(target, rate, valid, tau) {
 export function findCorners(A, { peak = 12, edge = 4, minDur = 1 } = {}) {
   const out = []
   const { n, valid, lean, v } = A
-  const ok = (i, s) => valid[i] && Math.sign(lean[i]) === s && Math.abs(lean[i]) >= edge
+  // Solo en marcha: con la inclinación de la gravedad, la moto en la pata de cabra (~10°) alargaba la
+  // última curva toda la parada final
+  const ok = (i, s) => valid[i] && v[i] > 2 && Math.sign(lean[i]) === s && Math.abs(lean[i]) >= edge
   let i = 0
   while (i < n) {
     if (!(valid[i] && v[i] > 5 && Math.abs(lean[i]) >= peak)) {
@@ -829,8 +845,8 @@ export function findBrakes(A, { peak = -0.25, edge = -0.08, minDur = 0.6 } = {})
     }
     let a = i
     let b = i
-    while (a > 0 && valid[a - 1] && gLong[a - 1] <= edge) a--
-    while (b < n - 1 && valid[b + 1] && gLong[b + 1] <= edge) b++
+    while (a > 0 && valid[a - 1] && v[a - 1] > 2 && gLong[a - 1] <= edge) a--
+    while (b < n - 1 && valid[b + 1] && v[b + 1] > 2 && gLong[b + 1] <= edge) b++
     if ((b - a) * DT >= minDur) {
       let gMin = 0
       let iMax = a

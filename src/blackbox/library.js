@@ -193,15 +193,17 @@ export const putEfforts = (rec) => run(['efforts'], 'readwrite', (tx) => tx.obje
 export const updateMeta = (meta) => run(['meta'], 'readwrite', (tx) => tx.objectStore('meta').put(meta))
 
 /** Sesiones de la caja negra de este mismo dispositivo (si el analizador se abre en el móvil). */
-export async function deviceSessions() {
+export async function deviceSessions({ count = false } = {}) {
   try {
-    if (!(await indexedDB.databases?.())?.some((d) => d.name === 'sc-telemetria')) return []
+    if (!(await indexedDB.databases?.())?.some((d) => d.name === 'sc-telemetria')) return count ? 0 : []
     const store = idbStore('sc-telemetria')
     const metas = await store.listMeta()
+    // Para enseñar el botón basta con contarlas: leerlas enteras solo al pulsarlo
+    if (count) return metas.length
     const out = []
     for (const m of metas) out.push(await readSession(store, m))
     return out
   } catch {
-    return []
+    return count ? 0 : []
   }
 }

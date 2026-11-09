@@ -84,6 +84,8 @@ export async function createMap(el, { onHover, onPick, onMark = () => {} }) {
   })
   map.touchZoomRotate.disableRotation()
   map.keyboard.disableRotation()
+  // Las flechas son del cursor del Blackbox (antes, tras un clic en el mapa, además lo desplazaban)
+  map.keyboard.disable()
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
   map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right')
   // Basta con el estilo para añadir capas; no hace falta esperar a las teselas
@@ -146,6 +148,8 @@ export async function createMap(el, { onHover, onPick, onMark = () => {} }) {
   }
   let raf = 0
   map.on('mousemove', (e) => {
+    // Arrastrando el mapa no se mueve el cursor (saltaba de un lado a otro)
+    if (e.originalEvent?.buttons || map.isMoving()) return
     cancelAnimationFrame(raf)
     raf = requestAnimationFrame(() => {
       const i = nearest(e.point)
@@ -164,8 +168,38 @@ export async function createMap(el, { onHover, onPick, onMark = () => {} }) {
   for (const ev of ['mouseenter', 'mouseleave'])
     map.on(ev, 'marks-label', (e) => (map.getCanvas().style.cursor = ev === 'mouseenter' && ['corner', 'run'].includes(e.features?.[0]?.properties.kind) ? 'pointer' : ''))
 
+  const OWN_SOURCES = ['track', 'cursor', 'marks', 'cmp', 'cmp-cursor']
+  const OWN_LAYERS = ['track-case', 'track', 'marks-dot', 'marks-label', 'cmp-case', 'cmp', 'cmp-cursor', 'cursor-halo', 'cursor']
   return {
     map,
+    /** Con otro tema: el fondo del mapa nuevo y las capas propias con sus colores, sin recargar nada. */
+    async restyle() {
+      const next = await loadStyle()
+      map.setStyle(next, {
+        diff: false,
+        transformStyle: (prev, nx) => ({
+          ...nx,
+          glyphs: nx.glyphs ?? prev?.glyphs,
+          sources: { ...nx.sources, ...Object.fromEntries(OWN_SOURCES.filter((k) => prev?.sources?.[k]).map((k) => [k, prev.sources[k]])) },
+          layers: [...nx.layers, ...(prev?.layers || []).filter((l) => OWN_LAYERS.includes(l.id))],
+        }),
+      })
+      await new Promise((r) => (map.isStyleLoaded() ? r() : map.once('style.load', r)))
+      const h = halo()
+      const c = contrast()
+      for (const [id, prop, val] of [
+        ['track-case', 'line-color', h],
+        ['marks-dot', 'circle-stroke-color', h],
+        ['marks-label', 'text-halo-color', h],
+        ['cmp-case', 'line-color', h],
+        ['cmp-cursor', 'circle-color', pal('pink')],
+        ['cmp-cursor', 'circle-stroke-color', h],
+        ['cursor-halo', 'circle-color', c],
+        ['cursor', 'circle-color', c],
+        ['cursor', 'circle-stroke-color', h],
+      ])
+        if (map.getLayer(id)) map.setPaintProperty(id, prop, val)
+    },
     /** Traza coloreada por `chId`; fuera de [r0, r1] se atenúa. */
     setTrack(an, chId, [r0, r1]) {
       A = an

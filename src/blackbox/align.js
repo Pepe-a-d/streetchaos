@@ -102,8 +102,12 @@ export function findPasses(P, A, { from = 0, to = A.n - 1, tol = 25, maxMiss = 6
     const l = b - 1
     if (l - f < 1) return
     const vAt = (k) => Math.max(0.5, A.v[idx[k]])
-    // Cruce del inicio y del final con la velocidad del momento (entre muestras a 10 Hz)
-    const t0 = t[f] - s[f] / vAt(f)
+    // Si la primera muestra de dentro ya está a varios metros y casi parada, la moto arrancó dentro del
+    // tramo (salió de una gasolinera, de un semáforo...): no es una pasada entera. Antes se calculaba
+    // hacia atrás con la velocidad de arrancar y salían hasta 11 s que no existieron.
+    if (s[f] > 8 && A.v[idx[f]] < 4) return
+    // Cruce del inicio y del final con la velocidad del momento (entre muestras a 10 Hz), como mucho 2 s
+    const t0 = t[f] - Math.min(2, s[f] / vAt(f))
     // Si no llegó a cruzar el final (paró o se acabó la salida justo ahí), el final es su última muestra
     const t1 = s.at(-1) >= L - 0.01 ? t[l] + (L - s[l]) / vAt(l) : t[l]
     const S = [0, ...s.slice(f, l + 1), L]
@@ -216,14 +220,43 @@ function byOwnDistance(r, S, L) {
   return { ...r, s }
 }
 
+/** Corta una pasada con s en metros desde su salida en L (el tiempo en L, interpolado). */
+export function cutAt(r, L) {
+  const s = []
+  const t = []
+  const idx = []
+  for (let k = 0; k < r.s.length; k++) {
+    if (r.s[k] >= L) {
+      const k0 = k - 1
+      const f = k0 >= 0 && r.s[k] > r.s[k0] ? (L - r.s[k0]) / (r.s[k] - r.s[k0]) : 1
+      const tL = k0 >= 0 ? r.t[k0] + f * (r.t[k] - r.t[k0]) : r.t[k]
+      s.push(L)
+      t.push(tL)
+      idx.push(r.idx[k])
+      return { ...r, s, t, idx, t1: tL, time: tL - r.t0, i1: r.idx[k], length: L }
+    }
+    s.push(r.s[k])
+    t.push(r.t[k])
+    idx.push(r.idx[k])
+  }
+  return { ...r, s, t, idx }
+}
+
 /**
  * Compara dos pasadas por el mismo trazado de longitud L: en cada `step` m, el tiempo de cada una
  * desde su inicio, la diferencia (+ = la comparada va por detrás) y sus canales.
  */
-export function compare(ra, A, rb, B, L, step) {
+export function compare(ra, A, rb, B, L, step, { own = false } = {}) {
   step ??= L > 3000 ? 5 : L > 600 ? 2 : 1
-  ra = byOwnDistance(ra, A, L)
-  rb = byOwnDistance(rb, B, L)
+  // Pasadas del crono (ya en metros desde su salida): se cortan las dos en L. Antes la más larga se
+  // encogía entera hasta L y la diferencia salía falsa (una pasada contra sí misma daba −0,90 s)
+  if (own) {
+    ra = cutAt(ra, L)
+    rb = cutAt(rb, L)
+  } else {
+    ra = byOwnDistance(ra, A, L)
+    rb = byOwnDistance(rb, B, L)
+  }
   const n = Math.ceil(L / step) + 1 // el último punto, justo en L
   const out = { n, L, step, s: new Float64Array(n), tA: new Float64Array(n), tB: new Float64Array(n), delta: new Float64Array(n), iA: new Int32Array(n), iB: new Int32Array(n) }
   for (let k = 0; k < n; k++) {
@@ -238,6 +271,25 @@ export function compare(ra, A, rb, B, L, step) {
   out.timeA = ra.time
   out.timeB = rb.time
   return out
+}
+
+/**
+ * Si un trazado acaba cerca de donde empieza (menos de `maxGap` m), lo cierra justo en el inicio: se
+ * corta lo que pase de largo o se une el hueco. Al arrastrar a mano casi nunca se acierta y la vuelta
+ * salía hasta 1,3 s más corta o más larga según cómo se cerrara.
+ */
+export function closeLoop(pts, maxGap = 60) {
+  const n = pts.length
+  if (n < 10) return pts
+  const d = (a, b) => Math.hypot((a[0] - b[0]) * R * RAD, (a[1] - b[1]) * R * RAD * Math.cos(a[0] * RAD))
+  let best = n - 1
+  let bd = d(pts[n - 1], pts[0])
+  for (let k = Math.floor(n * 0.7); k < n; k++) {
+    const dk = d(pts[k], pts[0])
+    if (dk < bd) (bd = dk), (best = k)
+  }
+  if (bd > maxGap) return pts
+  return [...pts.slice(0, best + 1), pts[0]]
 }
 
 /** Puntos [lat, lon] de un tramo de la salida, uno cada ~4 m (para guardarlo como trazado). */

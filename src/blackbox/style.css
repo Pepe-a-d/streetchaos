@@ -388,3 +388,24 @@ td.acts { display: flex; gap: 4px; justify-content: flex-end; }
 .stat.best span::after { content: ' ★'; color: var(--yellow); }
 .rec-dot { color: var(--yellow); }
 
+/* Lo mejor de la salida */
+.hl { margin: 0 0 10px; padding: 8px 10px; background: var(--bg2); border: 2px solid var(--line); }
+.hl h4 { margin: 0 0 4px; }
+.hl ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.hl li { color: var(--dim); }
+.hl b { color: var(--ink); }
+.hl-link { text-align: left; padding: 3px 0; color: var(--dim); }
+.hl-link:hover { color: var(--ink); }
+.hl-link::before { content: '▸ '; color: var(--cyan); }
+.views { margin-right: 6px; padding-right: 8px; border-right: 2px solid var(--line); }
+
+/* Ayuda */
+.help-btn { font-weight: 700; min-width: 30px; }
+.modal h3.h { margin: 10px 0 4px; }
+.help-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--dim); }
+.help-steps b { color: var(--ink); }
+.gloss { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; }
+.gloss dt { color: var(--cyan); font-weight: 600; }
+.gloss dd { margin: 0; color: var(--dim); }
+.gloss.keys dt { font-family: var(--mono); color: var(--yellow); }
+

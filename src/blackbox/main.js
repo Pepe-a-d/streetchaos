@@ -6,12 +6,13 @@
 import '@fontsource/press-start-2p'
 import './style.css'
 import { onDbBlocked, listSessions, addSessions, loadSession, deleteSession, parseExport, deviceSessions, listSegments, saveSegment, deleteSegment, getEfforts, putEfforts, updateMeta, gpsBbox } from './library.js'
-import { analyze, rangeStats, DT } from './process.js'
-import { makePath, findPasses, compare, pathPoints, runPass, bboxHit } from './align.js'
+import { analyze, rangeStats, DT, ANALYSIS_VERSION } from './process.js'
+import { makePath, findPasses, compare, pathPoints, runPass, bboxHit, closeLoop } from './align.js'
 import { findPulls, pullCurve, envelope, DYNO, CDA_PRESETS } from './dyno.js'
 import { cloudAvailable, getKey, setKey, keyFromUrl, validKey, normKey, listRemote, fetchRemote, deleteRemote, sharedCircuits, sharedCircuit, shareCircuit, ranking, publishEffort, fetchProfile, claimCode, normCode } from './cloud.js'
 import { savedProfile, saveProfile, applyProfileTheme } from './theme.js'
 import { pal } from './palette.js'
+import { tip, GG_HELP, helpHtml } from './help.js'
 import { createCompareView, gainColors, fmtLap } from './compare-view.js'
 import { esc, toast, modal } from './ui.js'
 import uPlot from 'uplot'
@@ -43,6 +44,13 @@ applyProfileTheme(S.profile)
 if (S.profile?.units && !localStorage.getItem(PREFS)) prefs.units = units.speed = S.profile.units === 'mph' ? 'mph' : 'kmh'
 
 // ---------- Estructura ----------
+// Gráficas preparadas para cada cosa (los canales sueltos siguen ahí al lado)
+const VIEWS = {
+  basic: ['BASICA', ['v', 'lean']],
+  corners: ['CURVAS', ['v', 'lean', 'gLat', 'yaw']],
+  brakes: ['FRENADAS', ['v', 'gLong', 'lean']],
+  all: ['TODO', null],
+}
 const TABS = [
   ['tramo', 'RESUMEN', 'Las cifras de la salida o del tramo que elijas en las gráficas'],
   ['gg', 'G-G', 'Fuerzas de frenada, aceleración y curva, y cuánto tiempo vas a cada inclinación'],
@@ -62,6 +70,7 @@ root.innerHTML = `
     <div class="seg" data-k="xmode" title="Eje de las gráficas"><button data-x="t">TIEMPO</button><button data-x="d">DISTANCIA</button></div>
     <div class="seg" data-k="units"><button data-u="kmh">KM/H</button><button data-u="mph">MPH</button></div>
     <button class="btn ghost" data-act="csv" disabled title="Canales a 10 Hz para Excel u otras herramientas (del tramo elegido, o de toda la salida)">CSV</button>
+    <button class="btn ghost help-btn" data-act="help" title="Cómo se leen tus datos y atajos">?</button>
     <a class="btn ghost" href="../?app" title="Abrir la app del móvil en este ordenador (para probarla)">APP</a>
   </header>
   <aside class="lib">
@@ -89,7 +98,7 @@ root.innerHTML = `
         <div class="panel mapbox">
           <div class="map" data-k="map"></div><div class="map-loading" data-k="maploading" hidden>CARGANDO MAPA…</div>
           <div class="map-bar">
-            <div class="chips" data-k="mapch">${MAP_CHANNELS.map((id) => `<button class="chip" data-mapch="${id}">${CHANNELS[id].short}</button>`).join('')}</div>
+            <div class="chips" data-k="mapch">${MAP_CHANNELS.map((id) => `<button class="chip" data-mapch="${id}" title="Colorear la traza por ${CHANNELS[id].label.toLowerCase()}. ${tip(id)}">${CHANNELS[id].short}</button>`).join('')}</div>
             <div class="legend" data-k="legend"></div>
           </div>
         </div>
@@ -105,7 +114,8 @@ root.innerHTML = `
         <div class="cmp-box" data-k="cmp" hidden></div>
         <div data-k="chartsMain">
         <div class="ch-bar">
-          <div class="chips" data-k="chartch">${CHART_CHANNELS.map((id) => `<button class="chip" data-chart="${id}">${CHANNELS[id].short}</button>`).join('')}</div>
+          <div class="chips views" data-k="views" title="Gráficas preparadas para lo que quieras mirar">${Object.entries(VIEWS).map(([k, [l]]) => `<button class="chip" data-view="${k}">${l}</button>`).join('')}</div>
+          <div class="chips" data-k="chartch">${CHART_CHANNELS.map((id) => `<button class="chip" data-chart="${id}" title="${tip(id)}">${CHANNELS[id].short}</button>`).join('')}</div>
           <label class="toggle"><input type="checkbox" data-k="showApp"> comparar con lo que calculó el móvil</label>
           <span class="grow"></span>
           <span class="range" data-k="range"></span>
@@ -128,6 +138,23 @@ const fileInput = $('input[type=file]', K('drop'))
 // ---------- Biblioteca ----------
 const SRC = { real: ['REAL', 'real'], sim: ['SIM', 'sim'], demo: ['DEMO', 'demo'] }
 
+// Salidas que has borrado en este navegador: la nube no las vuelve a bajar (se quitan si las importas)
+const DELETED = 'sc-bb-deleted'
+const deleted = new Set(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem(DELETED) || '[]')
+    } catch {
+      return []
+    }
+  })(),
+)
+const saveDeleted = () => {
+  try {
+    localStorage.setItem(DELETED, JSON.stringify([...deleted].slice(-500)))
+  } catch {}
+}
+
 /** «HOY», «AYER» o la fecha, para agrupar la lista. */
 function dayLabel(ms) {
   const d = new Date(ms)
@@ -142,6 +169,7 @@ function dayLabel(ms) {
 // La punta que guardó el móvil antes de 2026-11-09 podía ser falsa (velocidad sacada de posiciones):
 // en cuanto se analiza una salida, se apunta la del análisis (vmaxBB) y es la que se enseña
 const vmaxOf = (m) => m.vmaxBB ?? m.vmax ?? 0
+const distOf = (m) => m.distBB ?? m.dist ?? 0
 
 async function refreshList() {
   S.list = await listSessions()
@@ -158,7 +186,7 @@ async function refreshList() {
           return `${head}<div class="sess ${m.id === S.id ? 'on' : ''}" data-id="${esc(m.id)}">
             <button class="sess-open" data-open="${esc(m.id)}" title="${fmtDateTime(m.start)}">
               <b>${fmtClock(m.start).slice(0, 5)}${S.fresh.has(m.id) ? ' <em class="new">NUEVA</em>' : ''}</b>
-              <span>${toDist(m.dist || 0).toFixed(1)} ${distUnit()} · ${fmtDur((m.end - m.start) / 1000)} · ${Math.round(toSpeed(vmaxOf(m)))} ${speedUnit()}</span>
+              <span>${toDist(distOf(m)).toFixed(1)} ${distUnit()} · ${fmtDur((m.end - m.start) / 1000)} · ${Math.round(toSpeed(vmaxOf(m)))} ${speedUnit()}</span>
             </button>
             ${tag}
             <button class="del" data-del="${esc(m.id)}" title="Borrar de este navegador" aria-label="Borrar">×</button>
@@ -172,6 +200,12 @@ async function refreshList() {
 async function importText(text, from) {
   const parsed = parseExport(text)
   const r = await addSessions(parsed.sessions, from)
+  // Importadas a mano: ya no cuentan como borradas, y su análisis se rehace si crecieron
+  for (const x of parsed.sessions) {
+    const id = x.meta?.id
+    if (deleted.delete(id)) saveDeleted()
+    refreshAnalysis(id)
+  }
   await refreshList()
   const parts = []
   if (r.added) parts.push(`${r.added} nueva${r.added > 1 ? 's' : ''}`)
@@ -244,10 +278,10 @@ onDbBlocked((on) => {
 
 let deviceCache = null
 async function checkDevice() {
-  deviceCache = await deviceSessions()
+  const n = await deviceSessions({ count: true })
   const b = root.querySelector('[data-act="device"]')
-  b.hidden = !deviceCache.length
-  b.textContent = `DE ESTE MOVIL (${deviceCache.length})`
+  b.hidden = !n
+  b.textContent = `DE ESTE MOVIL (${n})`
 }
 
 // ---------- Abrir una salida ----------
@@ -275,7 +309,7 @@ async function open(id, { range, cur } = {}) {
     K('work').hidden = false
     // La punta del análisis (la que guardó el móvil antes podía ser falsa)
     const lm = S.list.find((x) => x.id === id)
-    if (lm && Number.isFinite(A.stats.vMax) && Math.abs((lm.vmaxBB ?? -1) - A.stats.vMax) > 0.05) updateMeta({ ...lm, vmaxBB: A.stats.vMax }).catch(() => {})
+    if (lm && Number.isFinite(A.stats.vMax) && (Math.abs((lm.vmaxBB ?? -1) - A.stats.vMax) > 0.05 || Math.abs((lm.distBB ?? -1) - A.stats.dist) > 1)) updateMeta({ ...lm, vmaxBB: A.stats.vMax, distBB: A.stats.dist }).catch(() => {})
     S.fresh.delete(id)
     root.querySelector('[data-act="csv"]').disabled = false
     ensureViews()
@@ -284,6 +318,12 @@ async function open(id, { range, cur } = {}) {
     if (S.map) paintMap(true)
     buildCharts()
     renderAll()
+    try {
+      if (!localStorage.getItem('sc-bb-helped')) {
+        localStorage.setItem('sc-bb-helped', '1')
+        setTimeout(() => toast('¿Primera vez? Pulsa «?» arriba para ver cómo se leen tus datos', 7000), 800)
+      }
+    } catch {}
     refreshList()
     // Con un tramo pedido (tramos guardados, comparar), ese; si no, donde lo dejaste en esta salida
     const memo = S.memo.get(id)
@@ -307,7 +347,7 @@ async function open(id, { range, cur } = {}) {
 // Las gráficas salen ya; el mapa (librería grande y teselas por la red) llega cuando esté
 function ensureViews() {
   if (S.charts) return
-  S.charts = createCharts(K('charts'), { onCursor: (i, from) => setCursor(i, from), onRange: (a, b, how) => setRange(a, b, { kind: how === 'wheel' ? 'view' : how === 'all' ? 'all' : 'select' }) })
+  S.charts = createCharts(K('charts'), { onCursor: (i, from) => setCursor(i, from), onRange: (a, b, how) => setRange(a, b, { kind: how === 'wheel' ? 'view' : how === 'all' ? 'all' : 'select', wheel: how === 'wheel' }) })
   new ResizeObserver(() => S.charts.resize()).observe(K('charts'))
   K('maploading').hidden = false
   import('./map.js')
@@ -385,26 +425,31 @@ function setCursor(i, from) {
  * - 'all': toda la salida
  * - 'restore': volver a un estado guardado (atrás, otra salida) sin apuntarlo en el historial
  */
-function setRange(a, b, { fit = true, kind = 'select', focus = null, push = true } = {}) {
+function setRange(a, b, { fit = true, kind = 'select', focus = null, push = true, wheel = false } = {}) {
   const A = S.A
   if (!A) return
   let i0 = Math.max(0, Math.min(a, b))
   let i1 = Math.min(A.n - 1, Math.max(a, b))
   if (i1 - i0 < 10) i1 = Math.min(A.n - 1, i0 + 10)
-  if (push && kind !== 'restore') pushHist(kind)
+  if (push && kind !== 'restore') pushHist(wheel ? 'wheel' : kind)
   if (kind === 'select') (S.work = [i0, i1]), (S.focus = null)
   else if (kind === 'all') (S.work = [0, A.n - 1]), (S.focus = null)
   else if (kind === 'view') S.focus = focus || { kind: 'zoom' }
   else if (kind === 'work') S.focus = null
   S.range = [i0, i1]
   S.charts.setRange(i0, i1)
-  S.map?.setTrack(A, prefs.mapCh, S.range)
-  if (fit) S.map?.fit(i0, i1)
+  if (wheel) {
+    // Con la rueda llegan decenas de pasos seguidos: la traza del mapa se rehace al parar
+    clearTimeout(trackTimer)
+    trackTimer = setTimeout(() => S.map?.setTrack(A, prefs.mapCh, S.range), 180)
+  } else S.map?.setTrack(A, prefs.mapCh, S.range)
+  if (fit && !wheel) S.map?.fit(i0, i1)
   if (S.cur < i0 || S.cur > i1) setCursor(Math.round((i0 + i1) / 2), 'range')
   renderRange()
   renderTab()
 }
 
+let trackTimer = null
 // Historial para volver atrás. Los zooms seguidos de la rueda cuentan como uno.
 let lastPush = { t: 0, kind: '' }
 function pushHist(kind) {
@@ -489,11 +534,18 @@ function rememberPlace() {
 }
 
 // ---------- Pintar ----------
+/** Botones de unidades (también sin ninguna salida abierta). */
+function renderUnits() {
+  for (const b of root.querySelectorAll('[data-u]')) b.classList.toggle('on', b.dataset.u === prefs.units)
+}
+
 function renderAll() {
   for (const b of root.querySelectorAll('[data-x]')) b.classList.toggle('on', b.dataset.x === prefs.xMode)
   for (const b of root.querySelectorAll('[data-u]')) b.classList.toggle('on', b.dataset.u === prefs.units)
   for (const b of root.querySelectorAll('[data-mapch]')) b.classList.toggle('on', b.dataset.mapch === prefs.mapCh)
   for (const b of root.querySelectorAll('[data-chart]')) b.classList.toggle('on', prefs.charts.includes(b.dataset.chart))
+  const same = (a, b) => a.length === b.length && a.every((x) => b.includes(x))
+  for (const b of root.querySelectorAll('[data-view]')) b.classList.toggle('on', same(prefs.charts, VIEWS[b.dataset.view][1] || CHART_CHANNELS))
   for (const b of root.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === prefs.tab)
   K('showApp').checked = prefs.showApp
   renderLegend()
@@ -510,7 +562,7 @@ function renderLegend() {
   K('legend').innerHTML = `<span>${ch.legend ? ch.legend[0] : f(lo)}</span><i style="background:${gradientCss(ch.ramp)}"></i><span>${ch.legend ? ch.legend[1] : `${f(hi)} ${ch.unit()}`}</span>`
 }
 
-const tile = (k, l) => `<div class="tile"><span>${l}</span><b data-r="${k}">—</b></div>`
+const tile = (k, l) => `<div class="tile" title="${tip(k)}"><span>${l}</span><b data-r="${k}">—</b></div>`
 function renderReadout() {
   const A = S.A
   const el = K('readout')
@@ -554,6 +606,46 @@ function renderRange() {
   K('back').disabled = !S.hist.length && isFull(S.range)
 }
 
+/**
+ * «Lo mejor» de la salida o del tramo, en frases y con enlace a cada momento: lo que un principiante
+ * quiere saber antes de mirar gráficas.
+ */
+function highlights(A, i0, i1) {
+  const out = []
+  const sp = (v) => `${Math.round(toSpeed(v))} ${speedUnit()}`
+  const link = (html, attrs) => `<li><button class="hl-link" ${attrs}>${html}</button></li>`
+  const corners = A.corners.filter((c) => c.i0 >= i0 && c.i1 <= i1)
+  const brakes = A.brakes.filter((c) => c.i0 >= i0 && c.i1 <= i1)
+  const rec = getKey() ? S.profile?.totals : null
+  if (corners.length) {
+    const top = corners.reduce((a, b) => (b.lean > a.lean ? b : a))
+    const best = rec ? Math.max(rec.maxLeanL || 0, rec.maxLeanR || 0) : 0
+    const vsRec = best > 0 ? (top.lean >= best - 0.5 ? ' · <b>¡tu récord!</b>' : ` · tu récord es ${Math.round(best)}°`) : ''
+    out.push(link(`Tu curva más tumbada: la <b>${top.n}</b>, <b>${Math.round(top.lean)}°</b> a la ${top.dir === 'L' ? 'izquierda' : 'derecha'} a ${sp(top.vMin)}${vsRec}`, `data-zoom="${top.i0},${top.i1},${top.apex}" data-fk="corner" data-fn="${top.n}"`))
+    const fast = corners.filter((c) => c.lean >= 20)
+    if (fast.length) {
+      const f = fast.reduce((a, b) => (b.vMin > a.vMin ? b : a))
+      if (f !== top) out.push(link(`La más rápida: la <b>${f.n}</b>, sin bajar de <b>${sp(f.vMin)}</b>`, `data-zoom="${f.i0},${f.i1},${f.apex}" data-fk="corner" data-fn="${f.n}"`))
+    }
+  }
+  if (brakes.length) {
+    const b = brakes.reduce((a, x) => (x.g > a.g ? x : a))
+    out.push(link(`Frenada más fuerte: <b>${b.g.toFixed(2)} g</b>, de ${sp(b.vIn)} a ${sp(b.vOut)} en ${Math.round(b.len)} m`, `data-zoom="${b.i0},${b.i1},${b.iMax}" data-fk="brake" data-fn="${b.n}"`))
+  }
+  const st = rangeStats(A, i0, i1)
+  if (Number.isFinite(st.vMax) && st.vMax > 0) out.push(link(`Punta: <b>${sp(st.vMax)}</b>${rec?.maxV > 0 ? (st.vMax >= rec.maxV - 0.3 ? ' · <b>¡tu récord!</b>' : ` · tu récord es ${sp(rec.maxV)}`) : ''}`, `data-i="${st.iVMax}"`))
+  const HEAD = prefs.units === 'mph' ? ['m0-60', '0-60'] : ['k0-100', '0-100']
+  const runs = A.runs.map((r, k) => ({ r, k })).filter(({ r }) => r.i >= i0 && r.i <= i1 && Number.isFinite(r.marks?.[HEAD[0]]))
+  if (runs.length) {
+    const { r, k } = runs.reduce((a, b) => (b.r.marks[HEAD[0]] < a.r.marks[HEAD[0]] ? b : a))
+    const sp2 = runSpan(r)
+    out.push(link(`Mejor ${HEAD[1]}: <b>${r.marks[HEAD[0]].toFixed(2)} s</b> (pasada ${k + 1})`, `data-zoom="${sp2.i0},${sp2.i1},${r.i}" data-fk="run" data-fn="${k + 1}"`))
+  }
+  if (st.leaned30 > 1) out.push(`<li>Fuiste tumbado más de 30° durante <b>${fmtDur(st.leaned30)}</b></li>`)
+  if (!out.length) return ''
+  return `<div class="hl"><h4 class="h">LO MEJOR ${isFull([i0, i1]) ? 'DE LA SALIDA' : 'DEL TRAMO'}</h4><ul>${out.join('')}</ul></div>`
+}
+
 const row = (label, value, i) => `<tr ${i != null && i >= 0 ? `data-i="${i}" class="link"` : ''}><th>${label}</th><td>${value}</td></tr>`
 
 function renderTab() {
@@ -576,6 +668,7 @@ function renderTab() {
       // Mirando una curva o un zoom: volver al tramo; mirando el tramo: ver toda la salida
       const up = S.focus ? ' <button class="linkish" data-act="toWork">volver al tramo</button>' : full ? '' : ' <button class="linkish" data-act="all">ver toda</button>'
       return `<p class="scope">${esc(placeLabel().at(-1).toUpperCase())}${up}</p>
+      ${S.focus ? '' : highlights(A, i0, i1)}
       <div class="stats">
         ${card('DISTANCIA', `${toDist(s.dist).toFixed(2)}<small> ${distUnit()}</small>`)}
         ${card('EN MARCHA', fmtDur(s.moving))}
@@ -600,7 +693,7 @@ function renderTab() {
       <p class="note">Pulsa una tarjeta con borde para ir a ese momento. Arrastra sobre las gráficas para ver solo un tramo.${p ? ' <b class="rec-dot">★</b> = igual o mejor que tu récord del móvil.' : ''}</p>`
     },
     gg() {
-      return `<canvas class="gg" data-k="gg"></canvas><h4 class="h">TIEMPO A CADA INCLINACION</h4><canvas class="hist" data-k="hist"></canvas>`
+      return `<p class="note">${GG_HELP}</p><canvas class="gg" data-k="gg"></canvas><h4 class="h">TIEMPO A CADA INCLINACION</h4><p class="note">Cuánto rato fuiste a cada inclinación: con práctica, la parte de la derecha crece.</p><canvas class="hist" data-k="hist"></canvas>`
     },
     curvas() {
       const [w0, w1] = S.work
@@ -648,7 +741,7 @@ function renderTab() {
           <label>Moto <input type="number" data-dyno="bike" value="${d.bike}" min="50" max="600" step="5"> kg</label>
           <label>Piloto <input type="number" data-dyno="rider" value="${d.rider}" min="30" max="200" step="1"> kg</label>
           <div class="chips">${CDA_PRESETS.map(([l, v]) => `<button class="chip ${d.cda === v ? 'on' : ''}" data-cda="${v}" title="CdA ${v} m²">${l}</button>`).join('')}</div>
-          <label class="toggle"><input type="checkbox" data-dyno="slope" ${d.slope ? 'checked' : ''}> corregir con la pendiente (altitud del GPS)</label>
+          ${A.info.longFrom === 'imu' ? '<p class="note">La pendiente ya va incluida: el acelerómetro la nota.</p>' : `<label class="toggle"><input type="checkbox" data-dyno="slope" ${d.slope ? 'checked' : ''}> corregir con la pendiente (altitud del GPS)</label>`}
         </div>
         ${
           pulls.length
@@ -725,6 +818,7 @@ root.addEventListener('click', async (e) => {
   if (d.act === 'shared') return sharedDialog()
   if (d.act === 'link') return linkDialog()
   if (d.act === 'home') return goHome()
+  if (d.act === 'help') return modal(helpHtml(), { wide: true })
   if (d.act === 'syncPill') return getKey() ? cloudSync() : linkDialog()
   if (d.act === 'claim') return claim(root.querySelector(`[data-k="${d.from}"]`)?.value)
   if (d.act === 'cloudSync') return cloudSync()
@@ -746,6 +840,8 @@ root.addEventListener('click', async (e) => {
     // Si viene de la nube, se borra también allí: si no, volvería a bajarse
     if (fromCloud) await deleteRemote(d.del).catch((e) => toast(`No se pudo borrar de la nube: ${e.message}`, 5000))
     await deleteSession(d.del)
+    deleted.add(d.del)
+    saveDeleted()
     if (d.del === S.id) location.hash = ''
     await refreshList()
     if (d.del === S.id) goHome()
@@ -753,6 +849,7 @@ root.addEventListener('click', async (e) => {
   }
   if (d.act === 'demo') return loadDemo()
   if (d.act === 'device') {
+    deviceCache = await deviceSessions()
     const r = await addSessions(deviceCache, 'este móvil')
     toast(`De este móvil: ${r.added} nuevas, ${r.grown} ampliadas`)
     await refreshList()
@@ -760,6 +857,18 @@ root.addEventListener('click', async (e) => {
     return
   }
   if (d.act === 'csv') return exportCsv()
+  if (d.u) {
+    prefs.units = units.speed = d.u
+    savePrefs()
+    renderUnits()
+    refreshList()
+    if (!S.A) return
+    buildCharts()
+    S.map?.setTrack(S.A, prefs.mapCh, S.range)
+    // La comparación abierta también, con la unidad nueva
+    if (S.cmp) S.cmpView.show(S.cmp.C, S.A, S.cmp.B, S.cmp.labels)
+    return renderAll()
+  }
   if (!S.A) return
   if (d.act === 'all') return setRange(0, S.A.n - 1, { kind: 'all' })
   if (d.act === 'back') return goBack()
@@ -780,18 +889,16 @@ root.addEventListener('click', async (e) => {
     buildCharts()
     return renderAll()
   }
-  if (d.u) {
-    prefs.units = units.speed = d.u
-    savePrefs()
-    buildCharts()
-    S.map?.setTrack(S.A, prefs.mapCh, S.range)
-    refreshList()
-    return renderAll()
-  }
   if (d.mapch) {
     prefs.mapCh = d.mapch
     savePrefs()
     S.map?.setTrack(S.A, prefs.mapCh, S.range)
+    return renderAll()
+  }
+  if (d.view) {
+    prefs.charts = VIEWS[d.view][1] || [...CHART_CHANNELS]
+    savePrefs()
+    buildCharts()
     return renderAll()
   }
   if (d.chart) {
@@ -860,6 +967,16 @@ addEventListener('keydown', (e) => {
 
 // ---------- Análisis en caché (comparar y tramos miran varias salidas) ----------
 const cache = new Map()
+/** Una salida ha cambiado (más larga): fuera su análisis, y si es la abierta se vuelve a abrir donde estabas. */
+function refreshAnalysis(id) {
+  if (!id) return
+  cache.delete(id)
+  if (id === S.id && S.A) {
+    rememberPlace()
+    S.A = null
+    open(id)
+  }
+}
 async function analysisOf(id) {
   if (S.A && S.id === id) return S.A
   if (cache.has(id)) return cache.get(id)
@@ -867,7 +984,8 @@ async function analysisOf(id) {
   if (!data) return null
   const A = analyze(data)
   cache.set(id, A)
-  if (cache.size > 4) cache.delete(cache.keys().next().value)
+  // Comparar y los tramos miran varias salidas: 12 análisis en memoria (~5 MB por hora de moto)
+  if (cache.size > 12) cache.delete(cache.keys().next().value)
   return A
 }
 
@@ -880,7 +998,7 @@ async function bboxOf(m) {
   return m.bbox
 }
 
-const fmtLen = (m) => (m >= 1000 ? `${toDist(m).toFixed(2)} ${distUnit()}` : `${Math.round(m)} m`)
+const fmtLen = (m) => (prefs.units === 'mph' ? (m >= 1609.344 ? `${toDist(m).toFixed(2)} ${distUnit()}` : `${Math.round(m / 0.3048)} ft`) : m >= 1000 ? `${toDist(m).toFixed(2)} ${distUnit()}` : `${Math.round(m)} m`)
 const when = (m, t) => fmtDateTime(m.start + t * 1000)
 
 // ---------- Comparar ----------
@@ -899,13 +1017,14 @@ async function passesEverywhere(P, onProgress, skip) {
 
 async function compareDialog() {
   const A = S.A
+  if (isFull(S.range)) return toast('Primero elige qué comparar: arrastra sobre las gráficas para coger un tramo, o pulsa una curva', 6000)
   const [i0, i1] = S.range
   if (A.d[i1] - A.d[i0] < 100) return toast('Elige un tramo de al menos 100 m: arrastra sobre una gráfica')
   const P = makePath(pathPoints(A, i0, i1))
   const own = findPasses(P, A, { from: i0 - 150, to: i1 + 150 })
   const ref = own.find((p) => p.i0 <= i0 + 60 && p.i1 >= i1 - 60) || own[0]
   if (!ref) return toast('No se pudo usar este tramo como referencia')
-  const el = modal(`<h2>COMPARAR ESTE TRAMO</h2>
+  const el = modal(`<h2>COMPARAR: ${esc(placeLabel().at(-1).toUpperCase())}</h2>
     <p class="note">${fmtLen(P.length)} · referencia: ${when(A.meta, ref.t0)} · <b>${fmtLap(ref.time)}</b></p>
     <div data-k="found"><p class="note">Buscando pasadas por aquí…</p></div>`, { wide: true })
   const box = el.querySelector('[data-k="found"]')
@@ -945,9 +1064,11 @@ async function compareRunDialog(k) {
   }
   if (!el.isConnected) return
   if (!found.length) return (box.innerHTML = '<p class="note">No hay más pasadas del crono en tu biblioteca.</p>')
-  const head = (r) => r.marks?.['k0-100'] ?? r.marks?.['m0-60']
+  // El parcial de cabecera, en la unidad elegida (antes mezclaba 0-100 km/h y 0-60 mph)
+  const HEAD = prefs.units === 'mph' ? ['m0-60', '0-60'] : ['k0-100', '0-100']
+  const head = (r) => r.marks?.[HEAD[0]]
   found.sort((a, b) => (head(a.run) ?? 99) - (head(b.run) ?? 99))
-  box.innerHTML = `<table class="grid"><thead><tr><th>#</th><th>PASADA</th><th>0-100</th><th>1/8</th><th>PUNTA</th></tr></thead><tbody>
+  box.innerHTML = `<table class="grid"><thead><tr><th>#</th><th>PASADA</th><th>${HEAD[1]}</th><th>1/8</th><th>PUNTA</th></tr></thead><tbody>
     ${found.map((f, j) => `<tr class="link" data-pick="${j}"><td>${j + 1}</td><td>${when(f.meta, f.pass.t0)}</td><td><b>${head(f.run)?.toFixed(2) ?? '—'}</b></td><td>${f.run.marks?.['1/8']?.toFixed(2) ?? '—'}</td><td>${toSpeed(f.run.maxV || 0).toFixed(0)}</td></tr>`).join('')}
     </tbody></table>`
   box.onclick = (e) => {
@@ -959,11 +1080,13 @@ async function compareRunDialog(k) {
   }
 }
 
+let cmpResize = null
 /** Compara la pasada `ref` de la salida abierta con `f` (otra pasada, de esta salida u otra). */
 async function startCompare(ref, f, L, labels) {
   const B = f.id === S.id ? S.A : await analysisOf(f.id)
-  const C = compare(ref, S.A, f.pass, B, L)
-  S.cmp = { C, B, ref, f }
+  const C = compare(ref, S.A, f.pass, B, L, undefined, { own: labels?.kind === 'run' })
+  S.cmp = { C, B, ref, f, labels }
+  if (!cmpResize) (cmpResize = new ResizeObserver(() => S.cmp && S.cmpView?.resize?.())).observe(K('cmp'))
   K('chartsMain').hidden = true
   K('cmp').hidden = false
   S.cmpView ??= createCompareView(K('cmp'), {
@@ -1005,8 +1128,11 @@ async function refreshSegs() {
 
 function saveSegDialog() {
   const A = S.A
+  if (isFull(S.range)) return toast('Primero elige el tramo: arrastra sobre las gráficas desde donde empieza hasta donde acaba', 6000)
   const [i0, i1] = S.range
-  const pts = pathPoints(A, i0, i1)
+  const raw = pathPoints(A, i0, i1)
+  if (raw.length < 2) return toast('En lo que ves no hay GPS (un hueco de la señal): elige otro tramo')
+  const pts = closeLoop(raw)
   const P = makePath(pts)
   if (P.length < 100) return toast('Elige un tramo de al menos 100 m: arrastra sobre una gráfica')
   if (P.length > 60000) return toast('Tramo demasiado largo (máximo 60 km)')
@@ -1038,7 +1164,7 @@ function saveSegDialog() {
 }
 
 // Sube este número si cambia cómo se buscan las pasadas: los tiempos guardados se rehacen
-const EFFORTS_VERSION = 2
+const EFFORTS_VERSION = `3.${ANALYSIS_VERSION}`
 
 /** Tiempos de un tramo en toda la biblioteca (lo ya buscado se guarda). */
 async function segmentEfforts(seg, onProgress) {
@@ -1067,7 +1193,7 @@ async function segmentEfforts(seg, onProgress) {
 /** Pasada completa (con s, t, idx) de un tiempo guardado, para comparar. */
 async function passOf(seg, e) {
   const A = await analysisOf(e.session)
-  const p = findPasses(makePath(seg.points), A).find((q) => Math.abs(q.t0 - e.t0) < 0.5)
+  const p = findPasses(makePath(seg.points), A).find((q) => Math.abs(q.t0 - e.t0) < 1.5)
   return p && { A, p }
 }
 
@@ -1167,7 +1293,9 @@ async function renderShared(seg, efforts, box) {
       pub.onclick = async () => {
         const rider = askRider()
         if (rider == null) return
-        const e = efforts[0]
+        // Solo salidas de verdad: ni la demo ni el simulador van a la clasificación
+        const e = efforts.find((x) => (x.meta.source || 'real') === 'real')
+        if (!e) return toast('Solo se publican tiempos de salidas reales (no de la demo ni del simulador)', 5000)
         try {
           await publishEffort({ segment_id: seg.remoteId, rider, bike: String(e.meta.rider?.bike || '').slice(0, 30), time_s: e.time, v_max: Math.min(150, e.vmax), lean_max: Math.min(80, e.lean), ridden_at: new Date(e.meta.start + e.t0 * 1000).toISOString(), device: me })
           toast('TIEMPO PUBLICADO')
@@ -1206,11 +1334,15 @@ async function sharedDialog() {
     box.onclick = async (e) => {
       const b = e.target.closest('[data-add]')
       if (!b) return
-      const c = await sharedCircuit(b.dataset.add)
-      const P = makePath(c.points)
-      await saveSegment({ id: `seg-r-${c.id}`, name: c.name, points: c.points, length: P.length, closed: c.closed, circuit: true, remoteId: c.id, bbox: P.bbox, createdAt: Date.now() })
-      b.outerHTML = 'AÑADIDO'
-      refreshSegs()
+      try {
+        const c = await sharedCircuit(b.dataset.add)
+        const P = makePath(c.points)
+        await saveSegment({ id: `seg-r-${c.id}`, name: c.name, points: c.points, length: P.length, closed: c.closed, circuit: true, remoteId: c.id, bbox: P.bbox, createdAt: Date.now() })
+        b.outerHTML = 'AÑADIDO'
+        refreshSegs()
+      } catch (err) {
+        toast(`No se pudo añadir: ${err.message}`, 5000)
+      }
     }
   } catch (e) {
     box.innerHTML = `<p class="note">No se pudo cargar: ${esc(e.message)}</p>`
@@ -1225,10 +1357,11 @@ function drawDyno(body) {
   const A = S.A
   const host = body.querySelector('[data-k="dchart"]')
   if (!host) return
-  const [i0, i1] = S.range
-  const pulls = findPulls(A, i0, i1)
+  // Del tramo de trabajo, como la lista (antes miraba lo que se ve y con una curva en pantalla fallaba)
+  const pulls = findPulls(A, ...S.work)
   const curves = pulls.map((p) => ({ p, c: pullCurve(A, p, prefs.dyno) }))
   const env = envelope(curves.map((x) => x.c))
+  if (!env.cv?.length) return
   const peakJ = env.cv.reduce((b, v, j) => (v > env.cv[b] ? j : b), 0)
   const sp = (kmh) => (units.speed === 'mph' ? kmh / 1.609344 : kmh)
   body.querySelector('[data-k="dpeak"]').innerHTML = `<b>${env.cv[peakJ].toFixed(0)} CV</b> en rueda <small>(${(env.cv[peakJ] * 0.7355).toFixed(0)} kW)</small> a ${sp(env.kmh[peakJ]).toFixed(0)} ${speedUnit()}`
@@ -1237,8 +1370,8 @@ function drawDyno(body) {
     .join('')
   // Todas las curvas sobre el mismo eje de velocidad
   const xs = env.kmh
-  const COLORS = ['#22e3ff', '#ff2e88', '#3dff7a', '#ff8a1f', '#9d8cff']
-  const series = [{}, { stroke: '#ffd23f', width: 2.5, label: 'Máx' }]
+  const COLORS = ['cyan', 'pink', 'green', 'orange', 'violet'].map(pal)
+  const series = [{}, { stroke: pal('yellow'), width: 2.5, label: 'Máx' }]
   const data = [xs.map(sp), env.cv]
   curves.slice(0, 5).forEach(({ c }, k) => {
     const map = new Map(c.kmh.map((v, j) => [v, c.cv[j]]))
@@ -1253,8 +1386,8 @@ function drawDyno(body) {
       cursor: { points: { show: false } },
       scales: { x: { time: false }, y: { range: (u, mn, mx) => [0, Math.max(10, mx * 1.1)] } },
       axes: [
-        { stroke: '#8a80c4', font: '11px ui-monospace, Menlo, monospace', grid: { stroke: '#241a4d' }, ticks: { stroke: '#241a4d' }, label: speedUnit(), labelFont: '11px ui-monospace, Menlo, monospace', labelSize: 18 },
-        { stroke: '#8a80c4', font: '11px ui-monospace, Menlo, monospace', grid: { stroke: '#241a4d' }, ticks: { stroke: '#241a4d' }, label: 'CV', labelFont: '11px ui-monospace, Menlo, monospace', labelSize: 18, size: 44 },
+        { stroke: pal('dim'), font: '11px ui-monospace, Menlo, monospace', grid: { stroke: pal('grid') }, ticks: { stroke: pal('grid') }, label: speedUnit(), labelFont: '11px ui-monospace, Menlo, monospace', labelSize: 18 },
+        { stroke: pal('dim'), font: '11px ui-monospace, Menlo, monospace', grid: { stroke: pal('grid') }, ticks: { stroke: pal('grid') }, label: 'CV', labelFont: '11px ui-monospace, Menlo, monospace', labelSize: 18, size: 44 },
       ],
       series: series.map((x, k) => (k ? { ...x, points: { show: false }, spanGaps: true } : x)),
     },
@@ -1319,7 +1452,7 @@ function renderHome() {
         .map(
           (m) => `<button class="ride-card" data-open="${esc(m.id)}">
             <span class="rc-day">${dayLabel(m.start)} · ${fmtClock(m.start).slice(0, 5)}${S.fresh.has(m.id) ? ' <em class="new">NUEVA</em>' : ''}</span>
-            <b>${toDist(m.dist || 0).toFixed(1)} <small>${distUnit()}</small></b>
+            <b>${toDist(distOf(m)).toFixed(1)} <small>${distUnit()}</small></b>
             <span>${fmtDur((m.end - m.start) / 1000)} · punta ${Math.round(toSpeed(vmaxOf(m)))} ${speedUnit()}</span>
           </button>`,
         )
@@ -1333,7 +1466,7 @@ function renderHome() {
         <li><b>2</b><span>Escribe aquí el código de 6 letras que te sale:</span>${codeInput('codeHome')}</li>
         <li><b>3</b><span>Listo: tus salidas, tus récords y tu tema de colores llegan solos.</span></li>
       </ol>
-      <p class="alt">Otras formas: <button class="linkish" data-act="link">pegar la clave larga</button> · <label class="linkish">importar un archivo .json<input type="file" accept=".json,application/json" multiple hidden data-k="homeFile"></label> · <button class="linkish" data-act="demo">ver la demo</button></p>
+      <p class="alt"><button class="linkish" data-act="help">¿Cómo se leen los datos?</button> · Otras formas: <button class="linkish" data-act="link">pegar la clave larga</button> · <label class="linkish">importar un archivo .json<input type="file" accept=".json,application/json" multiple hidden data-k="homeFile"></label> · <button class="linkish" data-act="demo">ver la demo</button></p>
     </section>`
   if (!p) {
     el.innerHTML = `${linked ? `<section class="onboard"><h2>VINCULADO</h2><p>${S.list.length ? 'Tus salidas llegan solas. Elige una a la izquierda o aquí abajo.' : 'Aún no ha llegado nada: el móvil sube cada salida al terminarla (con conexión). Si acabas de vincularlo, abre la app en el móvil un momento.'}</p></section>` : onboarding}${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : ''}`
@@ -1420,10 +1553,10 @@ async function syncProfile() {
   S.profile = p
   saveProfile(p)
   if (applyProfileTheme(p)) {
-    // El fondo del mapa se tiñe al crearlo: con otro tema se recarga (vuelve a la misma salida)
-    if (S.map) return location.reload()
-    // Lo dibujado en canvas lleva los colores dentro: se vuelve a dibujar
-    if (S.A) (buildCharts(), renderAll())
+    // Lo dibujado lleva los colores dentro: se vuelve a dibujar con el tema nuevo, sin recargar la página
+    // (antes se recargaba y se perdía el zoom, la comparación o lo que estuvieras escribiendo)
+    S.map?.restyle().then(() => S.A && (S.map.setTrack(S.A, prefs.mapCh, S.range), S.map.setMarks(marks(S.A)), S.map.setCursor(S.cur)))
+    if (S.A && !S.cmp) (buildCharts(), renderAll())
   }
   if (changed) renderCloud()
 }
@@ -1438,21 +1571,31 @@ function cloudSync() {
       const remote = await listRemote()
       const have = new Map(S.list.map((m) => [m.id, m]))
       const todo = remote.filter((r) => {
+        if (deleted.has(r.id)) return false
         const h = have.get(r.id)
         return !h || (h.bytes ?? 0) < (r.meta?.bytes ?? 0)
       })
       let n = 0
+      let failed = 0
       for (const r of todo) {
         renderCloud(`Bajando ${++n} de ${todo.length}…`, 'busy')
-        const sess = await fetchRemote(r.id)
-        await addSessions([sess], 'nube')
-        if (!have.has(r.id)) S.fresh.add(r.id)
-        cache.delete(r.id)
+        // Una salida rota no para las demás (antes atascaba la sincronización para siempre)
+        try {
+          const sess = await fetchRemote(r.id)
+          await addSessions([sess], 'nube')
+          if (!have.has(r.id)) S.fresh.add(r.id)
+          else refreshAnalysis(r.id)
+          cache.delete(r.id)
+        } catch (e) {
+          failed++
+          console.warn('No se pudo bajar', r.id, e)
+        }
       }
       await refreshList()
       lastSync = Date.now()
-      renderCloud(todo.length ? `${todo.length} ${todo.length === 1 ? 'salida nueva' : 'salidas nuevas'}` : `Al día · ${remote.length} en la nube · ${fmtClock(lastSync).slice(0, 5)}`)
-      if (todo.length) toast(`${todo.length === 1 ? 'Ha llegado una salida nueva' : `Han llegado ${todo.length} salidas nuevas`} de tu móvil`)
+      const ok = todo.length - failed
+      renderCloud(failed ? `${failed} no se ${failed === 1 ? 'pudo' : 'pudieron'} bajar: se reintenta en un minuto` : ok ? `${ok} ${ok === 1 ? 'salida nueva' : 'salidas nuevas'}` : `Al día · ${remote.length} en la nube · ${fmtClock(lastSync).slice(0, 5)}`)
+      if (ok > 0) toast(`${ok === 1 ? 'Ha llegado una salida nueva' : `Han llegado ${ok} salidas nuevas`} de tu móvil`)
     } catch (e) {
       renderCloud(`No se pudo: ${e.message}`, 'err')
     }
@@ -1488,6 +1631,7 @@ function exportCsv() {
 
 // ---------- Arranque ----------
 keyFromUrl()
+renderUnits()
 renderReadout()
 renderCloud()
 await refreshList()

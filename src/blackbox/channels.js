@@ -26,7 +26,7 @@ export const CHANNELS = {
   lean: { label: 'Inclinación', short: 'INCL', unit: () => '°', get color() { return pal('yellow') }, dec: 1, side: true, get: (A, i) => A.lean[i], app: (A, i) => A.appLean[i], get ramp() { return ABS() }, abs: true, range: () => [0, 50] },
   gLong: { label: 'G longitudinal', short: 'G LONG', unit: () => 'g', get color() { return pal('green') }, dec: 2, get: (A, i) => A.gLong[i], app: (A, i) => A.appGLong[i], get ramp() { return DIVERGE() }, range: () => [-0.8, 0.8], legend: ['FRENA', 'ACELERA'] },
   gLat: { label: 'G lateral', short: 'G LAT', unit: () => 'g', get color() { return pal('pink') }, dec: 2, side: true, get: (A, i) => A.gLat[i], app: (A, i) => A.appGLat[i], get ramp() { return ABS() }, abs: true, range: () => [0, 1] },
-  alt: { label: 'Altitud', short: 'ALT', unit: () => 'm', get color() { return pal('violet') }, dec: 0, get: (A, i) => A.alt[i], get ramp() { return ALT() }, range: (A) => [A.stats.altMin, Math.max(A.stats.altMin + 5, A.stats.altMax)] },
+  alt: { label: 'Altitud', short: 'ALT', unit: () => 'm', get color() { return pal('violet') }, dec: 0, get: (A, i) => A.alt[i], get ramp() { return ALT() }, range: (A) => (Number.isFinite(A.stats.altMin) ? [A.stats.altMin, Math.max(A.stats.altMin + 5, A.stats.altMax)] : [0, 1]) },
   yaw: { label: 'Giro', short: 'GIRO', unit: () => '°/s', get color() { return pal('orange') }, dec: 1, side: true, get: (A, i) => A.yaw[i] },
   vib: { label: 'Vibración', short: 'VIB', unit: () => 'm/s²', get color() { return pal('dim') }, dec: 2, get: (A, i) => A.vib[i] },
   acc: { label: 'Precisión GPS', short: 'GPS ±', unit: () => 'm', get color() { return pal('red') }, dec: 1, get: (A, i) => A.acc[i] },

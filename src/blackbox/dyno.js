@@ -50,7 +50,10 @@ function grade(A, i) {
 export function powerAt(A, i, o) {
   const m = o.bike + o.rider
   const v = A.v[i]
-  const F = m * A.gLong[i] * G * INERTIA + 0.5 * o.rho * o.cda * v * v + o.crr * m * G + (o.slope ? m * G * grade(A, i) : 0)
+  // La pendiente solo con la G del GPS: la del acelerómetro ya lleva dentro la cuesta (g·sen θ) y
+  // sumarla otra vez daba ~5 CV de más en una subida del 6 %
+  const slope = o.slope && A.info?.longFrom !== 'imu' ? m * G * grade(A, i) : 0
+  const F = m * A.gLong[i] * G * INERTIA + 0.5 * o.rho * o.cda * v * v + o.crr * m * G + slope
   return F * v
 }
 
