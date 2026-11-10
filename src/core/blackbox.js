@@ -69,6 +69,7 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
     lastFlush: 0,
     prev: null,
     arm: null, // primera posición rápida, a la espera de ver si de verdad te mueves
+    stillSince: null, // desde cuándo estás parado (para contar las paradas)
     imuInterval: null,
     chain: Promise.resolve(),
     error: '',
@@ -116,6 +117,17 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
       m.moving += dt
     }
     if ((s.acc ?? Infinity) < 25) m.vmax = Math.max(m.vmax, s.v)
+    // De dónde a dónde (para reconocer tus trayectos) y las paradas de por medio (semáforos, atascos)
+    const here = Number.isFinite(s.lat) && Number.isFinite(s.lon) ? [Math.round(s.lat * 1e5) / 1e5, Math.round(s.lon * 1e5) / 1e5] : null
+    if (s.v > rules.stopV) {
+      if (!m.from && here) (m.from = here), (m.firstMove = round3(s.t - S.t0))
+      if (here) (m.to = here), (m.lastMove = round3(s.t - S.t0))
+      if (S.stillSince != null) {
+        const d = s.t - S.stillSince
+        if (d >= 5) (m.stops = (m.stops || 0) + 1), (m.stopped = round3((m.stopped || 0) + d))
+        S.stillSince = null
+      }
+    } else if (m.from && S.stillSince == null) S.stillSince = s.t
   }
 
   /** Un evento devicemotion tal cual llega (t en segundos, base de performance.now()). */
@@ -184,10 +196,13 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
       dist: 0,
       moving: 0,
       vmax: 0,
+      stops: 0,
+      stopped: 0,
       imuInterval: S.imuInterval,
       resumed: 0,
     }
     S.on = true
+    S.stillSince = null
     S.lastMove = t
     S.lastData = t
     S.lastFlush = perf
@@ -311,6 +326,8 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
     wipe,
     list: () => store.listMeta(),
     read: (meta) => readSession(store, meta),
+    /** Guarda la ficha de una sesión cerrada (para añadirle datos calculados después). */
+    updateMeta: (m) => queue(() => store.putMeta(m)),
     get recording() {
       return S.on
     },

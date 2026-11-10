@@ -59,6 +59,10 @@ const DEFAULTS = {
   speedAlerts: [],
   voiceMusic: 'duck', // cómo convive con la música: duck | pause | mix (core/voice.js)
   voiceEngine: 'app', // app: audios propios (no paran la música) | system: la voz del móvil
+  ignition: false, // contacto dado (core/ignition.js)
+  ignitionAuto: true, // darlo solo si vas en moto con él quitado
+  places: [], // sitios con nombre para tus trayectos: [{ lat, lon, name }]
+  lapMode: false, // CRONO → VUELTAS: cronometrar vueltas al circuito marcado
 }
 
 export const settings = { ...DEFAULTS, ...load('settings', {}) }

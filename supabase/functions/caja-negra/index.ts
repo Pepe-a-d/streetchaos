@@ -14,6 +14,8 @@
 //   pair-claim { code }     → (sin clave) cambia el código por la clave
 //   ghost-put { ghost }     → (sin clave) guarda una pasada para compartir y da su código de 8 letras
 //   ghost-get { code }      → (sin clave) la devuelve
+//   kv-put { kind, data }   → guarda datos compartidos entre el móvil y el Blackbox (p. ej. los tramos)
+//   kv-get { kind }         → los devuelve
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const BUCKET = 'telemetry'
@@ -161,6 +163,21 @@ Deno.serve(async (req) => {
         const { data, error } = await sb.from('bb_profile').select('profile, updated_at').eq('folder', folder).maybeSingle()
         if (error) throw error
         return json({ profile: data?.profile ?? null, updated_at: data?.updated_at ?? null })
+      }
+      case 'kv-put': {
+        const kind = String(body.kind ?? '')
+        const text = JSON.stringify(body.data ?? null)
+        if (!/^[a-z]{1,20}$/.test(kind) || body.data == null || text.length > 800000) return json({ error: 'Datos no válidos' }, 400)
+        const { error } = await sb.from('bb_kv').upsert({ folder, kind, data: body.data, updated_at: new Date().toISOString() })
+        if (error) throw error
+        return json({ ok: true })
+      }
+      case 'kv-get': {
+        const kind = String(body.kind ?? '')
+        if (!/^[a-z]{1,20}$/.test(kind)) return json({ error: 'Tipo no válido' }, 400)
+        const { data, error } = await sb.from('bb_kv').select('data, updated_at').eq('folder', folder).eq('kind', kind).maybeSingle()
+        if (error) throw error
+        return json({ data: data?.data ?? null, updated_at: data?.updated_at ?? null })
       }
       case 'pair-new': {
         // Un código por móvil a la vez: los anteriores de esta clave se borran

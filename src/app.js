@@ -1,6 +1,8 @@
 // La app en sí. main.js la carga solo si no hay que instalarla antes (iPhone en Safari).
 import { settings, onSetting, saveTotals } from './core/store.js'
-import { T, useSource, createRealGps, tick, requestMotion, motionNeedsTap, signalBars } from './core/telemetry.js'
+import { T, useSource, createRealGps, tick, requestMotion, motionNeedsTap, signalBars, onSample } from './core/telemetry.js'
+import { ignitionOn, watchAutoOn } from './core/ignition.js'
+import { KEY, mountIgnition } from './ui/ignition.js'
 import { geoPermission, isStandalone } from './core/device.js'
 import { createSimGps } from './core/sim.js'
 import { unlockAudio, sfx } from './core/audio.js'
@@ -24,6 +26,11 @@ import { setupUpdates } from './core/update.js'
 import { setupGestures } from './ui/gestures.js'
 import { $, html, setter, toast } from './ui/util.js'
 import { fixOldRecords } from './core/recalc.js'
+import { tripStarted, tripEnded, lastTrip } from './core/trips.js'
+import { showTrip } from './ui/trip.js'
+import { initSegments } from './core/segments.js'
+import { mountLiveStrip } from './ui/livestrip.js'
+import { resetTrip } from './core/telemetry.js'
 
 const TABS = [
   { id: 'dash', label: 'DASH' },
@@ -41,6 +48,7 @@ app.innerHTML = `
     <div class="gps"><div class="bars" data-n="0"><i></i><i></i><i></i><i></i></div><span data-k="gps">GPS</span></div>
     <div class="grow" data-k="title">DASH</div>
     <span class="badge sim" data-k="sim" hidden>SIM</span>
+    <button class="topbtn key" data-k="key" aria-label="Contacto">${KEY}</button>
     <button class="topbtn" data-k="black" aria-label="Pantalla negra" title="Pantalla negra: sigue grabando">${MOON}</button>
     <span class="clock" data-k="clock">00:00</span>
   </header>
@@ -78,6 +86,13 @@ const screens = {
     },
   }),
 }
+// Contacto: la llave de arriba y el DASH apagado (ui/ignition.js)
+const ign = mountIgnition({ dash: document.getElementById('dash'), keyBtn: $(app, '[data-k="key"]'), onLast: (sum) => showTrip(sum) })
+onSample((s) => watchAutoOn(s))
+// Tramos del Blackbox y vueltas al circuito, en directo (franja arriba del DASH)
+initSegments()
+const strip = mountLiveStrip(document.getElementById('dash'))
+
 let current = null
 function go(id) {
   if (current === id) return
@@ -172,7 +187,8 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
   tick(dt)
-  watch(dt)
+  // Sin contacto no avisa de velocidades ni curvas
+  if (ignitionOn()) watch(dt)
   // Con la pantalla negra no se dibuja nada: la telemetría y la grabación siguen igual
   if (blackout.on) return requestAnimationFrame(frame)
   set(bars, String(signalBars()), 'data-n')
@@ -190,6 +206,7 @@ function frame(now) {
   const d = new Date()
   set(clock, `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
   screens[current]?.frame(dt)
+  if (current === 'dash') (ign.frame(), strip.frame())
   requestAnimationFrame(frame)
 }
 
@@ -212,15 +229,24 @@ setupUpdates()
 setupGestures({ goTab: (id) => go(id), canLeave: () => T.v < 2 })
 initLogger()
 // Subida a la nube: al cerrar cada salida, al abrir la app (lo que quedó pendiente) y al volver la conexión
-onSessionEnd((meta) => {
+onSessionEnd(async (meta) => {
   setTimeout(syncNow, 2000)
   totals.sessions = (totals.sessions || 0) + 1
   saveTotals(true)
   checkAchievements()
-  const mi = settings.units === 'mph'
-  say(`Salida guardada. ${spoken((meta.dist || 0) / (mi ? 1609.344 : 1000), 1)} ${mi ? 'millas' : 'kilómetros'}`, { kind: 'box' })
+  // El resumen: lo dice («Salida guardada. 4,8 kilómetros en 21 minutos» y lo mejor del día) y lo enseña
+  const sum = await tripEnded(meta)
+  say(sum.speech, { kind: 'box' })
+  ign.setLast(sum)
+  if (current === 'dash' || !ignitionOn()) showTrip(sum)
 })
-onSessionStart(() => say('Grabando la salida', { kind: 'box' }))
+onSessionStart(() => {
+  // Cada salida es un viaje: distancia y máximos desde cero, y los récords de ahora para ver cuáles bates
+  resetTrip()
+  tripStarted()
+  say('Grabando la salida', { kind: 'box' })
+})
+ign.setLast(lastTrip())
 // Logros: aviso al desbloquear y comprobación cada pocos segundos
 setupUnlocks()
 setInterval(checkAchievements, 3000)

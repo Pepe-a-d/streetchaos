@@ -8,6 +8,10 @@ import { logEvent } from '../core/logger.js'
 import { say, spoken } from '../core/voice.js'
 import { spokenMark } from '../core/announcer.js'
 import { checkAchievements } from '../core/achievements.js'
+import { live, track, markFinishHere, useCircuit, clearTrack, circuits, setLapMode } from '../core/segments.js'
+import { fmtLap } from '../core/tripsum.js'
+import { fmtDelta } from './livestrip.js'
+import { layer, esc } from './util.js'
 
 const MODES = { kmh: ['k0-100', 'k100-200', '1/8', '1/4'], mph: ['m0-60', 'm60-130', '1/8', '1/4'] }
 
@@ -19,7 +23,7 @@ export function mountCrono(el) {
 
   const rec = new RunRecorder({ rollout: settings.rollout, onEvent })
   onSample((s) => {
-    if (visible || rec.state === 'running') rec.feed(s)
+    if ((visible || rec.state === 'running') && !settings.lapMode) rec.feed(s)
   })
   onHint((t) => rec.hint(t))
   onAccel((t, a) => rec.accel(t, a))
@@ -83,24 +87,103 @@ export function mountCrono(el) {
       <div class="record" data-k="record" hidden>¡NUEVO RECORD!</div>
       <button class="btn ghost small discard" data-k="discard" hidden>DESCARTAR PASADA</button>
     </div>
-    <div class="panel board"></div>`
+    <div class="panel board"></div>
+    <div class="panel laps" hidden>
+      <div class="lap-head"><span class="lbl" data-k="trk">SIN META</span><span class="lbl" data-k="lapn"></span></div>
+      <span class="seg timer" data-k="laptime" data-ghost="8:88.8">0:00.0</span>
+      <div class="lap-delta" data-k="ldelta"></div>
+      <div class="lap-row"><span class="lbl">ULTIMA <b data-k="llast">—</b></span><span class="lbl">MEJOR <b data-k="lbest">—</b></span></div>
+      <div class="lap-list" data-k="llist"></div>
+      <div class="lap-btns">
+        <button class="btn small" data-lap="mark">MARCAR META AQUI</button>
+        <button class="btn small ghost" data-lap="circuits">CIRCUITOS DEL BLACKBOX</button>
+        <button class="btn small ghost" data-lap="clear">BORRAR META</button>
+      </div>
+      <p class="lap-note">Pasa por la línea de meta y pulsa MARCAR META AQUI (en el sentido en que vas). Desde ahí, cada vuelta se cronometra sola y la franja del DASH te dice si vas mejor o peor que tu mejor vuelta.</p>
+    </div>`
 
   const k = (n) => $(el, `[data-k="${n}"]`)
   const status = $(el, '.status')
   const board = $(el, '.board')
+  const lapsEl = $(el, '.laps')
+
+  // ---- Vueltas ----
+  lapsEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lap]')
+    if (!b) return
+    sfx.click()
+    const a = b.dataset.lap
+    if (a === 'mark') {
+      if (markFinishHere()) (sfx.armed(), toast('META MARCADA: CADA VEZ QUE PASES POR AQUI, EN ESTE SENTIDO, CUENTA UNA VUELTA', 4500))
+      else (sfx.error(), toast('HACE FALTA GPS Y HABER IDO EN MARCHA (PARA SABER EL SENTIDO)', 4000))
+    } else if (a === 'clear') {
+      clearTrack()
+      toast('META BORRADA')
+    } else if (a === 'circuits') {
+      const list = circuits()
+      const ly = layer(
+        `<div class="panel sheet"><header class="sh-head"><h3 class="title">CIRCUITOS</h3><button class="sh-x" data-close aria-label="Cerrar">×</button></header><div class="sh-body">${
+          list.length
+            ? list.map((c) => `<button class="mi" data-cid="${esc(c.id)}"><span class="mi-t">${esc(c.name)}</span><span class="mi-s">${Math.round(c.length)} m${Number.isFinite(c.best) ? ` · mejor ${fmtLap(c.best)}` : ''}</span></button>`).join('')
+            : '<p class="note">No hay circuitos: en el Blackbox, guarda un tramo que empiece y acabe en el mismo sitio. Llegan solos al móvil.</p>'
+        }</div></div>`,
+        'sheet-layer',
+      )
+      ly.addEventListener('click', (ev) => {
+        const c = ev.target.closest('[data-cid]')
+        if (c && useCircuit(c.dataset.cid)) (toast('CIRCUITO LISTO: LA META ES SU LINEA DE SALIDA'), ly.remove())
+        else if (ev.target.closest('[data-close]') || ev.target === ly) ly.remove()
+      })
+    }
+  })
+  // En los dígitos LCD solo números: «44.4», «1:32.4»
+  const segLap = (x) => (x >= 60 ? `${Math.floor(x / 60)}:${(x % 60).toFixed(1).padStart(4, '0')}` : x.toFixed(1))
+  function lapFrame() {
+    const t = track()
+    const cur = live.cur?.kind === 'lap' ? live.cur : null
+    const now = performance.now() / 1000
+    set(k('trk'), t ? `META: ${String(t.name || 'CIRCUITO').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()}` : 'SIN META')
+    set(k('lapn'), cur ? `VUELTA ${cur.n}` : live.laps.length ? `${live.laps.length} VUELTAS` : '')
+    set(k('laptime'), cur ? segLap(Math.max(0, now - cur.t0)) : live.laps.length ? segLap(live.laps.at(-1).time) : '0.0')
+    // El delta, cuando ya hay algo de vuelta con la que compararse
+    const d = cur && cur.d > 50 ? cur.delta : NaN
+    set(k('ldelta'), cur && Number.isFinite(d) ? fmtDelta(d) : '')
+    k('ldelta').dataset.s = !Number.isFinite(d) ? '' : d < 0 ? 'ahead' : 'behind'
+    const lastLap = live.laps.at(-1)
+    set(k('llast'), lastLap ? segLap(lastLap.time) : '—')
+    set(k('lbest'), t && Number.isFinite(t.best) ? segLap(t.best) : '—')
+    const sig = live.laps.length
+    if (k('llist')._n !== sig) {
+      k('llist')._n = sig
+      const best = Math.min(...live.laps.map((x) => x.time))
+      k('llist').innerHTML = live.laps
+        .slice()
+        .reverse()
+        .map((x) => `<div class="row ${x.time === best ? 'rec' : ''}"><span class="lbl">VUELTA ${x.n}</span><b class="got">${segLap(x.time)}${x.record ? ' ★' : ''}</b></div>`)
+        .join('')
+    }
+  }
   const set = setter()
 
   function renderModes() {
-    $(el, '.modes').innerHTML = MODES[settings.units]
-      .map((id) => `<button class="chip ${id === mode() ? 'on' : ''}" data-mode="${id}">${MARKS[id].label}</button>`)
-      .join('') + `<button class="chip ${settings.rollout ? 'on' : ''}" data-roll title="Rollout de 1 pie, como en las pistas de drag">1FT</button>`
+    const laps = !!settings.lapMode
+    $(el, '.modes').innerHTML =
+      MODES[settings.units].map((id) => `<button class="chip ${!laps && id === mode() ? 'on' : ''}" data-mode="${id}">${MARKS[id].label}</button>`).join('') +
+      (laps ? '' : `<button class="chip ${settings.rollout ? 'on' : ''}" data-roll title="Rollout de 1 pie, como en las pistas de drag">1FT</button>`) +
+      `<button class="chip ${laps ? 'on' : ''}" data-laps title="Vueltas a un circuito, con el tiempo de cada una">VUELTAS</button>`
+    status.hidden = laps
+    board.hidden = laps
+    lapsEl.hidden = !laps
   }
   $(el, '.modes').addEventListener('click', (e) => {
     const b = e.target.closest('button')
     if (!b) return
     sfx.click()
-    if (b.dataset.mode) setSetting('timerMode', b.dataset.mode)
-    else {
+    if (b.hasAttribute('data-laps')) setLapMode(!settings.lapMode)
+    else if (b.dataset.mode) {
+      if (settings.lapMode) setLapMode(false)
+      setSetting('timerMode', b.dataset.mode)
+    } else {
       setSetting('rollout', !settings.rollout)
       rec.rollout = settings.rollout
       toast(settings.rollout ? 'ROLLOUT 1 PIE: EL CRONO EMPIEZA A LOS 30 CM' : 'ROLLOUT DESACTIVADO')
@@ -172,6 +255,7 @@ export function mountCrono(el) {
       if (rec.state === 'armed') rec.reset()
     },
     frame() {
+      if (settings.lapMode) return lapFrame()
       const t = performance.now() / 1000
       let s = rec.state
       const bars = signalBars()

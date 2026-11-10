@@ -178,3 +178,4 @@ describe('Importar archivos de otros aparatos', () => {
     expect(() => parseLoggerFile('<gpx><trk></trk></gpx>', 'x.gpx')).toThrow(/punto/)
   })
 })
+

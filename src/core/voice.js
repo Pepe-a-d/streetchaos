@@ -25,8 +25,9 @@ export const VOICE_EVENTS = [
   ['box', 'Caja negra', 'Cuando empieza a grabar y cuando guarda la salida'],
   ['ach', 'Logros', 'Cuando desbloqueas uno o subes de nivel'],
   ['lean', 'Inclinación en las curvas', 'Los grados al salir de una curva fuerte (más de 30°)'],
+  ['live', 'Tramos y vueltas', 'El tiempo al acabar cada tramo o vuelta, y si es récord'],
 ]
-export const VOICE_DEFAULTS = { crono: true, duel: true, speed: true, gps: true, box: true, ach: true, lean: false }
+export const VOICE_DEFAULTS = { crono: true, duel: true, speed: true, gps: true, box: true, ach: true, lean: false, live: true }
 export const SPEED_STEPS = { kmh: [50, 70, 90, 100, 120, 130], mph: [30, 45, 55, 65, 75, 80] }
 
 // Voces «de juguete» de Apple (robóticas o con efectos): al final de la lista

@@ -9,11 +9,14 @@ import { onDbBlocked, listSessions, addSessions, loadSession, deleteSession, par
 import { analyze, rangeStats, DT, ANALYSIS_VERSION } from './process.js'
 import { makePath, findPasses, compare, pathPoints, runPass, bboxHit, closeLoop, profileOf, sectors } from './align.js'
 import { findPulls, pullCurve, envelope, DYNO, CDA_PRESETS } from './dyno.js'
-import { cloudAvailable, getKey, setKey, keyFromUrl, validKey, normKey, listRemote, fetchRemote, deleteRemote, sharedCircuits, sharedCircuit, shareCircuit, ranking, publishEffort, fetchProfile, claimCode, normCode, shareGhost, fetchGhost, normGhostCode, validGhostCode } from './cloud.js'
+import { cloudAvailable, getKey, setKey, keyFromUrl, validKey, normKey, listRemote, fetchRemote, deleteRemote, sharedCircuits, sharedCircuit, shareCircuit, ranking, publishEffort, fetchProfile, claimCode, normCode, shareGhost, fetchGhost, normGhostCode, validGhostCode, kvPut } from './cloud.js'
 import { readVideo, fileReader, syncOffset, videoSpan } from './gpmf.js'
 import { createVideoPanel, isVideoFile, HOW } from './video.js'
 import { packGhost, unpackGhost } from './ghost.js'
 import { parseLoggerFile } from './importers.js'
+import { drawCard, shareCanvas } from '../core/card.js'
+import { groupRoutes, rideOf, endpointsFromGps } from '../core/routes.js'
+import { renderOverlay, canExport } from './overlay.js'
 import { savedProfile, saveProfile, applyProfileTheme } from './theme.js'
 import { pal } from './palette.js'
 import { tip, GG_HELP, helpHtml } from './help.js'
@@ -95,6 +98,7 @@ root.innerHTML = `
     <div class="seg" data-k="units"><button data-u="kmh">KM/H</button><button data-u="mph">MPH</button></div>
     <button class="btn ghost" data-act="csv" disabled title="Canales a 10 Hz para Excel u otras herramientas (del tramo elegido, o de toda la salida)">CSV</button>
     <button class="btn ghost" data-act="gpx" disabled title="El recorrido para Google Earth, Strava u otros mapas (del tramo elegido, o de toda la salida)">GPX</button>
+    <button class="btn ghost" data-act="card" disabled title="Imagen para compartir (historia de Instagram): el recorrido y las cifras de la salida o del tramo">TARJETA</button>
     <button class="btn ghost dl-btn" data-act="download" title="La app de Windows: más fluida y con una ventana en cada pantalla">⬇ WINDOWS</button>
     <button class="btn ghost win-btn" data-act="windows" title="Abrir el mapa, las gráficas o los datos en otra ventana y repartirlas en tus pantallas">VENTANAS</button>
     <button class="btn ghost help-btn" data-act="help" title="Cómo se leen tus datos y atajos">?</button>
@@ -356,6 +360,7 @@ async function open(id, { range, cur } = {}) {
     S.fresh.delete(id)
     root.querySelector('[data-act="csv"]').disabled = false
     root.querySelector('[data-act="gpx"]').disabled = false
+    root.querySelector('[data-act="card"]').disabled = false
     ensureViews()
     const m = A.meta
     K('title').innerHTML = `<b>${fmtDateTime(m.start)}</b> · ${toDist(A.stats.dist).toFixed(1)} ${distUnit()} · ${fmtDur(A.stats.dur)}${m.logger ? ` · <i class="src logger">${loggerTag(m)}</i>` : m.source !== 'real' ? ` · <i class="src ${m.source}">${(SRC[m.source] || ['?'])[0]}</i>` : ''}${m.rider?.bike ? ` · ${esc(m.rider.bike)}` : ''}`
@@ -931,6 +936,7 @@ root.addEventListener('click', async (e) => {
   }
   if (d.act === 'csv') return exportCsv()
   if (d.act === 'gpx') return exportGpx()
+  if (d.act === 'card') return exportCard()
   if (d.tag) return toggleTag(d.tag)
   if (d.u) {
     prefs.units = units.speed = d.u
@@ -1285,8 +1291,38 @@ function exitCompare() {
 }
 
 // ---------- Tramos ----------
+// Los tramos van también al móvil vinculado, con tu mejor pasada en cada 1 % del recorrido: allí se
+// cronometran en directo (franja del DASH) y los circuitos sirven para las vueltas (CRONO → VUELTAS)
+let segPushTimer = null
+let segPushed = ''
+function pushSegmentsSoon(ms = 4000) {
+  if (SAT || !getKey() || !cloudAvailable()) return
+  clearTimeout(segPushTimer)
+  segPushTimer = setTimeout(pushSegments, ms)
+}
+async function pushSegments() {
+  try {
+    const list = []
+    for (const g of S.segs) {
+      const efforts = await segmentEfforts(g).catch(() => [])
+      const best = efforts.find((e) => (e.meta.source || 'real') === 'real' && Array.isArray(e.prof)) || null
+      // El trazado, como mucho ~600 puntos (con eso se cruzan bien las líneas de salida y meta)
+      const step = Math.max(1, Math.ceil(g.points.length / 600))
+      const pts = g.points.filter((_, k) => k % step === 0 || k === g.points.length - 1)
+      list.push({ id: g.id, name: g.name, points: pts, length: Math.round(g.length), closed: !!g.closed, best: best ? Math.round(best.time * 1000) / 1000 : null, prof: best?.prof || null })
+    }
+    const sig = JSON.stringify(list)
+    if (sig === segPushed) return
+    await kvPut('segments', { v: 1, list, at: Date.now() })
+    segPushed = sig
+  } catch (e) {
+    console.warn('No se pudieron mandar los tramos al móvil', e)
+  }
+}
+
 async function refreshSegs() {
   S.segs = await listSegments()
+  pushSegmentsSoon()
   K('segs').innerHTML = S.segs.length
     ? S.segs
         .map(
@@ -1718,7 +1754,8 @@ function renderHome() {
       <p class="alt"><button class="linkish" data-act="help">¿Cómo se leen los datos?</button> · Otras formas: <button class="linkish" data-act="link">pegar la clave larga</button> · <label class="linkish" title="El .json del móvil, o de otro aparato: RaceBox, RaceChrono, VBOX, GPX o NMEA">importar un archivo<input type="file" accept=".json,application/json,.gpx,.csv,.vbo,.nmea,.nma,.txt" multiple hidden data-k="homeFile"></label> · <button class="linkish" data-act="demo">ver la demo</button></p>
     </section>`
   if (!p) {
-    el.innerHTML = `${linked ? `<section class="onboard"><h2>VINCULADO</h2><p>${S.list.length ? 'Tus salidas llegan solas. Elige una a la izquierda o aquí abajo.' : 'Aún no ha llegado nada: el móvil sube cada salida al terminarla (con conexión). Si acabas de vincularlo, abre la app en el móvil un momento.'}</p></section>` : onboarding}${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : ''}${evolutionHtml()}`
+    el.innerHTML = `${linked ? `<section class="onboard"><h2>VINCULADO</h2><p>${S.list.length ? 'Tus salidas llegan solas. Elige una a la izquierda o aquí abajo.' : 'Aún no ha llegado nada: el móvil sube cada salida al terminarla (con conexión). Si acabas de vincularlo, abre la app en el móvil un momento.'}</p></section>` : onboarding}${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : ''}<div data-k="homeRoutes"></div>${evolutionHtml()}`
+    fillRoutesHome()
     return
   }
   const t = p.totals || {}
@@ -1741,7 +1778,48 @@ function renderHome() {
       <p class="note">Datos de tu móvil${p.updatedAt ? ` · ${new Date(p.updatedAt).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}. Pulsa una salida para analizarla.</p>
     </section>
     ${rideCards ? `<h3 class="h">ULTIMAS SALIDAS</h3>${rideCards}` : '<p class="note">Aún no ha llegado ninguna salida: el móvil sube cada una al terminarla.</p>'}
+    <div data-k="homeRoutes"></div>
     ${evolutionHtml()}`
+  fillRoutesHome()
+}
+
+// ---------- Tus trayectos ----------
+// Las salidas que empiezan y acaban en los mismos sitios (core/routes.js), con los nombres que les pones
+// en el móvil (Garaje → Trayectos). Las de antes de que el móvil apuntara de dónde a dónde se completan
+// una vez leyendo sus posiciones.
+async function homeRides() {
+  const out = []
+  for (const m of realRides()) {
+    if (!m.from && !m.noEnds) {
+      try {
+        const d = await loadSession(m.id)
+        const e = d ? endpointsFromGps(d.gps) : null
+        Object.assign(m, e || { noEnds: true })
+        await updateMeta(m)
+      } catch {}
+    }
+    const r = rideOf(m)
+    if (r) out.push(r)
+  }
+  return out
+}
+async function fillRoutesHome() {
+  const box = root.querySelector('[data-k="homeRoutes"]')
+  if (!box) return
+  const routes = groupRoutes(await homeRides(), S.profile?.places || [])
+  if (!box.isConnected || !routes.length) return
+  const fmtM = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${String(Math.round((s % 3600) / 60)).padStart(2, '0')}` : `${Math.max(1, Math.round(s / 60))} min`)
+  box.innerHTML = `<h3 class="h">TUS TRAYECTOS</h3><div class="evo-grid">${routes
+    .slice(0, 6)
+    .map((r) => {
+      const last = r.rides.slice(-20)
+      const worst = Math.max(...last.map((x) => x.dur))
+      const items = last.map((x) => ({ label: new Date(x.start).toLocaleDateString('es', { day: 'numeric', month: 'short' }), y: worst - x.dur + 30, title: `${fmtDateTime(x.start)} · ${fmtM(x.dur)} · ${x.stops || 0} paradas` }))
+      const hours = r.byHour.filter((h) => h.n >= 2)
+      const bestH = hours.length >= 2 ? hours.reduce((a, b) => (b.avg < a.avg ? b : a)) : null
+      return `<div class="evo-card"><h4>${esc(r.name)}</h4>${bars(items, { color: 'green', fmt: () => `mejor ${fmtM(r.best)}` })}<p class="note">${r.n} veces · media <b>${fmtM(r.avg)}</b> · mejor <b>${fmtM(r.best)}</b> · ${Math.round(r.stops)} paradas de media (${fmtM(r.stopped)} parado)${bestH ? ` · mejor hora para salir: <b>${String(bestH.h).padStart(2, '0')}:00</b>` : ''}</p></div>`
+    })
+    .join('')}</div><p class="note">De puerta a puerta, con los semáforos: cuanto más alta la barra, más rápido llegaste. Los nombres (Casa, Trabajo…) se ponen en el móvil, en Garaje → Trayectos.</p>`
 }
 
 // ---------- Tu evolución ----------
@@ -1924,6 +2002,8 @@ function cloudSync({ quiet = false } = {}) {
       if (quiet && !ok && !failed && small) (small.textContent = status), renderSync(status)
       else renderCloud(status)
       if (ok > 0) toast(`${ok === 1 ? 'Ha llegado una salida nueva' : `Han llegado ${ok} salidas nuevas`} de tu móvil`)
+      // Con salidas nuevas puede haber mejores tiempos en tus tramos: al móvil (y la primera vez, siempre)
+      if (ok > 0 || !segPushed) pushSegmentsSoon(ok > 0 ? 8000 : 3000)
     } catch (e) {
       renderCloud(`No se pudo: ${e.message}`, 'err')
     }
@@ -2007,6 +2087,42 @@ function exportGpx() {
 }
 
 // ---------- CSV ----------
+/** Tarjeta para compartir: el recorrido y las cifras de la salida (o del tramo elegido). */
+async function exportCard() {
+  const A = S.A
+  const [w0, w1] = S.work
+  const st = rangeStats(A, w0, w1)
+  const track = []
+  for (let i = w0; i <= w1; i += 5) if (A.valid[i]) track.push([A.lat[i], A.lon[i]])
+  const corners = A.corners.filter((c) => c.i0 >= w0 && c.i1 <= w1)
+  const top = corners.length ? corners.reduce((a, b) => (b.lean > a.lean ? b : a)) : null
+  const brakes = A.brakes.filter((b) => b.i0 >= w0 && b.i1 <= w1)
+  const hb = brakes.length ? brakes.reduce((a, b) => (b.g > a.g ? b : a)) : null
+  const hl = []
+  if (top) hl.push(`Curva más tumbada: ${Math.round(top.lean)}° a la ${top.dir === 'L' ? 'izquierda' : 'derecha'} a ${Math.round(toSpeed(top.vMin))} ${speedUnit()}`)
+  if (hb && hb.g >= 0.3) hl.push(`Frenada más fuerte: ${hb.g.toFixed(2)} G, de ${Math.round(toSpeed(hb.vIn))} a ${Math.round(toSpeed(hb.vOut))}`)
+  if (st.leaned30 >= 1) hl.push(`${Math.round(st.leaned30)} s tumbado más de 30°`)
+  const when = new Date(A.meta.start + A.t[w0] * 1000)
+  const title = `${when.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })} · ${when.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}${isFull(S.work) ? '' : ' · tramo'}`
+  const lean = Math.max(st.leanL, st.leanR)
+  const stats = [
+    ['DISTANCIA', `${toDist(st.dist).toFixed(1)} ${distUnit()}`],
+    ['TIEMPO', fmtDur(st.dur)],
+    ['PUNTA', `${Math.round(toSpeed(st.vMax))} ${speedUnit()}`],
+    ['MEDIA EN MARCHA', st.moving > 30 ? `${Math.round(toSpeed(st.vAvg))} ${speedUnit()}` : '—'],
+    ['INCLINACION I·D', lean > 3 ? `${Math.round(st.leanL)}°·${Math.round(st.leanR)}°` : '—'],
+    ['FRENADA MAX', st.brake > 0.1 ? `${st.brake.toFixed(2)} G` : '—'],
+  ]
+  const colors = Object.fromEntries(['bg', 'ink', 'dim', 'pink', 'cyan', 'yellow', 'green'].map((k) => [k, pal(k)]))
+  const who = [S.profile?.name, A.meta.rider?.bike || S.profile?.bike].filter(Boolean).join(' · ')
+  try {
+    const canvas = await drawCard({ track, title, stats, highlights: hl, who }, colors)
+    await shareCanvas(canvas, `street-chaos-${when.toISOString().slice(0, 10)}${isFull(S.work) ? '' : '-tramo'}.png`)
+  } catch (e) {
+    toast(`No se pudo hacer la tarjeta: ${e.message}`, 5000)
+  }
+}
+
 function exportCsv() {
   const A = S.A
   if (!A) return
@@ -2043,6 +2159,7 @@ function ensureVideo() {
       saveVideoEntry(S.id, c)
       send({ type: 'videoSync', id: S.id, name: c.name, size: c.size, off: c.off, how: c.how })
     },
+    onExport: (c) => exportVideoDialog(c),
   })
   vpanel.setSession(S.A)
   return vpanel
@@ -2128,6 +2245,61 @@ async function attachVideos(files, handles = []) {
   }
 }
 const clipMsg = (c) => ({ file: c.file, off: c.off, how: c.how, err: c.err, dur: c.dur })
+
+/** Vídeo con los datos encima: del tramo elegido (si cae en el vídeo) o del vídeo entero. */
+function exportVideoDialog(c) {
+  const A = S.A
+  if (!A) return
+  if (!canExport()) return toast('Este navegador no sabe grabar vídeo: prueba en Chrome, Edge, Safari o la app de Windows', 6000)
+  const clip = [Math.max(A.t[0], c.off), Math.min(A.t[A.n - 1], c.off + c.dur)]
+  const work = [A.t[S.work[0]], A.t[S.work[1]]]
+  const inClip = !isFull(S.work) && work[1] > clip[0] && work[0] < clip[1]
+  const fmtS = (x) => `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}`
+  const opts = [...(inClip ? [['work', 'El tramo elegido', [Math.max(work[0], clip[0]), Math.min(work[1], clip[1])]]] : []), ['clip', 'Todo el vídeo', clip]]
+  const el = modal(`<h2>VIDEO CON LOS DATOS</h2>
+    <p class="note">Velocidad, inclinación, G y un mapa pequeño encima de tu vídeo, con su sonido. Se graba mientras se reproduce: tarda lo mismo que dura, y <b>esta ventana tiene que estar a la vista</b>.</p>
+    <div class="win-btns">${opts.map(([k, l, r], j) => `<label class="toggle"><input type="radio" name="vr" value="${k}" ${j === 0 ? 'checked' : ''}> ${l} <small>(${fmtS(r[1] - r[0])})</small></label>`).join('')}</div>
+    <div class="vx-prog" data-k="prog" hidden><i data-k="bar"></i><span data-k="pct">0 %</span></div>
+    <div class="actions"><button class="btn ghost small" data-k="cancel">CANCELAR</button><button class="btn small" data-k="go">GRABAR</button></div>`)
+  const k = (n) => el.querySelector(`[data-k="${n}"]`)
+  const ctrl = new AbortController()
+  let busy = false
+  k('cancel').onclick = () => (busy ? ctrl.abort() : el.close())
+  k('go').onclick = async () => {
+    const r = opts.find(([key]) => key === el.querySelector('input[name="vr"]:checked')?.value) || opts[0]
+    busy = true
+    k('go').disabled = true
+    k('prog').hidden = false
+    try {
+      const colors = Object.fromEntries(['ink', 'cyan', 'pink', 'yellow', 'green', 'red', 'dim'].map((n) => [n, pal(n)]))
+      const { blob, type } = await renderOverlay({
+        url: c.url,
+        off: c.off,
+        A,
+        t0: r[2][0],
+        t1: r[2][1],
+        colors,
+        speed: (v) => toSpeed(v),
+        unit: speedUnit(),
+        signal: ctrl.signal,
+        onProgress: (f) => {
+          k('bar').style.width = `${Math.round(f * 100)}%`
+          k('pct').textContent = `${Math.round(f * 100)} %`
+        },
+      })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `${c.name.replace(/\.[^.]+$/, '')}-datos.${type.includes('mp4') ? 'mp4' : 'webm'}`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000)
+      toast('VIDEO GUARDADO', 4000)
+      el.close()
+    } catch (e) {
+      if (e?.name !== 'AbortError') toast(`No se pudo grabar: ${e.message}`, 6000)
+      el.close()
+    }
+  }
+}
 
 /** Elegir vídeos: con el selector del sistema que recuerda el archivo si lo hay; si no, el de siempre. */
 async function pickVideos() {

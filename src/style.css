@@ -1619,3 +1619,68 @@ body { -webkit-touch-callout: none; }
   .screen.on, .layer, .layer .modal, .g-page.enter, .sheet { animation: none; }
 }
 
+
+/* ---------- Contacto (ui/ignition.js) ---------- */
+.topbtn.key.on { color: var(--green); border-color: var(--green); }
+.topbtn.key svg { width: 18px; height: 10px; }
+.topbtn.key.holding { animation: keyhold 1.2s linear forwards; }
+@keyframes keyhold { from { box-shadow: inset 0 0 0 0 var(--red); } to { box-shadow: inset 0 -40px 0 0 var(--red); color: var(--ink); } }
+.ign-off { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 94%, transparent); }
+.ign-off[hidden] { display: none; }
+body.key-off #dash .dpages, body.key-off #dash .dnav { filter: grayscale(1) brightness(0.35); }
+.ign-panel { display: grid; justify-items: center; gap: 14px; width: min(340px, 100%); text-align: center; white-space: normal; }
+.ign-key { width: min(46vmin, 190px); aspect-ratio: 1; border-radius: 50%; border: 4px solid var(--pink); background: radial-gradient(circle at 50% 40%, var(--panel2, #1a1030), var(--bg)); color: var(--pink); display: grid; place-content: center; justify-items: center; gap: 10px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--pink) 20%, transparent), 0 0 30px color-mix(in srgb, var(--pink) 35%, transparent); cursor: pointer; }
+.ign-key svg { width: 44%; height: auto; }
+.ign-key b { font: 11px var(--pixel); color: var(--ink); }
+.ign-key:active { transform: scale(0.96); border-color: var(--green); color: var(--green); }
+.ign-hint { margin: 0; font: 18px/1.25 var(--term); color: var(--dim); white-space: normal; overflow-wrap: break-word; }
+.ign-gps { display: flex; gap: 8px; align-items: center; font: 9px var(--pixel); color: var(--dim); }
+.ign-last { font-size: 9px; }
+
+/* ---------- Fin de la salida (ui/trip.js) ---------- */
+.trip-when { margin: 0; color: var(--dim); font-size: 14px; }
+.trip-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); border: 2px solid var(--line); }
+.trip-grid > div { background: var(--panel2); padding: 10px; display: grid; gap: 6px; }
+.trip-grid b { font: 15px var(--pixel); color: var(--ink); font-weight: normal; }
+.trip-grid > div:first-child b { color: var(--cyan); }
+.trip-stops { margin: 0; font-size: 13px; color: var(--dim); }
+.trip-hl { margin: 0; padding: 0 0 0 18px; display: grid; gap: 6px; font-size: 15px; line-height: 1.35; }
+.trip-hl li::marker { color: var(--yellow); }
+.trip-btns { display: grid; margin-top: 6px; }
+
+/* ---------- Trayectos (Garaje) ---------- */
+.routes { display: grid; gap: 12px; }
+.route { border: 2px solid var(--line); padding: 10px; display: grid; gap: 8px; background: var(--panel2); }
+.route h4 { margin: 0; font: 10px var(--pixel); color: var(--yellow); font-weight: normal; }
+.r-nums { margin: 0; font-size: 13px; color: var(--dim); line-height: 1.5; }
+.r-nums b { color: var(--ink); }
+.r-bars { display: flex; align-items: flex-end; gap: 3px; height: 54px; }
+.r-bars i { flex: 1; background: var(--cyan); opacity: 0.75; min-width: 4px; }
+.r-bars i.best { background: var(--green); opacity: 1; }
+.r-bars i:last-child { outline: 2px solid var(--ink); }
+
+/* ---------- Tramos y vueltas en directo (ui/livestrip.js) ---------- */
+.live-strip { position: absolute; left: 8px; right: 8px; top: 6px; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: color-mix(in srgb, var(--bg) 88%, transparent); border: 3px solid var(--cyan); box-shadow: 4px 4px 0 #000; }
+.live-strip[hidden] { display: none; }
+.ls-name { font: 9px var(--pixel); color: var(--dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ls-time { font-family: var(--seg); font-size: 26px; color: var(--ink); }
+.ls-delta { font: 16px var(--pixel); min-width: 5ch; text-align: right; }
+.live-strip[data-s='ahead'] { border-color: var(--green); }
+.live-strip[data-s='ahead'] .ls-delta { color: var(--green); }
+.live-strip[data-s='behind'] { border-color: var(--red); }
+.live-strip[data-s='behind'] .ls-delta { color: var(--red); }
+.live-strip[data-s='record'] { border-color: var(--yellow); animation: fresh 1.2s steps(6) 2; }
+.live-strip[data-s='record'] .ls-delta { color: var(--yellow); }
+
+/* ---------- CRONO → VUELTAS ---------- */
+.laps { display: grid; gap: 10px; justify-items: center; text-align: center; }
+.laps[hidden] { display: none; }
+.lap-head { display: flex; justify-content: space-between; width: 100%; }
+.lap-delta { font: 22px var(--pixel); min-height: 1.2em; }
+.lap-delta[data-s='ahead'] { color: var(--green); }
+.lap-delta[data-s='behind'] { color: var(--red); }
+.lap-row { display: flex; gap: 18px; justify-content: center; }
+.lap-row b { color: var(--ink); font-family: var(--seg); font-size: 18px; }
+.lap-list { width: 100%; display: grid; gap: 2px; max-height: 30vh; overflow-y: auto; }
+.lap-btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.lap-note { margin: 0; font-size: 12px; color: var(--dim); line-height: 1.4; max-width: 46ch; }

@@ -20,6 +20,9 @@ import { THEMES, DIGITS, themeOf, themeStyle } from './themes.js'
 import { ACHIEVEMENTS, TIERS, unlocked, progress, stats, level } from '../core/achievements.js'
 import { voiceAvailable, systemVoiceAvailable, voiceEngine, spanishVoices, VOICE_EVENTS, VOICE_DEFAULTS, SPEED_STEPS, say, MUSIC_MODES, audioSessionAvailable } from '../core/voice.js'
 import { medalSvg } from './medals.js'
+import { myRoutes } from '../core/trips.js'
+import { fmtDur } from '../core/tripsum.js'
+import { placeAt } from '../core/routes.js'
 
 const ARROW = pixelSvg(['X....', 'XX...', 'XXX..', 'XXXX.', 'XXX..', 'XX...', 'X....'], { X: 'currentColor' }, { className: 'px-arrow' })
 const BACK = pixelSvg(['....X', '...XX', '..XXX', '.XXXX', '..XXX', '...XX', '....X'], { X: 'currentColor' }, { className: 'px-arrow' })
@@ -36,6 +39,7 @@ const ITEMS = [
       return parts.length ? parts.join(' · ') : 'Sin marcas todavía'
     },
   },
+  { id: 'routes', title: 'TRAYECTOS', sub: () => ((settings.places || []).length ? `${settings.places.map((p) => p.name).slice(0, 3).join(', ')}…` : 'Tus rutas de cada día y cómo mejoran') },
   { id: 'history', title: 'HISTORIAL', sub: () => (runs.length ? `${runs.length} ${runs.length === 1 ? 'pasada' : 'pasadas'}` : 'Vacío') },
   {
     id: 'duels',
@@ -96,6 +100,7 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
         }
       </div>`
     if (page === 'data') fillTele()
+    if (page === 'routes') fillRoutes()
   }
 
   // El resumen de la caja negra se lee de IndexedDB (asíncrono)
@@ -134,6 +139,56 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
                 : `Todo subido${cloud.last ? ` (${new Date(cloud.last).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })})` : ''}`
     }
   }
+  // Tus trayectos (se leen de la caja negra)
+  async function fillRoutes() {
+    const box = $(el, '[data-k="routes"]')
+    if (!box) return
+    let routes = []
+    try {
+      routes = await myRoutes()
+    } catch {}
+    if (!box.isConnected) return
+    if (!routes.length) {
+      box.innerHTML = '<p class="note">Cuando hagas el mismo recorrido dos veces (de casa al trabajo, por ejemplo), aparecerá aquí con su evolución: tiempo de puerta a puerta, paradas y la mejor hora para salir.</p>'
+      return
+    }
+    const hhmm = (ms) => new Date(ms).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+    box.innerHTML = routes
+      .slice(0, 8)
+      .map((r, k) => {
+        const last = r.rides.slice(-12)
+        const lo = Math.min(...last.map((x) => x.dur))
+        const hi = Math.max(...last.map((x) => x.dur))
+        const bars = last.map((x) => `<i style="height:${20 + (80 * (x.dur - lo)) / Math.max(1, hi - lo)}%" class="${x.dur === r.best ? 'best' : ''}" title="${fmtDate(x.start)} · ${fmtDur(x.dur)}"></i>`).join('')
+        // La mejor hora para salir: la de menos media (con al menos dos veces)
+        const hours = r.byHour.filter((h) => h.n >= 2)
+        const bestH = hours.length >= 2 ? hours.reduce((a, b) => (b.avg < a.avg ? b : a)) : null
+        return `<div class="route">
+          <h4>${esc(r.name)}</h4>
+          <p class="r-nums"><b>${r.n}</b> veces · media <b>${fmtDur(r.avg)}</b> · mejor <b>${fmtDur(r.best)}</b> · la última <b>${fmtDur(r.last.dur)}</b> (${fmtDate(r.last.start)})</p>
+          <div class="r-bars" title="Las últimas veces: más alta, más tiempo">${bars}</div>
+          <p class="r-nums">Paradas: <b>${Math.round(r.stops)}</b> de media · <b>${fmtDur(r.stopped)}</b> parado${bestH ? ` · mejor hora para salir: <b>${String(bestH.h).padStart(2, '0')}:00</b> (${fmtDur(bestH.avg)})` : ''}</p>
+          <div class="chips"><button class="chip" data-place="${k}:from">${r.fromName ? `SALIDA: ${esc(plainUp(r.fromName))}` : 'NOMBRAR SALIDA'}</button><button class="chip" data-place="${k}:to">${r.toName ? `LLEGADA: ${esc(plainUp(r.toName))}` : 'NOMBRAR LLEGADA'}</button></div>
+        </div>`
+      })
+      .join('')
+    box.onclick = (e) => {
+      const b = e.target.closest('[data-place]')
+      if (!b) return
+      const [k, end] = b.dataset.place.split(':')
+      const r = routes[Number(k)]
+      const ll = r[end]
+      const old = placeAt(ll, settings.places || [])
+      const name = prompt('¿Cómo se llama este sitio? (Casa, Trabajo…)', old?.name || '')
+      if (name == null) return
+      const clean = name.trim().slice(0, 24)
+      const rest = (settings.places || []).filter((p) => !(old && p.lat === old.lat && p.lon === old.lon))
+      setSetting('places', clean ? [...rest, { lat: ll[0], lon: ll[1], name: clean }] : rest)
+      fillRoutes()
+    }
+  }
+  const plainUp = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
+
   // Mientras se ve la página, el estado de la subida al día
   onCloud(() => sub === 'data' && fillTele())
 
@@ -151,6 +206,9 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
   const state = (txt, cls) => `<span class="badge ${cls}">${txt}</span>`
 
   const PAGES = {
+    routes() {
+      return `<p class="note">Las salidas que empiezan y acaban en los mismos sitios se juntan solas. El tiempo es de puerta a puerta: desde que arrancas hasta que llegas, con los semáforos.</p><div class="routes" data-k="routes"><p class="note">Mirando tus salidas…</p></div>`
+    },
     records() {
       const b = bests()
       return `<div class="records">
@@ -207,6 +265,10 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
         group(
           'TELEMETRIA',
           onOff('logTelemetry', 'Caja negra', 'Guarda sola el GPS y los sensores de cada salida, solo en este móvil, para analizarlos después en el ordenador. No se ve en la app.'),
+        ),
+        group(
+          'CONTACTO',
+          onOff('ignitionAuto', 'Darlo solo al ir en moto', 'Si se te olvida dar el contacto, se da solo al ver que vas en moto (más de 200 m a más de 18 km/h). Quitarlo siempre lo haces tú, o se cierra solo tras 3 minutos parado.'),
         ),
         group('VIAJE', `<div class="set"><span>Reiniciar viaje<small>Viaje, punta, inclinación y G de esta sesión</small></span><button class="btn small ghost" data-act="trip">REINICIAR</button></div>`),
         group(

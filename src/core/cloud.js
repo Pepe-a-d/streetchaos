@@ -44,6 +44,7 @@ export function syncNow() {
   // Después de las salidas, el perfil (si ha cambiado)
   running ??= run()
     .then(() => pushProfile().catch(() => {}))
+    .then(() => pullSegments().catch(() => {}))
     .finally(() => (running = null))
   return running
 }
@@ -102,6 +103,8 @@ export function profileData() {
     bests: Object.fromEntries(Object.entries(bests()).map(([id, m]) => [id, { t: r3(m.t), date: m.date }])),
     runs: runs.slice(0, 40).map((r) => ({ id: r.id, date: r.date, valid: !!r.valid, maxV: r3(r.maxV), marks: Object.fromEntries(Object.entries(r.marks || {}).map(([id, m]) => [id, r3(m.t)])) })),
     device: { ios: /iPhone|iPad/.test(navigator.userAgent), standalone: matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true },
+    // Los sitios con nombre de tus trayectos (Casa, Trabajo…), para verlos igual en el Blackbox
+    places: (settings.places || []).slice(0, 30),
   }
 }
 
@@ -123,7 +126,7 @@ export function pushProfileSoon(ms = 4000) {
   clearTimeout(profileTimer)
   profileTimer = setTimeout(() => pushProfile().catch(() => {}), ms)
 }
-const PROFILE_KEYS = ['name', 'bike', 'color', 'units', 'theme', 'digits', 'accentBike', 'cloudSync']
+const PROFILE_KEYS = ['name', 'bike', 'color', 'units', 'theme', 'digits', 'accentBike', 'cloudSync', 'places']
 onSetting((key) => PROFILE_KEYS.includes(key) && pushProfileSoon())
 onAchievement(() => pushProfileSoon(10000))
 
@@ -132,4 +135,17 @@ export async function pairCode() {
   const r = await call({ action: 'pair-new' })
   pushProfile().catch(() => {})
   return r
+}
+
+// ---------- Tramos del Blackbox (para cronometrarlos en directo, core/segments.js) ----------
+const segSubs = new Set()
+export const onSegments = (fn) => (segSubs.add(fn), () => segSubs.delete(fn))
+/** Baja los tramos que guardaste en el Blackbox (si han cambiado). */
+export async function pullSegments() {
+  if (!settings.cloudSync || !cloudAvailable() || !navigator.onLine) return false
+  const r = await call({ action: 'kv-get', kind: 'segments' })
+  if (!r.data || r.updated_at === load('segsAt', null)) return false
+  save('segsAt', r.updated_at)
+  segSubs.forEach((fn) => fn(Array.isArray(r.data.list) ? r.data.list : []))
+  return true
 }

@@ -6,6 +6,7 @@ Código: `src/core/blackbox.js` (grabación y formato) y `src/core/logger.js` (l
 
 ## Cómo se graba
 
+- **Contacto** (desde el 2026-11-10): solo se graba con el contacto dado (la llave de arriba en la app). Al quitarlo, la salida en curso se cierra ya. Si se te olvida darlo, se da solo al ir en moto de verdad (más de 200 m a más de 18 km/h en menos de un minuto; se puede quitar en Ajustes).
 - **Sesión** = una salida. Empieza sola cuando te mueves de verdad: **3 posiciones** a ≥ 2,5 m/s (9 km/h) con precisión ≤ 30 m y **40 m** recorridos desde la primera, en menos de 30 s (desde el 2026-11-10; antes bastaba una, y parado o andando el iPhone a veces da 15-30 km/h falsos). Se queda con los **30 s anteriores** a la primera posición rápida, así la salida desde parado entra entera.
 - Al terminar, si no llegó a **100 m** y no hubo pasadas del crono ni duelos (`keep`), **se borra**: no era una salida. El Blackbox oculta las de antes que no llegan a 100 m.
 - Termina tras **3 minutos parado** (< 1 m/s) **o sin datos** (pantalla apagada, app cerrada). La siguiente vez que te muevas empieza otra.
@@ -53,6 +54,10 @@ Se exporta todo cada vez: la app de escritorio debe deduplicar por `id` de sesi�
 | `dist`, `moving`, `vmax` | Metros, segundos en marcha y m/s máximos (resumen rápido) |
 | `imuInterval` | Intervalo que declara el navegador para los sensores, tal cual. **Ojo**: el iPhone lo da en **segundos** (0,0167); el estándar dice milisegundos |
 | `resumed` | Veces que siguió tras cerrarse la app |
+| `from`, `to` | [lat, lon] (5 decimales) donde arrancaste y donde paraste por última vez: para reconocer tus trayectos (desde el 2026-11-10) |
+| `firstMove`, `lastMove` | Segundos desde `start` de esos dos momentos (el tiempo de puerta a puerta es su diferencia) |
+| `stops`, `stopped` | Paradas de 5 s o más entre medias (semáforos, atascos) y cuántos segundos suman |
+| `keep` | Hubo pasadas del crono o duelos: no se borra aunque no llegue a 100 m |
 
 `calib` (desde el 2026-11-09, `calibration()` en `src/core/telemetry.js`):
 
@@ -118,6 +123,9 @@ El GPS del iPhone llega **~1 s tarde** respecto a los sensores (las sesiones nue
 | `hidden`, `visible` | La app pasó a segundo plano o volvió |
 | `orientation` | El móvil giró la pantalla (`type`) |
 | `resume` | Siguió tras cerrarse la app (`gap` en s) |
+| `ignition` | Se dio o se quitó el contacto (`on`) |
+| `seg` | Tramo cronometrado en directo: `id`, `name`, `time` (s), `record`. `t` es el cruce de la meta |
+| `lap` | Vuelta al circuito (CRONO → VUELTAS): `n`, `time`, `record` |
 
 ## Archivo de la nube (`.scb`)
 

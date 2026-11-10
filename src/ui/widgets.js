@@ -18,6 +18,20 @@ const pad = (n, w) => (lcd() ? segPad(n, w) : String(n).padStart(w, ' '))
 const blank = (w) => (lcd() ? '!'.repeat(w) : ' '.repeat(w))
 const ghost = (g) => (lcd() ? ` data-ghost="${g}"` : '')
 
+// ---------- Barrido al dar el contacto ----------
+// Como el cuadro de una moto al girar la llave: las agujas suben al máximo y vuelven (1,4 s)
+let sweepAt = -1
+export function bootSweep() {
+  sweepAt = performance.now()
+}
+/** 0 → 1 → 0 durante el barrido; null si no hay. */
+function sweep() {
+  if (sweepAt < 0) return null
+  const e = (performance.now() - sweepAt) / 1000
+  if (e > 1.4) return (sweepAt = -1), null
+  return e < 0.7 ? e / 0.7 : 1 - (e - 0.7) / 0.7
+}
+
 // ---------- Historial para las gráficas (se va guardando aunque no se vean) ----------
 const hist = { v: [], alt: [], tv: 0, ta: 0 }
 export function sample(dt) {
@@ -84,8 +98,9 @@ function speedW(el) {
         E.scale.innerHTML = Array.from({ length: top / 50 + 1 }, (_, i) => `<span>${i * 50}</span>`).join('')
         units = settings.units
       }
-      const v = toSpeed(T.vDisp)
-      set(E.speed, T.status === 'ok' || T.status === 'lost' ? pad(Math.round(v), 3) : blank(2) + '-')
+      const sw = sweep()
+      const v = sw != null ? top * sw : toSpeed(T.vDisp)
+      set(E.speed, sw != null || T.status === 'ok' || T.status === 'lost' ? pad(Math.round(v), 3) : blank(2) + '-')
       set(E.unit, speedUnit())
       set(E.max, String(Math.round(toSpeed(T.maxV))))
       set(E.glong, sign(T.gLong, 2))
@@ -148,7 +163,8 @@ function leanW(el) {
   const per = (2 * LEAN_MAX) / LEAN_SEGS
   return {
     frame() {
-      const deg = (T.lean * 180) / Math.PI
+      const sw = sweep()
+      const deg = sw != null ? LEAN_MAX * sw * (performance.now() % 1400 < 700 ? 1 : -1) : (T.lean * 180) / Math.PI
       const shown = Math.max(-LEAN_MAX, Math.min(LEAN_MAX, deg))
       set(k('rear'), `rotate(${shown.toFixed(1)} 100 110)`, 'transform')
       set(k('txt'), String(Math.round(Math.abs(deg))))

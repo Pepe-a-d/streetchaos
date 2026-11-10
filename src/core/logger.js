@@ -17,7 +17,8 @@ export function initLogger() {
   L = createLogger({
     store: idbStore(),
     now: () => ({ perf: performance.now() / 1000, epoch: Date.now() }),
-    enabled: () => settings.logTelemetry,
+    // Solo con el contacto dado (core/ignition.js): colocando el móvil o andando no se graba nada
+    enabled: () => settings.logTelemetry && settings.ignition,
     context: () => ({
       source: settings.source,
       sim: settings.source === 'sim' ? { hz: settings.simHz, bike: settings.simBike } : null,
@@ -40,6 +41,8 @@ export function initLogger() {
 
   onSetting((key, val) => {
     if (key === 'logTelemetry' && !val) L.end()
+    // Al quitar el contacto, la salida se cierra ya (sin esperar los 3 minutos parado)
+    if (key === 'ignition') val ? L.event('ignition', { on: true }) : (L.event('ignition', { on: false }), L.end())
     if (key === 'source' || key === 'simHz' || key === 'simBike') L.end()
     if (['mount', 'leanSign', 'gyroAxes', 'yawSign', 'gpsLag'].includes(key)) L.event('calib', { [key]: val })
   })

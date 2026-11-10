@@ -531,3 +531,8 @@ body[data-vista='todo'].det-video .mapbox { grid-template-columns: minmax(0, 1fr
 .vid-bar .grow { flex: 1; }
 .vid-time { min-width: 0; font-size: 11px; }
 .tiny-btn { display: block; margin: 10px 4px 4px; font-size: 12px; }
+.evo-card h4 { margin: 0; font: 8px var(--pixel); color: var(--yellow); font-weight: normal; }
+.vx-prog { position: relative; height: 22px; border: 2px solid var(--line); background: var(--panel2); margin: 8px 0; }
+.vx-prog[hidden] { display: none; }
+.vx-prog i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--cyan); }
+.vx-prog span { position: relative; display: block; text-align: center; font: 9px var(--pixel); line-height: 18px; color: var(--ink); mix-blend-mode: difference; }

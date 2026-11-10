@@ -50,6 +50,7 @@ export const T = {
   gLong: 0,
   gLat: 0,
   gMax: 0,
+  brakeMax: 0, // la frenada más fuerte del viaje (g, positiva)
   lean: 0,
   leanMaxL: 0,
   leanMaxR: 0,
@@ -90,6 +91,7 @@ export function resetTrip() {
   T.tripTime = 0
   T.maxV = 0
   T.gMax = 0
+  T.brakeMax = 0
   T.leanMaxL = 0
   T.leanMaxR = 0
 }
@@ -559,10 +561,11 @@ function updateLean(dt) {
   // llegar la posición de ese rato (confirmRecords)
   if (T.motion) return
   const deg = (T.lean * 180) / Math.PI
-  if (v > 5 && T.vOk && Math.abs(deg) < 65) record(deg, Math.hypot(T.gLat, T.gLong))
+  if (v > 5 && T.vOk && Math.abs(deg) < 65) record(deg, Math.hypot(T.gLat, T.gLong), -T.gLong)
 }
 
-function record(deg, gt) {
+function record(deg, gt, brake = 0) {
+  if (brake > 0 && brake < 1.6) T.brakeMax = Math.max(T.brakeMax, brake)
   if (deg < 0) T.leanMaxL = Math.max(T.leanMaxL, -deg)
   else T.leanMaxR = Math.max(T.leanMaxR, deg)
   totals.maxLeanL = Math.max(totals.maxLeanL, T.leanMaxL)
@@ -589,15 +592,16 @@ function confirmRecords(p, s, yaw) {
     const lean = r[4]
     if (!Number.isFinite(lean) || Math.abs(lean) > curve + 20 * DEG || Math.abs(lean) > 65 * DEG) return
     const gt = Math.hypot(Math.tan(lean) * smooth(3, 8, vMid), Number.isFinite(r[5]) ? r[5] : 0)
-    if (!best) best = { L: 0, R: 0, g: 0 }
+    if (!best) best = { L: 0, R: 0, g: 0, b: 0 }
     if (lean < 0) best.L = Math.max(best.L, -lean)
     else best.R = Math.max(best.R, lean)
     best.g = Math.max(best.g, gt)
+    if (Number.isFinite(r[5])) best.b = Math.max(best.b, -r[5])
   }
   if (!best) return
-  if (best.L) record(-best.L / DEG, best.g)
-  if (best.R) record(best.R / DEG, best.g)
-  if (!best.L && !best.R) record(0, best.g)
+  if (best.L) record(-best.L / DEG, best.g, best.b)
+  if (best.R) record(best.R / DEG, best.g, best.b)
+  if (!best.L && !best.R) record(0, best.g, best.b)
 }
 
 /** Pone a cero la inclinación con la moto recta: guarda la vertical de ahora (y el lateral, si hace falta). */

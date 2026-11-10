@@ -35,7 +35,7 @@ export async function prepareVideo(file, A, onProgress) {
  * @param {HTMLElement} host  contenedor (dentro del recuadro del mapa)
  * @param {{ onCursor: (i: number) => void, onClose: () => void, onSync: (v: object) => void }} hooks
  */
-export function createVideoPanel(host, { onCursor, onClose, onSync }) {
+export function createVideoPanel(host, { onCursor, onClose, onSync, onExport }) {
   host.innerHTML = `
     <div class="vid-stage">
       <video playsinline preload="auto" muted></video>
@@ -57,6 +57,7 @@ export function createVideoPanel(host, { onCursor, onClose, onSync }) {
         <button class="chip" data-v="here" title="El vídeo y el cursor están en el mismo momento: sincronizar aquí">AQUI</button>
       </span>
       <button class="chip" data-v="hud" title="Datos encima del vídeo">DATOS</button>
+      <button class="chip" data-v="export" title="Guardar el vídeo con los datos encima (velocidad, inclinación, G y mapa)">⬇ MP4</button>
       <button class="chip" data-v="big" title="Vídeo grande (sin mapa)">⛶</button>
       <button class="chip" data-v="close" title="Cerrar el vídeo">×</button>
     </div>
@@ -191,6 +192,7 @@ export function createVideoPanel(host, { onCursor, onClose, onSync }) {
     }
     if (k === 'big') return host.parentElement.classList.toggle('video-only')
     if (k === 'close') return onClose()
+    if (k === 'export') return cur && (video.pause(), onExport?.(cur))
     if (!cur) return
     if (k === 'nudge') {
       // + = los datos van por delante del vídeo: el vídeo se adelanta

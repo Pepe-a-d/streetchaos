@@ -94,3 +94,7 @@ export const validGhostCode = (c) => /^[A-Z2-9]{8}$/.test(c)
 /** Sube una pasada empaquetada (ghost.js) y devuelve su código. */
 export const shareGhost = async (ghost) => (await call({ action: 'ghost-put', ghost })).code
 export const fetchGhost = async (code) => (await call({ action: 'ghost-get', code: normGhostCode(code) })).ghost
+
+// ---------- Datos para el móvil vinculado ----------
+/** Guarda datos para el móvil (p. ej. los tramos, que cronometra en directo). */
+export const kvPut = (kind, data) => call({ action: 'kv-put', kind, data })
