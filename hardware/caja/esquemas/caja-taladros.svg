@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="930" viewBox="0 0 1200 930" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1200" height="930" fill="#ffffff"/>
+  <defs><marker id="fl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#37474f"/></marker>
+  <marker id="fr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c62828"/></marker></defs>
+  <text x="30" y="34" font-size="20" fill="#111" font-weight="bold">Caja: agujeros y anclaje (Hammond 1555F2F42GY)</text>
+  <text x="30" y="56" font-size="12" fill="#555">Medidas en mm, desde el suelo de la caja montada (la cara de abajo de la tapa con pestañas). Los agujeros van en el cuerpo, nunca en la cara de arriba.</text>
+  <text x="70" y="96" font-size="14" fill="#263238" font-weight="bold">Pared delantera (la que mira hacia delante)</text>
+  <rect x="70" y="110" width="360" height="250" rx="10" fill="#eceff1" stroke="#37474f" stroke-width="2"/>
+  <rect x="68.4" y="336" width="363.2" height="24" rx="2" fill="#cfd8dc" stroke="#37474f" stroke-width="1.4"/>
+  <line x1="70" y1="296" x2="430" y2="296" stroke="#90a4ae" stroke-width="1.4" stroke-dasharray="6,4"/>
+  <text x="438" y="300" font-size="10.5" fill="#78909c">unión tapa-cuerpo (≈ 16)</text>
+  <text x="438" y="352" font-size="10.5" fill="#78909c">pestaña de la tapa</text>
+  <circle cx="162" cy="232" r="25" fill="#ffffff" stroke="#2e7d32" stroke-width="2.2"/>
+  <line x1="157" y1="232" x2="167" y2="232" stroke="#2e7d32" stroke-width="1"/>
+  <line x1="162" y1="227" x2="162" y2="237" stroke="#2e7d32" stroke-width="1"/>
+  <text x="162" y="199" font-size="11" fill="#2e7d32" font-weight="bold" text-anchor="middle">PG7 Ø12,5</text>
+  <circle cx="250" cy="232" r="24.4" fill="#ffffff" stroke="#6a1b9a" stroke-width="2.2"/>
+  <line x1="245" y1="232" x2="255" y2="232" stroke="#6a1b9a" stroke-width="1"/>
+  <line x1="250" y1="227" x2="250" y2="237" stroke="#6a1b9a" stroke-width="1"/>
+  <text x="250" y="199.6" font-size="11" fill="#6a1b9a" font-weight="bold" text-anchor="middle">membrana Ø12,2</text>
+  <circle cx="338" cy="232" r="25" fill="#ffffff" stroke="#2e7d32" stroke-width="2.2"/>
+  <line x1="333" y1="232" x2="343" y2="232" stroke="#2e7d32" stroke-width="1"/>
+  <line x1="338" y1="227" x2="338" y2="237" stroke="#2e7d32" stroke-width="1"/>
+  <text x="338" y="199" font-size="11" fill="#2e7d32" font-weight="bold" text-anchor="middle">PG7 Ø12,5</text>
+  <line x1="48" y1="360" x2="48" y2="232" stroke="#607d8b" stroke-width="1" marker-start="url(#fl)" marker-end="url(#fl)"/>
+  <text x="54" y="300" font-size="11" fill="#37474f">32</text>
+  <line x1="40" y1="360" x2="70" y2="360" stroke="#607d8b" stroke-width="1"/>
+  <line x1="70" y1="386" x2="430" y2="386" stroke="#607d8b" stroke-width="1" marker-start="url(#fl)" marker-end="url(#fl)"/>
+  <text x="250" y="381" font-size="11" fill="#37474f" text-anchor="middle">90</text>
+  <text x="70" y="414" font-size="11" fill="#455a64">Prensaestopas: cable de la moto y cable de revoluciones.</text>
+  <text x="70" y="429" font-size="11" fill="#455a64">Membrana de ventilación en el centro: deja salir la humedad.</text>
+  <text x="70" y="444" font-size="11" fill="#455a64">Los tres a 32 mm del suelo; los prensaestopas a 22 mm del centro.</text>
+  <line x1="162" y1="266" x2="250" y2="266" stroke="#607d8b" stroke-width="1" marker-start="url(#fl)" marker-end="url(#fl)"/>
+  <text x="206" y="261" font-size="11" fill="#37474f" text-anchor="middle">22</text>
+  <line x1="250" y1="266" x2="338" y2="266" stroke="#607d8b" stroke-width="1" marker-start="url(#fl)" marker-end="url(#fl)"/>
+  <text x="294" y="261" font-size="11" fill="#37474f" text-anchor="middle">22</text>
+  <text x="620" y="96" font-size="14" fill="#263238" font-weight="bold">Pared trasera</text>
+  <rect x="620" y="110" width="360" height="250" rx="10" fill="#eceff1" stroke="#37474f" stroke-width="2"/>
+  <rect x="618.4" y="336" width="363.2" height="24" rx="2" fill="#cfd8dc" stroke="#37474f" stroke-width="1.4"/>
+  <line x1="620" y1="296" x2="980" y2="296" stroke="#90a4ae" stroke-width="1.4" stroke-dasharray="6,4"/>
+  <text x="988" y="300" font-size="10.5" fill="#78909c">unión tapa-cuerpo (≈ 16)</text>
+  <text x="988" y="352" font-size="10.5" fill="#78909c">pestaña de la tapa</text>
+  <circle cx="800" cy="200" r="13" fill="#ffffff" stroke="#e65100" stroke-width="2.2"/>
+  <line x1="795" y1="200" x2="805" y2="200" stroke="#e65100" stroke-width="1"/>
+  <line x1="800" y1="195" x2="800" y2="205" stroke="#e65100" stroke-width="1"/>
+  <text x="800" y="179" font-size="11" fill="#e65100" font-weight="bold" text-anchor="middle">pasamuros SMA Ø6,5</text>
+  <line x1="598" y1="360" x2="598" y2="200" stroke="#607d8b" stroke-width="1" marker-start="url(#fl)" marker-end="url(#fl)"/>
+  <text x="604" y="284" font-size="11" fill="#37474f">40</text>
+  <line x1="590" y1="360" x2="620" y2="360" stroke="#607d8b" stroke-width="1"/>
+  <line x1="620" y1="386" x2="980" y2="386" stroke="#607d8b" stroke-width="1" marker-start="url(#fl)" marker-end="url(#fl)"/>
+  <text x="800" y="381" font-size="11" fill="#37474f" text-anchor="middle">90</text>
+  <text x="620" y="414" font-size="11" fill="#455a64">Pasamuros de la antena, centrado, a 40 mm del suelo:</text>
+  <text x="620" y="429" font-size="11" fill="#455a64">así queda por encima del GPS, que va sobre separadores.</text>
+  <text x="620" y="444" font-size="11" fill="#455a64">Junta tórica por fuera y tuerca por dentro.</text>
+  <text x="70" y="514" font-size="14" fill="#263238" font-weight="bold">Vista de arriba: pestañas y anclaje</text>
+  <rect x="70.00000000000003" y="548" width="482.40000000000003" height="272.4" rx="14" fill="#cfd8dc" stroke="#37474f" stroke-width="1.6"/>
+  <rect x="131.20000000000005" y="549.2" width="360" height="270" rx="12" fill="#eceff1" stroke="#37474f" stroke-width="2.2"/>
+  <rect x="191.20000000000005" y="600.2" width="240" height="75" rx="3" fill="none" stroke="#1565c0" stroke-width="1.6" stroke-dasharray="6,4"/>
+  <rect x="191.20000000000005" y="693.2" width="240" height="75" rx="3" fill="none" stroke="#1565c0" stroke-width="1.6" stroke-dasharray="6,4"/>
+  <text x="311.20000000000005" y="644.7" font-size="11" fill="#1565c0" text-anchor="middle">Dual Lock 25 × 80 (por debajo)</text>
+  <text x="311.20000000000005" y="737.7" font-size="11" fill="#1565c0" text-anchor="middle">Dual Lock 25 × 80 (por debajo)</text>
+  <circle cx="100.00000000000003" cy="608" r="7.5" fill="#fff" stroke="#263238" stroke-width="1.6"/>
+  <circle cx="100.00000000000003" cy="760.4000000000001" r="7.5" fill="#fff" stroke="#263238" stroke-width="1.6"/>
+  <rect x="87.25000000000003" y="660.2" width="25.5" height="48" rx="12.75" fill="#fff" stroke="#263238" stroke-width="1.6"/>
+  <circle cx="522.4000000000001" cy="608" r="7.5" fill="#fff" stroke="#263238" stroke-width="1.6"/>
+  <circle cx="522.4000000000001" cy="760.4000000000001" r="7.5" fill="#fff" stroke="#263238" stroke-width="1.6"/>
+  <rect x="509.6500000000001" y="660.2" width="25.5" height="48" rx="12.75" fill="#fff" stroke="#263238" stroke-width="1.6"/>
+  <line x1="100.00000000000003" y1="844.4000000000001" x2="522.4000000000001" y2="844.4000000000001" stroke="#607d8b" stroke-width="1" marker-start="url(#fl)" marker-end="url(#fl)"/>
+  <text x="311.20000000000005" y="839.4000000000001" font-size="11" fill="#37474f" text-anchor="middle">140,8 entre agujeros</text>
+  <line x1="570.4000000000001" y1="608" x2="570.4000000000001" y2="760.4000000000001" stroke="#607d8b" stroke-width="1" marker-start="url(#fl)" marker-end="url(#fl)"/>
+  <text x="576.4000000000001" y="688.2" font-size="11" fill="#37474f">50,75</text>
+  <line x1="251.20000000000005" y1="576.2" x2="143.20000000000005" y2="576.2" stroke="#c62828" stroke-width="3" marker-end="url(#fr)"/>
+  <text x="260.20000000000005" y="581.2" font-size="13" fill="#c62828" font-weight="bold">ADELANTE</text>
+  <text x="70" y="878.4000000000001" font-size="11" fill="#455a64">4 agujeros de Ø5 y 2 ranuras de Ø8,5 en las pestañas: bridas de seguridad, o tornillos M4</text>
+  <text x="70" y="893.4000000000001" font-size="11" fill="#455a64">con arandela ancha y tuerca autoblocante si taladras la bandeja de la moto.</text>
+  <text x="690" y="536" font-size="14" fill="#263238" font-weight="bold">En la moto (de lado, esquema)</text>
+  <path d="M690,600 C750,550 1050,550 1160,600" fill="#455a64" stroke="#263238" stroke-width="2"/>
+  <text x="890" y="580" font-size="11" fill="#ffffff" text-anchor="middle">asiento del pasajero</text>
+  <line x1="690" y1="710" x2="1160" y2="710" stroke="#795548" stroke-width="4"/>
+  <text x="1020" y="730" font-size="11" fill="#5d4037">bandeja o colín de la moto</text>
+  <rect x="760" y="698" width="160" height="8" rx="2" fill="#cfd8dc" stroke="#37474f" stroke-width="1.4"/>
+  <rect x="780" y="640" width="120" height="60" rx="8" fill="#eceff1" stroke="#37474f" stroke-width="2"/>
+  <rect x="790" y="706" width="100" height="4" rx="1" fill="#1565c0" stroke="#1565c0" stroke-width="1"/>
+  <text x="840" y="674" font-size="13" fill="#222" font-weight="bold" text-anchor="middle">CAJA</text>
+  <text x="840" y="690" font-size="11" fill="#455a64" text-anchor="middle">plana</text>
+  <rect x="1020" y="608" width="44" height="14" rx="3" fill="#5e35b1" stroke="#311b92" stroke-width="1.4"/>
+  <text x="1042" y="638" font-size="11" fill="#311b92" text-anchor="middle">antena</text>
+  <path d="M1030,622 C1010,670 950,660 900,662" fill="none" stroke="#424242" stroke-width="2"/>
+  <line x1="904" y1="560" x2="1016" y2="560" stroke="#607d8b" stroke-width="1" marker-start="url(#fl)" marker-end="url(#fl)"/>
+  <text x="960" y="554" font-size="11" fill="#37474f" text-anchor="middle">&gt; 20 cm</text>
+  <line x1="750" y1="760" x2="700" y2="760" stroke="#c62828" stroke-width="3" marker-end="url(#fr)"/>
+  <text x="756" y="765" font-size="13" fill="#c62828" font-weight="bold">ADELANTE</text>
+  <text x="690" y="790" font-size="11" fill="#455a64">Dual Lock (azul) y dos bridas por las pestañas. Sin gomas ni espuma gruesa.</text>
+  <text x="690" y="805" font-size="11" fill="#455a64">La antena, mirando al cielo, bajo plástico y nunca debajo de ti.</text>
+</svg>

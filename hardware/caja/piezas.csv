@@ -1,0 +1,74 @@
+unidad,fase,ref,pieza,referencia,cantidad,tienda,precio_eur_iva,notas
+caja,1,U1,Placa ESP32-S3 con microSD,SparkFun Thing Plus ESP32-S3 (WRL-24408),1,DigiKey 24408,30.14,Viene sin pines
+caja,1,U2,Receptor GPS 25 Hz,SparkFun GPS Breakout NEO-M9N SMA (GPS-17285),1,DigiKey 17285,82.17,Alternativa ahorro: SparkFun MAX-M10S (GPS-18037) 49.36
+caja,1,ANT,Antena GPS activa magnética 3 m SMA,SparkFun GPS-14986,1,SparkFun o DigiKey,20.49,Alternativa: Quectel YG0035AA 8.95 (comprobar 3.3 V)
+caja,1,,Pasamuros SMA hembra-hembra IP67,GCT RFAD-SA3SA2-01-N-A,1,DigiKey,4.26,Agujero 6.5 mm (comprobar)
+caja,1,,Latiguillo SMA macho-macho RG316 152 mm,Amphenol RF 135101-01-06.00,1,DigiKey ACX1567-ND,20.12,Vale uno genérico de 10-15 cm
+caja,1,U3,Sensor de movimiento 6 ejes,Adafruit ISM330DHCX (4502),1,DigiKey,21.43,Dirección I2C 0x6A
+caja,1,SD,microSD 32 GB resistente,SanDisk High Endurance 32 GB (SDSQQNR-032G-GN6IA),1,Amazon / PcComponentes,12,Aprox.; mejor Kingston Industrial SDCIT2 si se encuentra barata
+caja,1,U4,Interruptor electrónico 4.5-32 V,Pololu Mini Pushbutton Power Switch SV (2809),1,DigiKey,6.03,No la versión LV
+caja,1,U5,Regulador 12 V a 5 V 3.2 A,Pololu D36V28F5 (3782),1,DigiKey,29.15,Ahorro: Pololu D24V10F5
+caja,1,D1,Diodo TVS 1500 W,1.5KE22A,1,DigiKey,1.14,La raya hacia 12V
+caja,1,D2,Diodo Schottky 1 A,1N5819,1,DigiKey,0.40,La raya hacia 5V
+caja,1,C1,Condensador electrolítico 47 uF 50 V,genérico,1,DigiKey,0.40,
+caja,1,F1,Portafusibles estanco mini,Littelfuse 0FHM0003ZXJS,1,DigiKey,6.86,A menos de 15 cm de la batería
+caja,1,F1,Fusible mini 2 A 32 V,Littelfuse 0297002,2,DigiKey / recambios,1.20,Uno de repuesto
+caja,1,U6,Optoacoplador (contacto),Sharp PC817X2NSZ9F,1,DigiKey,0.35,
+caja,2,U7,Optoacoplador (freno),Sharp PC817X2NSZ9F,1,DigiKey,0.35,
+caja,2,U8,Disparador Schmitt,TI SN74HC14N,1,DigiKey,0.60,
+caja,1,R1,Resistencia 1.8 kOhm 1/4 W,genérica,1,,0.05,
+caja,1,RT1,Resistencia 1 kOhm 1/2 W (en el cable verde junto a la derivación),genérica,1,,0.10,
+caja,2,R2,Resistencia 1.8 kOhm 1/4 W,genérica,1,,0.05,
+caja,2,RT2,Resistencia 1 kOhm 1/2 W (en el cable amarillo junto a la derivación),genérica,1,,0.10,
+caja,1,R3,Resistencia 22 kOhm 1/4 W,genérica,1,,0.05,
+caja,1,R4,Resistencia 10 kOhm 1/4 W,genérica,1,,0.05,
+caja,2,R5,Resistencia 10 kOhm 1/4 W,genérica,1,,0.05,
+caja,2,R6,Resistencia 10 kOhm 1/4 W,genérica,1,,0.05,
+caja,2,R7,Resistencia 100 kOhm 1/4 W,genérica,1,,0.05,
+caja,1,R8,Resistencia 100 kOhm 1/4 W,genérica,1,,0.05,
+caja,1,R9,Resistencia 22 kOhm 1/4 W,genérica,1,,0.05,
+caja,2,R10,Resistencia 4.7 kOhm 1/4 W,genérica,1,,0.05,
+caja,1,D3,Diodo 1N4148,genérico,1,,0.10,
+caja,2,D4-D6,Diodo 1N4148,genérico,3,,0.30,
+caja,2,C2,Condensador cerámico 1 nF,genérico,1,,0.20,
+caja,2,C3,Condensador cerámico 100 nF,genérico,1,,0.15,
+caja,1,C4,Condensador cerámico 100 nF,genérico,1,,0.15,
+caja,1,J1,Borna de tornillo 3 vías 5.08 mm,Phoenix Contact MKDS 1.5/3-5.08 (1715734),1,DigiKey,0.80,
+caja,2,J2,Borna de tornillo 3 vías 5.08 mm,Phoenix Contact MKDS 1.5/3-5.08 (1715734),1,DigiKey,0.80,
+caja,1,,Caja estanca IP68 con tapa de pestañas,Hammond 1555F2F42GY,1,DigiKey HM388-ND,25.35,160.8 x 90.8 x 62.5 mm
+caja,1,,Prensaestopas PG7 IP68 (3-7 mm),Hammond 1427NCGPG7B,2,DigiKey,4.98,Agujero 12.5 mm
+caja,1,,Membrana de ventilación M12,Amphenol LTW VENT-PS1NGY-O8001,1,DigiKey / Mouser,5,Aprox.; agujero 12.2 mm
+caja,1,,Placa perforada doble cara 80 x 120 mm,genérica FR4,1,,3,Se corta a 100 x 80
+caja,1,,Zócalos hembra 2.54 mm (16 + 12),Adafruit 2886 o genéricos,1,,1.50,
+caja,1,,Tira de pines macho 2.54 mm,genérica 40 pines,2,,2,Unos 57 pines en total
+caja,1,,Kit de separadores de nylon M3 (6 y 15 mm) con tornillos y tuercas,genérico,1,,10,
+caja,1,,Tornillo rosca chapa ST2.9 x 13 DIN 7981,genérico,4,ferretería,1,
+caja,1,,Cable de silicona 26 AWG (3 colores),genérico,1,,6,
+caja,1,,Cable Qwiic 100 mm (pruebas de banco),SparkFun PRT-17259,1,DigiKey,2.09,
+instalacion,1,,Manguera 4 x 0.5 mm2 (marrón blanco verde amarillo),LiYY 4x0.5,2 m,,5,
+instalacion,2,,Cable apantallado 2 x 0.25 mm2,LiYCY 2x0.25,2 m,,5,
+instalacion,1,,Terminal de ojal aislado M5 rojo,genérico,2,,1,
+instalacion,1,,Empalme a tope aislado rojo,genérico,1,,0.20,
+instalacion,1,,Derivación Posi-Tap (talla según el cable de la moto),Posi-Products,2,,8,Medir el cable antes
+instalacion,1,,Termorretráctil con adhesivo surtido,genérico,1,,8,
+instalacion,1,,Tubo corrugado partido 7 mm,genérico,2 m,,4,
+instalacion,2,,Funda de fibra de vidrio 6 mm,genérica,30 cm,,4,Para el tramo de la pinza junto al motor
+instalacion,1,,Bridas negras resistentes al sol 3.6 mm,genéricas,1 bolsa,,3,
+instalacion,1,,Chapita de acero 7 x 7 cm bajo la antena,genérica,1,ferretería,2,
+instalacion,1,,Cierre reutilizable 25 mm,3M Dual Lock SJ3550,30 cm,Amazon,12,Si la bandeja es de PP: imprimación 3M Primer 94 o tornillos
+pantalla,4,U11,Placa ESP32-S3,SparkFun Thing Plus ESP32-S3 (WRL-24408),1,DigiKey 24408,30.14,
+pantalla,4,U12,Pantalla Sharp Memory 2.7 pulgadas 400 x 240,Adafruit 4694,1,Opencircuit (o DigiKey con plazo),63.25,Pedirla la primera
+pantalla,4,U13,Tira de 8 LEDs RGB,Adafruit NeoPixel Stick 8 x 5050 (1426),1,Kiwi Electronics,6.64,
+pantalla,4,U14,Sensor de luz,Adafruit VEML7700 (4162),1,Kiwi / DigiKey,6,Aprox.
+pantalla,4,U15,Interruptor electrónico 2.2-16 V (LEDs),Pololu Mini Pushbutton Power Switch LV (2808),1,DigiKey,6.03,
+pantalla,4,BT1,Batería LiPo 1S 2000 mAh JST-PH,Adafruit 2011,1,Kiwi / DigiKey,15,Aprox.; comprobar polaridad
+pantalla,4,SW1-SW2,Pulsador estanco IP67 16 mm,BricoGeek CPM-0133,2,BricoGeek,3.88,De marca: C&K ATP16DL1000B4SA04G
+pantalla,4,,Cable Qwiic 100 mm,SparkFun PRT-17259,1,DigiKey,2.09,
+pantalla,4,R11,Resistencia 470 Ohm 1/4 W,genérica,1,,0.05,
+pantalla,4,C11,Condensador electrolítico 100 uF 10 V,genérico,1,,0.30,No más grande
+pantalla,4,,Caja con tapa transparente 105 x 75 x 40 mm,Hammond RP1085C,1,DigiKey,15.67,
+pantalla,4,,Adaptador Quad Lock adhesivo,Quad Lock Universal Adaptor Original,1,quadlockcase.eu,24.99,No el MAG
+pantalla,4,,Chapa de aluminio 2 mm 80 x 60 con 4 tornillos M3 x 8 inox arandelas de nylon y tuercas,genérica,1,ferretería,6,
+pantalla,4,,Placa de metacrilato 3 mm 96 x 66 y 8 separadores M2.5 de 10 mm con tornillos,genérica,1,,6,
+pantalla,4,,Prolongador USB-C de panel IP67 con tapa (20-30 cm),genérico,1,Amazon,10,
+pantalla,4,,Vinilo negro opaco,genérico,1,,2,

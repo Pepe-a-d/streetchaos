@@ -1,0 +1,436 @@
+# Caja DIY de Street Chaos: plan de desarrollo (fases 1, 2 y 4)
+
+Plan para fabricar nuestra propia «RaceBox»: una caja que va fija en la moto, graba GPS y sensores mucho mejor que el iPhone y entrega las salidas al Blackbox como si vinieran del móvil. Este documento es el punto de partida para retomarlo: qué se construye, cómo encaja con lo que ya hay, en qué orden, cuánto cuesta y qué falta decidir.
+
+Escrito el 2026-11-10. **Nada de esto está construido ni comprado todavía.** Las fases 3 (temperaturas medidas) y 5 (chasis) quedan fuera por ahora; ver [Qué no entra](#qué-no-entra-por-ahora).
+
+**El prototipo concreto ya está diseñado** en [hardware/caja/](../hardware/caja/README.md):
+- [piezas](../hardware/caja/piezas.md): las piezas exactas con referencias, tiendas y precios;
+- [conexiones](../hardware/caja/conexiones.md): cómo se conecta todo;
+- [montaje](../hardware/caja/montaje.md): el paso a paso, la instalación en la Ninja 125 incluida;
+- [esquemas](../hardware/caja/esquemas/): los dibujos.
+
+Las [decisiones pendientes](#8-decisiones-tomadas) están cerradas.
+
+## Índice
+
+1. [Por qué una caja propia](#1-por-qué-una-caja-propia)
+2. [Cómo encaja con lo que ya hay](#2-cómo-encaja-con-lo-que-ya-hay)
+3. [Fase 1: la caja](#3-fase-1-la-caja)
+4. [Fase 2: datos de la moto](#4-fase-2-datos-de-la-moto)
+5. [Fase 4: pantalla y luces](#5-fase-4-pantalla-y-luces)
+6. [Hitos, en orden](#6-hitos-en-orden)
+7. [Presupuesto](#7-presupuesto)
+8. [Decisiones tomadas](#8-decisiones-tomadas)
+9. [Riesgos y cosas a vigilar](#9-riesgos-y-cosas-a-vigilar)
+10. [Qué no entra (por ahora)](#qué-no-entra-por-ahora)
+11. [Lo que ya hay en el repo y se reutiliza](#11-lo-que-ya-hay-en-el-repo-y-se-reutiliza)
+
+---
+
+## 1. Por qué una caja propia
+
+Lo que vimos analizando las salidas reales con el iPhone:
+
+| Límite del iPhone | Qué pasa | Con la caja |
+| --- | --- | --- |
+| GPS a ~1 Hz | El crono 0-100 y las curvas tienen poca resolución | 10-25 posiciones por segundo |
+| GPS ~1 s tarde respecto a los sensores | Hay que estimar y descontar el retraso | El GPS marca la hora exacta de cada medida (y con la señal PPS, al microsegundo) |
+| ~1 de cada 6 posiciones sin velocidad Doppler | La velocidad se queda «congelada» o a 0 | El receptor da velocidad Doppler siempre |
+| El móvil va en el soporte del manillar, con amortiguador | Gira con la dirección y se mueve: la inclinación y las G llevan ruido | Sensores atornillados al chasis |
+| Safari no deja usar Bluetooth | No se puede conectar nada a la app en directo | La caja graba sola; en directo, su propia pantalla (fase 4) |
+| Hay que acordarse de abrir la app | Salidas perdidas o a medias | Arranca y para sola con el contacto |
+
+Además, con la fase 2 la caja sabe cosas que el móvil no puede saber: cuándo tocas el freno, las revoluciones y la marcha.
+
+---
+
+## 2. Cómo encaja con lo que ya hay
+
+La idea clave: **la caja graba en el mismo formato que la caja negra del móvil** (`docs/telemetria.md`: flujos `gps`, `imu` y `calc`, eventos y ficha, empaquetados en un `.scb`). Así el Blackbox la analiza con todo lo que ya tiene (curvas, frenadas, pasadas, potencia, tramos, comparar, vídeo, neumáticos) sin rehacer nada.
+
+```
+                         ┌─────────────────────────────┐
+  Antena GPS ──────────► │  CAJA (atornillada al chasis)│
+  Sensor de movimiento ─►│  ESP32-S3 + microSD + batería│
+  Freno, RPM (fase 2) ──►│                              │
+  12 V con contacto ────►│                              │
+                         └──────┬───────────┬──────────┘
+                    radio       │           │  WiFi de casa
+                 (ESP-NOW)      │           │  (aparcada)
+                                ▼           ▼
+                 ┌───────────────────┐   ┌──────────────────────────────┐
+                 │ PANTALLA (fase 4) │   │ Nube: función «caja-negra»   │
+                 │ en el manillar    │   │ (put/commit con tu clave)    │
+                 │ + LEDs + botones  │   └──────────────┬───────────────┘
+                 └───────────────────┘                  │
+                                                        ▼
+            microSD → arrastrar el .scb ──────►  BLACKBOX (web y escritorio)
+```
+
+Tres formas de que una salida llegue al Blackbox:
+
+1. **Sola, por WiFi** (la buena): al llegar a casa y quitar el contacto, la caja se conecta a tu WiFi y sube las salidas nuevas a la nube con la clave de sincronización de tu móvil. Aparecen en el Blackbox igual que las del iPhone.
+2. **Tarjeta microSD**: sacarla y soltar los `.scb` en el Blackbox.
+3. **Desde el móvil**: la caja hace su propia red WiFi con una página para bajar los archivos (para cuando no hay WiFi de casa).
+
+**La app del iPhone no ve la caja en directo**: Safari no deja usar Bluetooth, y una página https no puede hablar con un aparato de la red local (contenido mixto). Lo que se quiera ver en marcha va en la pantalla de la fase 4. Si algún día hacemos la app nativa de iPhone (cuenta de desarrollador de Apple, 99 €/año), se podría conectar por Bluetooth.
+
+---
+
+## 3. Fase 1: la caja
+
+### 3.1 Qué hace
+
+- Graba GPS a 10-25 Hz y sensores de movimiento a 100 Hz en la microSD.
+- Empieza sola al moverte y para sola, con **las mismas reglas que la caja negra del móvil** (`RULES` en `src/core/blackbox.js`: 3 posiciones a más de 9 km/h y 40 m recorridos, guarda los 30 s anteriores, se cierra tras 3 min parado, se borra si no llegó a 100 m). Si va conectada al contacto, además arranca y cierra con la llave (evento `ignition`).
+- Sobrevive a cortes de corriente sin perder la salida.
+- Sube las salidas a la nube al llegar a casa.
+
+### 3.2 Piezas
+
+Elegidas el 2026-11-10. La lista completa, con referencias, tiendas y precios, está en [hardware/caja/piezas.md](../hardware/caja/piezas.md).
+
+| Pieza | Elegida | Precio |
+| --- | --- | --- |
+| Placa | **SparkFun Thing Plus ESP32-S3** (WRL-24408): microSD, medidor de batería y Qwiic integrados | 30 € |
+| GPS | **u-blox NEO-M9N** (SparkFun GPS-17285): 25 Hz con GPS, Galileo y GLONASS, PPS, alimenta la antena | 82 € |
+| Antena | Activa, magnética, 3 m, SMA (SparkFun GPS-14986), con pasamuros SMA estanco y latiguillo | 45 € |
+| Sensor de movimiento | **ISM330DHCX** (Adafruit 4502): 6 ejes de ST, FIFO de 9 KB | 21 € |
+| microSD | SanDisk High Endurance 32 GB (o Kingston Industrial) | ≈ 12 € |
+| Alimentación | **Sin batería**: 12 V permanente con fusible de 2 A, TVS 1.5KE22A, interruptor electrónico Pololu 2809 (lo enciende el contacto y lo apaga la caja) y regulador Pololu D36V28F5 a 5 V | 45 € |
+| Entradas | Optoacopladores PC817 (contacto y freno) y 74HC14 (revoluciones), en una placa perforada | 5 € |
+| Caja | **Hammond 1555F2F42GY** (IP68, tapa con pestañas para sujetarla), 2 prensaestopas PG7 y membrana de ventilación | 35 € |
+
+Los cambios respecto a la primera idea:
+- **El NEO-M9N en vez del M10:** 25 Hz con todos los satélites.
+- **Sin batería en la caja:** una LiPo bajo el asiento sufre con el calor, y con el interruptor la caja puede subir las salidas con la moto apagada sin gastar nada después.
+- **Caja comprada en vez de impresa:** para no depender de una impresora 3D.
+- **Sin el sensor del aire (BME280):** queda para más adelante.
+
+**Por qué no un sensor que calcule la orientación solo**: en una curva bien trazada la fuerza centrífuga y la gravedad se suman justo hacia «abajo» de la moto, y el acelerómetro cree que vas recto. La inclinación buena sale del giroscopio corregido con el GPS (inclinación ≈ atan(velocidad × giro / g)), que es lo que ya hace el Blackbox (`leanFrom: 'gyro'` y `'gyro+roll'` en `src/blackbox/process.js`). Por eso basta con un sensor «en bruto» y el análisis lo pone el Blackbox.
+
+**La señal PPS del GPS** (un pulso exacto cada segundo) va a una patilla de la placa: con ella la hora de cada medida del sensor de movimiento cuadra con el GPS al microsegundo, y se acabó el «retraso del GPS» del iPhone.
+
+### 3.3 Montaje en la moto
+
+- **La caja, bien firme y sin gomas**, lo más cerca posible del centro de la moto: las vibraciones se filtran por software, pero si la caja baila, la inclinación y las G salen mal. **En el manillar no**: gira con la dirección.
+  - En la Ninja 125, bajo el asiento: el del pasajero si cabe, si no junto a la batería o en el colín. Se prueba antes con una maqueta de cartón.
+  - La sujetan dos bridas por las pestañas, o tornillos si se taladra la bandeja. El 3M Dual Lock la asienta y quita holguras.
+- **La antena del GPS mirando al cielo**, bajo plástico y a más de 20 cm de la caja: la radio de la placa mete ruido al GPS. Debajo de plástico (colín, asiento) no pasa nada; debajo de metal, del depósito o de ti, sí.
+- **Alimentación**:
+  - 12 V de la batería con fusible de 2 A junto al borne;
+  - el contacto, de la luz de posición trasera;
+  - el freno, de la luz de freno;
+  - las dos con derivaciones Posi-Tap, sin cortar cables.
+- Paso a paso en [montaje.md](../hardware/caja/montaje.md#5-instalación-en-la-ninja-125).
+
+### 3.4 Firmware (lo escribo yo)
+
+PlatformIO con Arduino-ESP32 (o ESP-IDF si hace falta afinar), en el repo bajo `hardware/caja/firmware/`. Tareas de FreeRTOS:
+
+| Módulo | Qué hace |
+| --- | --- |
+| `gnss` | Configura el receptor por UBX (solo el mensaje NAV-PVT, a 10 o 25 Hz, UART a 460800 baudios, modelo dinámico de automoción o «moto» si lo tiene) y lo lee. Marca la hora con la PPS |
+| `imu` | Lee el FIFO del sensor (208 Hz con su filtro), lo baja a 100 Hz promediando y lo pasa a los ejes del formato |
+| `recorder` | La máquina de estados de la sesión con las reglas del móvil: en espera → armando → grabando → cerrando. Calcula la ficha (distancia, en marcha, punta, `from`/`to`, paradas…) |
+| `storage` | Mientras graba, añade cada flujo a su archivo dentro de una carpeta por sesión y guarda cada segundo. Al cerrar (o al arrancar, si se cortó la corriente) monta el `.scb` |
+| `power` | Contacto (GPIO 6), tensión de la batería de la moto (GPIO 10) y apagado: cierra la salida, sube si está en casa y da el pulso de `OFF` (GPIO 21) al interruptor, como mucho 15 min después de quitar el contacto |
+| `net` | WiFi de casa, vinculación con el código del móvil, subida a la nube, bajada de los tramos (para la fase 4) |
+| `web` | Su propia red WiFi con una página: configurar (WiFi, vincular, opciones), ver el estado y bajar archivos |
+| `config` | Ajustes guardados en la memoria de la placa (NVS) |
+
+Las pruebas del firmware van en el entorno `native` de PlatformIO (en el ordenador, sin placa): el lector de UBX, la máquina de estados con los mismos casos que las pruebas de la caja negra del móvil, y el `.scb`. Una prueba de vitest lee un `.scb` hecho por el firmware con `unpackSession` y lo analiza: si cambia algo del formato, salta.
+
+### 3.5 Qué graba exactamente
+
+El formato es el de `docs/telemetria.md` (FORMAT 1), así:
+
+- **`gps`**: `t` (s desde el inicio, reloj de la placa corregido con la PPS), `ts` (hora UTC del GPS), `lat`, `lon`, `acc` (hAcc), `alt` (hMSL), `altAcc` (vAcc), `speed` y `v` (gSpeed, Doppler), `heading` y `hdg` (headMot).
+- **`imu`** a 100 Hz: `ax, ay, az` con la gravedad en m/s² y sentido estándar (+9,8 en el eje que mira al cielo); `lx, ly, lz` = `NaN` (la placa no calcula la gravedad por su cuenta); `ra, rb, rg` en °/s con los ejes del estándar W3C (alpha sobre z, beta sobre x, gamma sobre y).
+- **`calc`** a 10 Hz: velocidad, G e inclinación calculadas en la caja. En la fase 1 pueden ir sencillas; hacen falta de verdad para la pantalla (fase 4).
+- **Ficha**: lo mismo que el móvil, más `calib: { conv: 1, axes: 'w3c', gpsLag: 0, sys: false }`, `device: { ua: 'StreetChaosCaja/x.y (ESP32-S3)' }` y `logger: { kind: 'caja', name: 'Caja DIY', hz }` para que la pestaña CALIDAD diga de dónde viene.
+- **Eventos**: `ignition`, `resume` (tras un corte), y los de las fases 2 y 4.
+
+El Blackbox aprende solo la postura de la caja (qué es arriba y qué es delante) como hace con el móvil. Tamaño: unos 6,5 KB/s, **~23 MB por hora** sin comprimir. La nube admite 600 MB por clave: unas 25-40 h de salidas; habrá que borrar las viejas o bajar el sensor a 50 Hz en las salidas largas.
+
+### 3.6 Vinculación y nube
+
+1. Conectas el móvil a la red WiFi de la caja («StreetChaos-Caja», con contraseña) y se abre su página.
+2. Pones tu WiFi de casa.
+3. En el móvil, Garaje → Datos → VINCULAR da un código de 6 letras; lo escribes en la página de la caja. La caja lo cambia por la clave (`pair-claim`, el mismo camino que el Blackbox) y la guarda.
+4. Desde entonces, aparcada y con WiFi, sube cada salida con `put` (URL firmada) y `commit` (la ficha), y la marca como subida.
+
+La URL de Supabase y la clave publicable se meten al compilar desde un `secrets.h` que **no se sube al repo** (se genera desde `.env.local`), igual que la web. Quien tenga la clave de sincronización ve tus salidas: la red WiFi de la caja va con contraseña.
+
+### 3.7 Lo que hay que tocar en el Blackbox
+
+- **Importar `.scb` desde el disco**: ahora `importFiles` solo lee texto (`f.text()`); hay que reconocer los binarios (`SCB1` o gzip) y abrirlos con `unpackSession`.
+- Comprobar que el análisis va bien con sensores sin la gravedad del sistema y a 100 Hz (`process.js`), y que `meta.logger` no lo manda por el camino de «el aparato ya da la inclinación».
+- Enseñar «Caja DIY» como origen en la lista y en CALIDAD.
+
+### 3.8 Pruebas y cuándo está hecha
+
+- **En la mesa**: el GPS da las posiciones por segundo que debe (contadas) y el sensor sus 100 Hz; 2 h grabando sin huecos; cortar la corriente a mitad y que la salida siga entera; la caja al sol a 60 °C sin colgarse.
+- **En la moto**: varias salidas con la caja y el iPhone a la vez, y compararlas en el Blackbox (velocidad, inclinación, G, 0-100).
+- **Hecha cuando**: 3 salidas seguidas sin perder datos, arranque y parada solos, subida sola por WiFi, y la inclinación cuadra con la del iPhone (±3°) o mejor.
+
+---
+
+## 4. Fase 2: datos de la moto
+
+Tres señales, sin tocar la centralita ni los frenos.
+
+### 4.1 Freno
+
+- **De dónde**: del cable de la luz de freno (tiene 12 V mientras frenas, con cualquiera de las dos manetas).
+- **Cómo**:
+  - un optoacoplador (PC817) con su resistencia (1,8 kΩ en la caja) y un diodo de protección;
+  - otra resistencia de 1 kΩ en la propia derivación: si el cable se pela y toca masa, no salta el fusible de las luces de la moto;
+  - la caja no toca nunca directamente el cable y **la luz de freno sigue funcionando igual**;
+  - derivación Posi-Tap, sin cortar el cable;
+  - comprobar la luz de freno después.
+  - Circuito en [conexiones.md](../hardware/caja/conexiones.md#31-contacto-y-freno-dos-circuitos-iguales).
+- **Qué da**: el instante exacto en que tocas el freno (precisión de milisegundos). No distingue delantero y trasero (comparten luz); para eso habría que derivar cada interruptor por separado.
+- **En el Blackbox**:
+  - en FRENADAS, el tiempo de reacción (de tocar la maneta a que la moto frena de verdad);
+  - en CURVAS, si entras frenando y cuánto mantienes el freno tumbado;
+  - el freno como canal en las gráficas y en el mapa.
+
+### 4.2 Revoluciones
+
+- **De dónde**: una pinza (8-10 vueltas de cable alrededor del cable de la bujía), sin cortar nada. **La Ninja 125 tiene la bobina sujeta al chasis con un cable hasta la pipa**, así que vale.
+  - Alternativa para más adelante: el conector de diagnosis de 4 vías (KDS) de la Ninja 125, que da revoluciones, acelerador y temperaturas. Hay indicadores de marcha comerciales que lo leen, pero necesita un chip de línea K y no está probado con esta centralita.
+- **Cómo**:
+  - **Circuito:** la pinza pasa por un acondicionador (resistencia, diodos de protección, filtro y un disparador Schmitt) que deja la señal limpia a 3,3 V. La placa mide el tiempo entre chispas con una interrupción y descarta las falsas: más rápido que el máximo de revoluciones, es ruido.
+  - **Calibración:** según el motor, salta una chispa por vuelta o una cada dos. Se calibra una vez comparando con el cuentarrevoluciones de la moto a ralentí y a unas 5000 rpm.
+  - **Ruido:** el encendido mete mucho ruido eléctrico. Hace falta cable apantallado y separado del resto.
+- **Qué da**: revoluciones a 25 Hz y, comparando con la velocidad, **la marcha**.
+  - La relación velocidad/revoluciones es fija en cada marcha, y el Blackbox las aprende solo de tus salidas.
+  - La Ninja 125 no tiene sensor de marcha (ni indicador en el cuadro), así que esto es nuevo para ti.
+  - Se parte de sus relaciones de cambio, de 3,93 km/h por cada 1000 rpm en 1.ª a 11,59 en 6.ª (tabla en [conexiones.md](../hardware/caja/conexiones.md#7-datos-para-el-firmware)).
+- **En el Blackbox**:
+  - revoluciones y marcha en las gráficas;
+  - en CURVAS, la marcha a la entrada, en el vértice y a la salida;
+  - en POTENCIA, la curva frente a las revoluciones y por marchas;
+  - el tiempo en cada marcha y los puntos de cambio.
+
+### 4.3 Botón
+
+- El botón B de la pantalla de la fase 4 (llega a la caja por la radio). Más adelante se puede añadir un pulsador remoto junto a la piña izquierda.
+- **Pulsación corta**: marca ese momento (evento `mark`), que sale en el mapa y en las gráficas para encontrarlo luego.
+- **Pulsación larga**: pone ahí la meta de las vueltas, como la «meta marcada» de CRONO → VUELTAS.
+
+### 4.4 Cambios de formato
+
+Añadir datos es un cambio de formato (ver «Si cambias el formato» en `docs/telemetria.md`):
+
+- **Flujo nuevo** `moto` (`float32`, 25 Hz): `t, rpm, brake`. Se pone `FORMAT` a 2 y el Blackbox lee las dos versiones.
+- **Eventos nuevos**: `brake` (on/off, con la hora exacta de la interrupción) y `mark`.
+- **Canales nuevos del Blackbox**: `rpm`, `gear` y `brake` en `src/blackbox/channels.js`, más la detección de marchas en `process.js`.
+
+### 4.5 Cuándo está hecha
+
+- Revoluciones a ralentí ±50 rpm frente al cuentarrevoluciones.
+- La marcha acertada más del 95 % del tiempo en una salida.
+- El freno se marca a ±20 ms.
+- La luz de freno sigue funcionando.
+
+---
+
+## 5. Fase 4: pantalla y luces
+
+### 5.1 Una unidad aparte en el manillar
+
+La caja tiene que ir en el chasis (por los sensores) y la pantalla en el manillar (para verla), así que son **dos aparatos**:
+
+- **Pantalla**: una placa ESP32-S3 pequeña con su pantalla, 2 botones estancos, una tira de LEDs y un sensor de luz.
+- **Enlace**: por radio con **ESP-NOW** (de ESP32 a ESP32, sin router, unos milisegundos de retraso). La caja le manda el estado 10-20 veces por segundo y la pantalla le manda los botones. Así no hace falta pasar cables por la pipa de dirección.
+  - Alternativa: un cable de 4 hilos, más robusto pero más trabajo de montaje.
+- **Alimentación**: su propia batería LiPo de 2000 mAh (unas 8-13 h). Se carga por USB-C en casa, como el móvil, y no hay que pasar cables al manillar.
+- **Soporte**: tu Quad Lock con el amortiguador, mediante un adaptador Quad Lock Universal (Original) pegado a una chapa atornillada a la caja. Puede sustituir al móvil en marcha: el iPhone en el bolsillo, lejos de las vibraciones.
+- **Caja**: Hammond RP1085C (105 × 75 × 40 mm), con tapa transparente.
+- Piezas y montaje en [hardware/caja/](../hardware/caja/README.md).
+
+### 5.2 Qué pantalla
+
+| Tipo | Al sol | Pros | Contras | Precio aprox. |
+| --- | --- | --- | --- | --- |
+| **Sharp Memory LCD 2,7"** (400×240, reflectiva) | Perfecta: cuanto más sol, mejor se ve | Gasta casi nada; el estilo pixel de la app le va que ni pintado | Monocromo; de noche necesita luz | 30-45 € + placa |
+| **AMOLED 1,9-2,4"** (placas con la pantalla integrada) | Bien, sin más | Color, contraste, se ve genial de noche | A pleno sol pierde; gasta más | 25-35 € |
+| TFT normal | Mal | Barata | Al sol no se ve | (descartada) |
+
+Elegida: **Sharp Memory LCD 2,7" (Adafruit 4694) + 8 LEDs de colores**. La información de color (delta, aviso de cambio) va en los LEDs, que se ven a pleno sol.
+
+Esta pantalla está agotada en Adafruit y las tiendas europeas la traen bajo pedido, así que hay que pedirla la primera. El fabricante no recomienda dejarla mucho tiempo al sol directo: la unidad se quita al aparcar.
+
+### 5.3 Pantallas
+
+Pocas cosas y en grande: se mira de reojo, nunca se toca en marcha. Se cambia de pantalla con un botón.
+
+| Pantalla | Qué enseña |
+| --- | --- |
+| **MARCHA** | Velocidad grande, marcha, barra de revoluciones, inclinación, punto de «grabando» |
+| **CRONO** | 0-50, 0-100, 1/4 de milla… con la salida detectada sola (las mismas marcas que el CRONO de la app, `src/core/perf.js`) |
+| **VUELTAS** | Tiempo de la vuelta, diferencia en vivo con tu mejor vuelta, mejor vuelta y número. Meta con la pulsación larga o con los circuitos del Blackbox |
+| **TRAMOS** | Los tramos que guardas en el Blackbox, con su diferencia en vivo (los baja la caja por WiFi en casa: `kv-get` de `segments`) |
+| **ESTADO** | Satélites y Hz del GPS, batería, espacio de la microSD, WiFi, salidas sin subir, temperatura de la caja |
+
+### 5.4 Luces
+
+Una tira de 8 LEDs (WS2812B o SK6812):
+
+- **Aviso de cambio**: se van encendiendo con las revoluciones y parpadean en el punto de cambio, configurable por marcha (necesita la fase 2).
+- **Delta**: verde si vas por delante de tu referencia (vuelta o tramo) y rojo si vas por detrás, más intenso cuanto mayor es la diferencia.
+- **Brillo**: se ajusta solo con el sensor de luz, para no deslumbrar de noche.
+
+### 5.5 Lo que tiene que calcular la caja en directo
+
+En la fase 1 el análisis bueno lo hace el Blackbox después. Para la pantalla, la caja tiene que calcular en marcha (módulo `fusion` del firmware):
+
+- **Velocidad**: la Doppler del GPS, interpolada entre posiciones con el acelerómetro.
+- **G**: el acelerómetro girado a los ejes de la moto. La postura se calibra una vez desde la página de la caja («moto recta y quieta», luego acelerar y frenar en recta) o se copia de lo que aprende el Blackbox.
+- **Inclinación**: un filtro complementario.
+  - A corto plazo, la integral del giroscopio sobre el eje de avance.
+  - A largo plazo, la referencia atan(v × giro / g), con el giro medido sobre la vertical de la moto.
+  - Es el mismo principio que la app y el Blackbox, portado a C++.
+- **Delta**: el de la app (`src/core/live.js` y `src/core/segments.js`).
+  - Puertas de 40 m: la vuelta o el tramo empieza al cruzar la línea.
+  - Diferencia = tiempo ahora − tiempo de la referencia a la misma distancia recorrida.
+  - Se porta a C++ con pruebas que comparen contra la versión de JavaScript.
+- **Marcha**: revoluciones frente a velocidad, con las relaciones aprendidas (fase 2).
+
+### 5.6 Cuándo está hecha
+
+- Se lee a pleno sol a mediodía.
+- Se actualiza al menos 10 veces por segundo.
+- Los LEDs reaccionan en menos de 50 ms.
+- El delta en vivo cuadra con el del Blackbox después (±0,1 s).
+- Detecta las 10 vueltas de 10.
+
+---
+
+## 6. Hitos, en orden
+
+Cada hito se puede probar solo antes de pasar al siguiente.
+
+| # | Hito | Tú | Yo |
+| --- | --- | --- | --- |
+| H1 | **Banco de pruebas**: placa, GPS, sensor y microSD en una placa de prototipos, grabando en bruto | Comprar y conectar | Firmware de lectura y grabación |
+| H2 | **Formato**: carpetas de sesión, `.scb`, el Blackbox lo importa desde el disco | Probar con una salida a pie o en coche | Firmware, importador del Blackbox, pruebas de formato |
+| H3 | **Caja y primera salida**: placa base soldada, caja Hammond mecanizada, montada en la moto, salida junto al iPhone | Soldar, taladrar, montar, rodar ([montaje](../hardware/caja/montaje.md)) | Comparación en el Blackbox |
+| H4 | **Autonomía**: arranque y parada solos con el contacto, apagado con el interruptor, recuperación tras cortes | Conectar a la moto, probar | Firmware |
+| H5 | **WiFi**: página de la caja, vinculación con el código, subida sola, bajar archivos | Probar en casa | Firmware |
+| H6 | **Freno y botón** (fase 2) | Derivar la luz de freno, poner el botón | Firmware, eventos, canal de freno y reacción en FRENADAS |
+| H7 | **Revoluciones y marchas** (fase 2) | Pinza en la bujía, calibrar con el cuentarrevoluciones | Acondicionador (esquema), `FORMAT` 2, marchas, POTENCIA por revoluciones |
+| H8 | **Unidad de pantalla** (fase 4): hardware, enlace ESP-NOW, pantallas MARCHA y ESTADO | Montar y poner en el manillar | Firmware de las dos unidades |
+| H9 | **CRONO, VUELTAS y TRAMOS** en la pantalla, con delta | Probar en circuito o tramo cerrado | Fusión en directo, delta, bajada de tramos |
+| H10 | **LEDs**: aviso de cambio y delta | Montar la tira | Firmware |
+
+Todo el hardware y el firmware van en `hardware/caja/`: ya están las piezas, las conexiones, el montaje y los esquemas; el firmware irá en `hardware/caja/firmware/`. El repo es público: ni claves ni datos de salidas.
+
+---
+
+## 7. Presupuesto
+
+Precios con IVA comprobados el 2026-11-10 con las piezas exactas del prototipo (detalle en [piezas.md](../hardware/caja/piezas.md#5-resumen-y-versión-ahorro)):
+
+| Parte | Qué | Aprox. |
+| --- | --- | --- |
+| Caja (fases 1 y 2) | Placa, GPS NEO-M9N con antena, sensor, microSD, alimentación protegida, entradas de freno y revoluciones, caja estanca | 300 € |
+| Instalación | Cables, fusible, derivaciones, termorretráctil, Dual Lock | 52 € |
+| Pantalla (fase 4) | Placa, Sharp 2,7", LEDs, sensor de luz, interruptor, batería, botones, caja, USB-C estanco y adaptador Quad Lock | 199 € |
+| **Total** | **Fases 1 + 2 + 4** | **≈ 550 €** |
+| Versión ahorro | GPS MAX-M10S (10 Hz), antena y latiguillo genéricos, regulador más pequeño, placa XIAO en la pantalla | ≈ 410 € |
+| Herramientas, si faltan | Soldador, estaño y flux, multímetro, pelacables, crimpadora, pistola de calor, broca escalonada, fuente de 12 V | ≈ 150 € |
+
+**El primer cálculo (175-275 €) se quedaba corto.** Al elegir las piezas exactas suben:
+- el GPS de 25 Hz con su antena (≈ 125 €);
+- la alimentación protegida para la moto (≈ 45 €);
+- la caja estanca de marca;
+- la segunda placa y el adaptador Quad Lock;
+- y el material de instalación, que no estaba contado.
+
+Lo que es solo de la fase 2 (freno y revoluciones) cuesta unos 15 €.
+
+Como referencia, una RaceBox Mini S cuesta unos 270-280 € y no tiene ni revoluciones, ni freno, ni pantalla.
+
+---
+
+## 8. Decisiones tomadas
+
+Cerradas el 2026-11-10 al diseñar el prototipo (el porqué de cada una, en [hardware/caja/README.md](../hardware/caja/README.md#decisiones)):
+
+1. **GPS**: u-blox NEO-M9N, 25 Hz con GPS, Galileo y GLONASS. La MAX-M10S (10 Hz) queda como versión ahorro.
+2. **Placa**: SparkFun Thing Plus ESP32-S3, la misma en la caja y en la pantalla.
+3. **Alimentación**: sin batería en la caja; 12 V permanente con fusible y un interruptor electrónico que enciende el contacto y apaga la caja al terminar.
+4. **Dónde va**: bajo el asiento, plana; la antena bajo plástico, mirando al cielo, a más de 20 cm de la caja. Se confirma con una maqueta de cartón.
+5. **Pantalla**: Sharp Memory LCD 2,7" + 8 LEDs.
+6. **Enlace**: ESP-NOW; la pantalla con su propia batería, en el Quad Lock.
+7. **Herramientas**: hay que soldar (lista en [piezas.md](../hardware/caja/piezas.md#4-herramientas)); sin impresora 3D, con cajas compradas.
+8. **La moto**: Kawasaki Ninja 125 (2019 en adelante).
+   - Batería YTX7A-BS bajo el asiento.
+   - Piloto trasero (según el catálogo de recambios, de bombilla 21/5 W): la luz de posición da el contacto y la de freno, el freno.
+   - Bobina con cable de bujía.
+   - Corte de encendido a 10.500 rpm.
+   - Sin sensor de marcha.
+
+**Queda por comprobar con la moto delante:**
+- el hueco exacto para la caja;
+- los colores de los cables del piloto (con el multímetro);
+- las chispas por vuelta (probablemente una) y el ralentí;
+- por dónde se llega al cable de bujía.
+
+---
+
+## 9. Riesgos y cosas a vigilar
+
+- **Ruido eléctrico del encendido** (fase 2): cable apantallado, filtro y separación; puede meter falsos en el GPS o reiniciar la placa si se monta mal.
+- **Vibraciones**: aflojan conectores y la microSD. Conectores con cierre, cola caliente en los cables, la tarjeta sujeta.
+- **Agua y calor**:
+  - la caja lleva junta, prensaestopas y una membrana de ventilación para que no condense;
+  - no tiene batería;
+  - la LiPo está solo en la pantalla, que se quita al aparcar.
+- **La batería de la moto**: la caja apagada no gasta nada gracias al interruptor. Si el firmware se colgara con la moto parada, el perro guardián del ESP32 lo reinicia y la caja se apaga sola; aun así, la primera semana conviene vigilar que la moto arranca bien tras unos días parada.
+- **Antena tapada**: la causa número uno de malos datos de GPS.
+- **Tocar la instalación de la moto**: solo derivaciones, sin cortar ni quitar nada de frenos ni luces; fusible en cada derivación. Comprobar luces y freno después de cada cambio.
+- **La pantalla en marcha**: grande y de reojo; nada que haya que leer con calma ni tocar. Bien sujeta y sin tapar los relojes ni la visión.
+- **Claves**: la clave de sincronización va en la memoria de la placa, y la red de la caja con contraseña. La clave publicable de Supabase, solo al compilar (`secrets.h` fuera de git).
+- **Espacio en la nube**: unos 23 MB por hora; con muchas salidas hay que ir borrando o grabar el sensor a 50 Hz.
+
+---
+
+## Qué no entra (por ahora)
+
+- **Fase 3, temperaturas medidas**:
+  - asfalto con un MLX90614;
+  - neumáticos con cámaras térmicas MLX90640 inalámbricas, que calibrarían solo el modelo de neumáticos.
+  - Encaja fácil después: van por ESP-NOW como la pantalla.
+- **Fase 5, chasis**:
+  - velocidad de cada rueda (patinar y bloquear);
+  - recorrido de la suspensión.
+- **Ver la caja en la app del iPhone en directo**: necesita la app nativa.
+- **Leer la centralita** (diagnosis): depende mucho de la moto; las revoluciones salen de la pinza.
+
+---
+
+## 11. Lo que ya hay en el repo y se reutiliza
+
+| Archivo | Para qué |
+| --- | --- |
+| `hardware/caja/` | El prototipo: piezas, conexiones, montaje y esquemas (y el firmware, cuando se escriba) |
+| `docs/telemetria.md` | El formato que tiene que escribir la caja (flujos, ficha, eventos, `.scb`) |
+| `src/core/blackbox.js` | `STREAMS`, `RULES` (las reglas de arranque y parada a copiar en el firmware), `packSession`/`unpackSession` |
+| `src/blackbox/process.js` | El análisis: postura aprendida, inclinación con giroscopio + GPS sin gravedad del sistema, retraso del GPS |
+| `src/blackbox/main.js` | `importFiles` (hay que añadir los `.scb` binarios) |
+| `src/blackbox/cloud.js` | Cómo baja y abre el Blackbox las salidas de la nube |
+| `supabase/functions/caja-negra/index.ts` | `pair-claim` (vincular), `put`/`commit` (subir), `kv-get` (tramos para la pantalla) |
+| `src/core/live.js`, `src/core/segments.js` | Puertas y delta en vivo, a portar a la pantalla |
+| `src/core/perf.js` | Las marcas del crono (0-100, 1/4…) |
+| `src/blackbox/dyno.js` | Potencia, a ampliar con revoluciones |
+| `src/blackbox/channels.js` | Canales de las gráficas (añadir `rpm`, `gear`, `brake`) |
+
+Siguiente paso cuando se retome:
+1. Hacer la maqueta de cartón y confirmar el sitio en la moto ([montaje, paso 0.2](../hardware/caja/montaje.md#02-busca-el-sitio-en-la-moto)).
+2. Pedir las piezas, la pantalla la primera.
+3. Cuando lleguen, las pruebas de banco (H1) y el firmware de banco, que escribo yo.

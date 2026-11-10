@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="830" viewBox="0 0 1320 830" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1320" height="830" fill="#ffffff"/>
+  <text x="30" y="34" font-size="20" fill="#111" font-weight="bold">Unidad de pantalla: distribución y conexiones</text>
+  <text x="30" y="56" font-size="12" fill="#555">Caja Hammond RP1085C con tapa transparente delante. Va en el Quad Lock con el amortiguador. Medidas en mm.</text>
+  <text x="60" y="106" font-size="14" fill="#263238" font-weight="bold">De frente, a través de la tapa transparente</text>
+  <text x="60" y="122" font-size="11" fill="#607d8b">Línea continua: junto a la tapa · discontinua: al fondo</text>
+  <rect x="52.5" y="158.5" width="525" height="375" rx="12" fill="#eceff1" stroke="#37474f" stroke-width="2.2"/>
+  <rect x="70" y="176" width="489.5" height="339.5" rx="8" fill="#fafafa" stroke="#90a4ae" stroke-width="1.2"/>
+  <rect x="80" y="201" width="180" height="300" rx="3" fill="none" stroke="#8d6e63" stroke-width="1.8" stroke-dasharray="6,4"/>
+  <text x="170" y="341" font-size="11" fill="#5d4037" font-weight="bold" text-anchor="middle">BT1</text>
+  <text x="170" y="355" font-size="11" fill="#5d4037" text-anchor="middle">LiPo 2000 mAh</text>
+  <text x="170" y="369" font-size="11" fill="#5d4037" text-anchor="middle">(al fondo)</text>
+  <rect x="270" y="221" width="114.5" height="292" rx="3" fill="none" stroke="#2e7d32" stroke-width="1.8" stroke-dasharray="6,4"/>
+  <text x="327" y="456" font-size="11" fill="#1b5e20" font-weight="bold" text-anchor="middle">U11</text>
+  <text x="327" y="476" font-size="10" fill="#1b5e20" text-anchor="middle">al fondo</text>
+  <rect x="312.5" y="506" width="30" height="17.5" rx="3" fill="#b0bec5" stroke="#455a64" stroke-width="1.2"/>
+  <text x="327.5" y="553.5" font-size="11" fill="#37474f" font-weight="bold" text-anchor="middle">USB-C de panel con tapa, abajo</text>
+  <rect x="430" y="376" width="76" height="89" rx="3" fill="none" stroke="#e65100" stroke-width="1.8" stroke-dasharray="6,4"/>
+  <text x="468" y="424.5" font-size="10.5" fill="#e65100" font-weight="bold" text-anchor="middle">U15</text>
+  <rect x="80" y="231" width="317.5" height="279.4" rx="3" fill="rgba(227,242,253,0.55)" stroke="#1565c0" stroke-width="2.2"/>
+  <rect x="91.8" y="266" width="294" height="176.5" rx="3" fill="#cfd8dc" stroke="#455a64" stroke-width="1.4"/>
+  <text x="238.8" y="344.3" font-size="11" fill="#212121" font-weight="bold" text-anchor="middle">U12 · Sharp Memory 2,7"</text>
+  <text x="238.8" y="358.3" font-size="11" fill="#212121" text-anchor="middle">zona visible 58,8 × 35,3</text>
+  <text x="238.8" y="372.3" font-size="11" fill="#212121" text-anchor="middle">ventana en el vinilo: 59 × 36</text>
+  <rect x="110" y="177.5" width="255.5" height="51" rx="3" fill="#212121" stroke="#212121" stroke-width="1.8"/>
+  <circle cx="126" cy="203" r="10" fill="#43a047"/>
+  <circle cx="157.8" cy="203" r="10" fill="#43a047"/>
+  <circle cx="189.5" cy="203" r="10" fill="#43a047"/>
+  <circle cx="221.2" cy="203" r="10" fill="#fdd835"/>
+  <circle cx="253" cy="203" r="10" fill="#fdd835"/>
+  <circle cx="284.8" cy="203" r="10" fill="#fb8c00"/>
+  <circle cx="316.5" cy="203" r="10" fill="#e53935"/>
+  <circle cx="348.2" cy="203" r="10" fill="#e53935"/>
+  <text x="237.5" y="148.5" font-size="11" fill="#37474f" font-weight="bold" text-anchor="middle">U13 · 8 LEDs (aviso de cambio y delta)</text>
+  <rect x="420" y="183.5" width="125" height="89" rx="3" fill="#fff8e1" stroke="#f9a825" stroke-width="1.8"/>
+  <text x="482.5" y="225" font-size="10.5" fill="#212121" font-weight="bold" text-anchor="middle">U14</text>
+  <text x="482.5" y="239" font-size="10.5" fill="#212121" text-anchor="middle">sensor de luz</text>
+  <circle cx="568.5" cy="326" r="40" fill="#cfd8dc" stroke="#263238" stroke-width="2"/>
+  <circle cx="568.5" cy="326" r="27.5" fill="#90a4ae" stroke="#263238" stroke-width="1.4"/>
+  <text x="619.5" y="330" font-size="12" fill="#263238" font-weight="bold">A · PANTALLA</text>
+  <circle cx="568.5" cy="446" r="40" fill="#cfd8dc" stroke="#263238" stroke-width="2"/>
+  <circle cx="568.5" cy="446" r="27.5" fill="#90a4ae" stroke="#263238" stroke-width="1.4"/>
+  <text x="619.5" y="450" font-size="12" fill="#263238" font-weight="bold">B · MARCA</text>
+  <text x="60" y="587.5" font-size="11" fill="#455a64">Por detrás: chapa de aluminio de 80 × 60 atornillada (4 × M3 a 66 × 40 mm)</text>
+  <text x="60" y="603.5" font-size="11" fill="#455a64">y el adaptador Quad Lock Original pegado en medio, entre los tornillos.</text>
+  <text x="60" y="619.5" font-size="11" fill="#455a64">Pantalla sobre separadores (unos 20 mm): el cristal a 1-2 mm de la tapa.</text>
+  <text x="60" y="635.5" font-size="11" fill="#455a64">Vinilo negro por dentro de la tapa: tapa el borde de la pantalla.</text>
+  <text x="60" y="651.5" font-size="11" fill="#455a64">Pulsadores de Ø16 en la pared derecha. B: corta = marca, larga = meta.</text>
+  <rect x="760" y="76" width="520" height="730" rx="8" fill="#ffffff" stroke="#cfd8dc" stroke-width="1.4"/>
+  <text x="772" y="98" font-size="15" fill="#263238" font-weight="bold">Conexiones</text>
+  <rect x="930" y="120" width="200" height="200" rx="4" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.6"/>
+  <text x="1030" y="142" font-size="12" fill="#1b5e20" font-weight="bold" text-anchor="middle">U11 · Thing Plus ESP32-S3</text>
+  <text x="938" y="172" font-size="10.5" fill="#222">VBATT</text>
+  <line x1="912" y1="168" x2="930" y2="168" stroke="#222" stroke-width="1.6"/>
+  <rect x="872" y="159" width="40" height="18" rx="9" fill="#ffebee" stroke="#c62828" stroke-width="1.3"/>
+  <text x="892" y="172" font-size="11" fill="#b71c1c" font-weight="bold" text-anchor="middle">VBAT</text>
+  <text x="938" y="196" font-size="10.5" fill="#222">3V3</text>
+  <line x1="912" y1="192" x2="930" y2="192" stroke="#222" stroke-width="1.6"/>
+  <rect x="878" y="183" width="34" height="18" rx="9" fill="#ffebee" stroke="#c62828" stroke-width="1.3"/>
+  <text x="895" y="196" font-size="11" fill="#b71c1c" font-weight="bold" text-anchor="middle">3V3</text>
+  <text x="938" y="220" font-size="10.5" fill="#222">GND</text>
+  <line x1="912" y1="216" x2="930" y2="216" stroke="#222" stroke-width="1.6"/>
+  <rect x="878" y="207" width="34" height="18" rx="9" fill="#f5f5f5" stroke="#616161" stroke-width="1.3"/>
+  <text x="895" y="220" font-size="11" fill="#424242" font-weight="bold" text-anchor="middle">GND</text>
+  <text x="938" y="244" font-size="10.5" fill="#222">SCK · 12</text>
+  <line x1="912" y1="240" x2="930" y2="240" stroke="#222" stroke-width="1.6"/>
+  <rect x="878" y="231" width="34" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="895" y="244" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">SCK</text>
+  <text x="938" y="268" font-size="10.5" fill="#222">PICO · 11</text>
+  <line x1="912" y1="264" x2="930" y2="264" stroke="#222" stroke-width="1.6"/>
+  <rect x="872" y="255" width="40" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="892" y="268" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">MOSI</text>
+  <text x="938" y="292" font-size="10.5" fill="#222">A0 · 10</text>
+  <line x1="912" y1="288" x2="930" y2="288" stroke="#222" stroke-width="1.6"/>
+  <rect x="885" y="279" width="27" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="898.5" y="292" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">CS</text>
+  <text x="1122" y="172" font-size="10.5" fill="#222" text-anchor="end">GPIO 21</text>
+  <line x1="1130" y1="168" x2="1148" y2="168" stroke="#222" stroke-width="1.6"/>
+  <rect x="1148" y="159" width="60" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="1178" y="172" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">LED_DIN</text>
+  <text x="1122" y="196" font-size="10.5" fill="#222" text-anchor="end">GPIO 4</text>
+  <line x1="1130" y1="192" x2="1148" y2="192" stroke="#222" stroke-width="1.6"/>
+  <rect x="1148" y="183" width="54" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="1175" y="196" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">LED_ON</text>
+  <text x="1122" y="220" font-size="10.5" fill="#222" text-anchor="end">GPIO 5</text>
+  <line x1="1130" y1="216" x2="1148" y2="216" stroke="#222" stroke-width="1.6"/>
+  <rect x="1148" y="207" width="60" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="1178" y="220" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">LED_OFF</text>
+  <text x="1122" y="244" font-size="10.5" fill="#222" text-anchor="end">GPIO 7</text>
+  <line x1="1130" y1="240" x2="1148" y2="240" stroke="#222" stroke-width="1.6"/>
+  <rect x="1148" y="231" width="47" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="1171.5" y="244" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">BTN_A</text>
+  <text x="1122" y="268" font-size="10.5" fill="#222" text-anchor="end">GPIO 6</text>
+  <line x1="1130" y1="264" x2="1148" y2="264" stroke="#222" stroke-width="1.6"/>
+  <rect x="1148" y="255" width="47" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="1171.5" y="268" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">BTN_B</text>
+  <text x="1122" y="296" font-size="10.5" fill="#555" text-anchor="end">Qwiic → U14</text>
+  <text x="1122" y="312" font-size="10.5" fill="#555" text-anchor="end">batería → BT1</text>
+  <rect x="780" y="350" width="230" height="165" rx="4" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.6"/>
+  <text x="790" y="370" font-size="12" fill="#1565c0" font-weight="bold">U12 · pantalla Sharp</text>
+  <text x="790" y="396" font-size="10.5" fill="#222">VIN (desde VIN de U14)</text>
+  <line x1="940" y1="392" x2="958" y2="392" stroke="#999" stroke-width="1"/>
+  <rect x="958" y="383" width="47" height="18" rx="9" fill="#ffebee" stroke="#c62828" stroke-width="1.3"/>
+  <text x="981.5" y="396" font-size="11" fill="#b71c1c" font-weight="bold" text-anchor="middle">3V3_P</text>
+  <text x="790" y="420" font-size="10.5" fill="#222">GND</text>
+  <line x1="940" y1="416" x2="958" y2="416" stroke="#999" stroke-width="1"/>
+  <rect x="958" y="407" width="34" height="18" rx="9" fill="#f5f5f5" stroke="#616161" stroke-width="1.3"/>
+  <text x="975" y="420" font-size="11" fill="#424242" font-weight="bold" text-anchor="middle">GND</text>
+  <text x="790" y="444" font-size="10.5" fill="#222">CLK</text>
+  <line x1="940" y1="440" x2="958" y2="440" stroke="#999" stroke-width="1"/>
+  <rect x="958" y="431" width="34" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="975" y="444" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">SCK</text>
+  <text x="790" y="468" font-size="10.5" fill="#222">DI</text>
+  <line x1="940" y1="464" x2="958" y2="464" stroke="#999" stroke-width="1"/>
+  <rect x="958" y="455" width="40" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="978" y="468" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">MOSI</text>
+  <text x="790" y="492" font-size="10.5" fill="#222">CS (activo en alto)</text>
+  <line x1="940" y1="488" x2="958" y2="488" stroke="#999" stroke-width="1"/>
+  <rect x="958" y="479" width="27" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="971.5" y="492" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">CS</text>
+  <text x="790" y="504" font-size="10" fill="#666">EXTMD, DISP y EXTIN: sin conectar</text>
+  <rect x="1030" y="350" width="230" height="165" rx="4" fill="#fff3e0" stroke="#e65100" stroke-width="1.6"/>
+  <text x="1040" y="370" font-size="12" fill="#e65100" font-weight="bold">U15 · Pololu 2808 (LV)</text>
+  <text x="1040" y="396" font-size="10.5" fill="#222">VIN</text>
+  <line x1="1190" y1="392" x2="1208" y2="392" stroke="#999" stroke-width="1"/>
+  <rect x="1208" y="383" width="40" height="18" rx="9" fill="#ffebee" stroke="#c62828" stroke-width="1.3"/>
+  <text x="1228" y="396" font-size="11" fill="#b71c1c" font-weight="bold" text-anchor="middle">VBAT</text>
+  <text x="1040" y="420" font-size="10.5" fill="#222">GND</text>
+  <line x1="1190" y1="416" x2="1208" y2="416" stroke="#999" stroke-width="1"/>
+  <rect x="1208" y="407" width="34" height="18" rx="9" fill="#f5f5f5" stroke="#616161" stroke-width="1.3"/>
+  <text x="1225" y="420" font-size="11" fill="#424242" font-weight="bold" text-anchor="middle">GND</text>
+  <text x="1040" y="444" font-size="10.5" fill="#222">VOUT</text>
+  <line x1="1190" y1="440" x2="1208" y2="440" stroke="#999" stroke-width="1"/>
+  <rect x="1208" y="431" width="40" height="18" rx="9" fill="#ffebee" stroke="#c62828" stroke-width="1.3"/>
+  <text x="1228" y="444" font-size="11" fill="#b71c1c" font-weight="bold" text-anchor="middle">VLED</text>
+  <text x="1040" y="468" font-size="10.5" fill="#222">ON</text>
+  <line x1="1190" y1="464" x2="1208" y2="464" stroke="#999" stroke-width="1"/>
+  <rect x="1208" y="455" width="54" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="1235" y="468" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">LED_ON</text>
+  <text x="1040" y="492" font-size="10.5" fill="#222">OFF</text>
+  <line x1="1190" y1="488" x2="1208" y2="488" stroke="#999" stroke-width="1"/>
+  <rect x="1208" y="479" width="60" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="1238" y="492" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">LED_OFF</text>
+  <text x="1040" y="504" font-size="10" fill="#666">interruptor de los LEDs</text>
+  <rect x="780" y="560" width="230" height="117" rx="4" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.6"/>
+  <text x="790" y="580" font-size="12" fill="#1565c0" font-weight="bold">U13 · tira de 8 LEDs</text>
+  <text x="790" y="606" font-size="10.5" fill="#222">5VDC</text>
+  <line x1="940" y1="602" x2="958" y2="602" stroke="#999" stroke-width="1"/>
+  <rect x="958" y="593" width="40" height="18" rx="9" fill="#ffebee" stroke="#c62828" stroke-width="1.3"/>
+  <text x="978" y="606" font-size="11" fill="#b71c1c" font-weight="bold" text-anchor="middle">VLED</text>
+  <text x="790" y="630" font-size="10.5" fill="#222">GND</text>
+  <line x1="940" y1="626" x2="958" y2="626" stroke="#999" stroke-width="1"/>
+  <rect x="958" y="617" width="34" height="18" rx="9" fill="#f5f5f5" stroke="#616161" stroke-width="1.3"/>
+  <text x="975" y="630" font-size="11" fill="#424242" font-weight="bold" text-anchor="middle">GND</text>
+  <text x="790" y="654" font-size="10.5" fill="#222">DIN (por R11 470 Ω)</text>
+  <line x1="940" y1="650" x2="958" y2="650" stroke="#999" stroke-width="1"/>
+  <rect x="958" y="641" width="60" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="988" y="654" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">LED_DIN</text>
+  <text x="790" y="666" font-size="10" fill="#666">C11 100 µF entre 5VDC y GND, en la tira</text>
+  <rect x="1030" y="560" width="230" height="117" rx="4" fill="#fafafa" stroke="#455a64" stroke-width="1.6"/>
+  <text x="1040" y="580" font-size="12" fill="#455a64" font-weight="bold">SW1, SW2 · pulsadores</text>
+  <text x="1040" y="606" font-size="10.5" fill="#222">SW1 (A)</text>
+  <line x1="1190" y1="602" x2="1208" y2="602" stroke="#999" stroke-width="1"/>
+  <rect x="1208" y="593" width="47" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="1231.5" y="606" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">BTN_A</text>
+  <text x="1040" y="630" font-size="10.5" fill="#222">SW2 (B)</text>
+  <line x1="1190" y1="626" x2="1208" y2="626" stroke="#999" stroke-width="1"/>
+  <rect x="1208" y="617" width="47" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="1231.5" y="630" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">BTN_B</text>
+  <text x="1040" y="654" font-size="10.5" fill="#222">el otro terminal</text>
+  <line x1="1190" y1="650" x2="1208" y2="650" stroke="#999" stroke-width="1"/>
+  <rect x="1208" y="641" width="34" height="18" rx="9" fill="#f5f5f5" stroke="#616161" stroke-width="1.3"/>
+  <text x="1225" y="654" font-size="11" fill="#424242" font-weight="bold" text-anchor="middle">GND</text>
+  <text x="1040" y="666" font-size="10" fill="#666">pull-up interna del ESP32</text>
+  <text x="780" y="712" font-size="11" fill="#455a64">U14 VEML7700: cable Qwiic a U11 (0x10). Su VIN (3V3_P) alimenta también la pantalla:</text>
+  <text x="780" y="728" font-size="11" fill="#455a64">en U11 se corta LP_CTL y la pantalla se queda sin corriente al dormir.</text>
+  <text x="780" y="746" font-size="11" fill="#455a64">BT1 LiPo 2000 mAh: al conector de batería de U11. Comprueba la polaridad antes.</text>
+  <text x="780" y="764" font-size="11" fill="#455a64">Los LEDs van a la batería (VBAT) a través de U15: apagados gastan</text>
+  <text x="780" y="780" font-size="11" fill="#455a64">~0,5 mA cada uno y sin U15 vaciarían la batería en días.</text>
+</svg>
