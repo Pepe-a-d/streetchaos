@@ -115,6 +115,48 @@ describe('analizador', () => {
     expect(A.runs[0].marks['k0-100']).toBeGreaterThan(2)
   })
 
+  it('si el móvil se mueve en marcha (al colocarlo, en la mano), no salen curvas ni inclinaciones imposibles (9-11-2026)', () => {
+    const ride = synthRide({ path, ios: true, gpsLag: 1, tilt: 22 })
+    // Una recta a más de 30 km/h: ahí la moto va derecha
+    let t0 = 0
+    for (let t = 5; t < ride.truth.tEnd - 5; t += 0.5) {
+      let ok = true
+      for (let q = 0; q <= 4; q += 0.25) if (ride.truth.at(t + q).v < 9 || Math.abs(ride.truth.at(t + q).lean) > 2 * RAD) ok = false
+      if (ok) {
+        t0 = t
+        break
+      }
+    }
+    expect(t0).toBeGreaterThan(0)
+    // 3 s con el móvil girado 50° sobre su eje x y otros 50° sobre el y (en la mano) y dando vueltas
+    const W = 10
+    const imu = Float32Array.from(ride.imu)
+    const c = Math.cos(50 * RAD)
+    const sn = Math.sin(50 * RAD)
+    for (let k = 0; k < imu.length; k += W) {
+      const t = imu[k]
+      if (t < t0 + 0.5 || t > t0 + 3.5) continue
+      for (const o of [1, 4]) {
+        let [x, y, z] = [imu[k + o], imu[k + o + 1], imu[k + o + 2]]
+        ;[y, z] = [c * y - sn * z, sn * y + c * z]
+        ;[x, z] = [c * x + sn * z, -sn * x + c * z]
+        imu[k + o] = x
+        imu[k + o + 1] = y
+        imu[k + o + 2] = z
+      }
+      imu[k + 7] = 140
+      imu[k + 8] = -90
+    }
+    const A = analyze({ ...ride, imu })
+    expect(A.info.leanFrom).toBe('gravity')
+    expect(A.info.leanFixed).toBeGreaterThan(1)
+    const truthMax = Math.max(...A.corners.map((x) => 0), compare(A, ride.truth).maxT)
+    expect(Math.max(A.stats.leanL, A.stats.leanR)).toBeLessThan(truthMax + 6)
+    // Ninguna curva en esa recta
+    const i0 = Math.round((t0 - A.T0) / 0.1)
+    expect(A.corners.some((x) => x.i1 >= i0 && x.i0 <= i0 + 40)).toBe(false)
+  })
+
   it('sin sensores tira del GPS', () => {
     const ride = synthRide({ path, imu: false })
     const A = analyze(ride)

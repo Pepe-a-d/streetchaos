@@ -2,8 +2,11 @@
 // La app solo graba; el análisis lo hará una app de escritorio con el archivo que se exporta
 // desde Garaje → Datos. El formato está en docs/telemetria.md: si cambias campos, sube FORMAT.
 //
-// - Una sesión empieza sola al pasar de ~9 km/h con buen GPS y se queda con los 30 s anteriores,
-//   así entra también la salida desde parado.
+// - Una sesión empieza sola al moverte de verdad (3 posiciones a más de ~9 km/h y 40 m recorridos, con
+//   buen GPS) y se queda con los 30 s anteriores, así entra también la salida desde parado. Un salto
+//   suelto del GPS ya no basta: parado o andando, el iPhone a veces da 15-30 km/h falsos y se grababan
+//   «salidas» de 0 a 50 m.
+// - Al terminar, si no llegó a 100 m (y no hubo pasadas del crono ni duelos) se borra: no era una salida.
 // - Termina tras 3 minutos parado o sin datos (pantalla apagada, app cerrada).
 // - Se escribe en IndexedDB cada 5 s: si la app se cierra o se recarga se pierden como mucho esos 5 s,
 //   y al volver a abrirla la sesión sigue si han pasado menos de 3 minutos.
@@ -26,6 +29,10 @@ const TYPED = { gps: Float64Array, imu: Float32Array, calc: Float32Array }
 export const RULES = {
   startV: 2.5, // m/s (9 km/h) para empezar una sesión
   startAcc: 30, // m de precisión como mucho para fiarse de esa velocidad
+  startFixes: 3, // posiciones rápidas seguidas...
+  startDist: 40, // ...y metros recorridos desde la primera para empezar de verdad
+  armFor: 30, // s para conseguirlo; si no, era un salto del GPS
+  minDist: 100, // m: una sesión más corta (sin pasadas ni duelos) no era una salida
   preRoll: 30, // s que se guardan de antes de empezar
   stopV: 1, // m/s: por debajo cuenta como parado
   endAfter: 180, // s parado o sin datos para cerrar la sesión
@@ -37,6 +44,9 @@ const num = (x) => (x == null || !Number.isFinite(x) ? NaN : x)
 const round3 = (x) => Math.round(x * 1000) / 1000
 const newBuf = () => ({ gps: [], imu: [], calc: [], ev: [] })
 const newId = (epoch) => epoch.toString(36) + Math.random().toString(36).slice(2, 6)
+const RAD = Math.PI / 180
+/** Metros entre dos puntos {lat, lon} (cerca: plano). NaN si falta alguno. */
+const meters = (a, b) => Math.hypot((b.lat - a.lat) * RAD, (b.lon - a.lon) * RAD * Math.cos(((a.lat + b.lat) / 2) * RAD)) * 6371008.8
 
 /**
  * @param {object} o
@@ -58,6 +68,7 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
     lastCalc: -Infinity,
     lastFlush: 0,
     prev: null,
+    arm: null, // primera posición rápida, a la espera de ver si de verdad te mueves
     imuInterval: null,
     chain: Promise.resolve(),
     error: '',
@@ -75,7 +86,19 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
     const t = s.t
     if (stale(t)) end()
     S.buf.gps.push(t, num(s.ts), num(s.lat), num(s.lon), num(s.acc), num(s.alt), num(s.altAcc), num(s.speedRaw), num(s.headingRaw), num(s.v), num(s.heading))
-    if (!S.on && S.ready && enabled() && s.v >= rules.startV && (s.acc ?? Infinity) <= rules.startAcc) start(t)
+    if (!S.on && S.ready && enabled()) {
+      if (S.arm && t - S.arm.t > rules.armFor) S.arm = null
+      if (s.v >= rules.startV && (s.acc ?? Infinity) <= rules.startAcc) {
+        S.arm ??= { t, lat: s.lat, lon: s.lon, n: 0 }
+        S.arm.n++
+        const d = meters(S.arm, s)
+        // Sin posición (no debería pasar) basta con las posiciones rápidas
+        if (S.arm.n >= rules.startFixes && (!Number.isFinite(d) || d >= rules.startDist)) {
+          S.arm = null
+          start(t)
+        }
+      }
+    }
     if (S.on) {
       S.lastData = Math.max(S.lastData, t)
       if (s.v > rules.stopV) S.lastMove = t
@@ -119,12 +142,14 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
     }
     if (S.on) {
       if (t - S.lastFlush >= rules.flushEvery) flush()
-    } else trim(t - rules.preRoll)
+    } else trim(Math.min(t, S.arm?.t ?? t) - rules.preRoll) // armada: desde 30 s antes de la primera rápida
   }
 
   /** Evento suelto (pasada, calibración, app en segundo plano...). */
   function event(type, data = {}, t = now().perf) {
     S.buf.ev.push({ ...data, type, t })
+    // Con una pasada del crono o un duelo, la sesión se queda aunque sea corta
+    if (S.on && (type === 'run' || type === 'race')) S.sess.keep = true
   }
 
   // Sin sesión solo se guardan los últimos segundos
@@ -211,10 +236,13 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
     m.end = m.start + Math.round((S.lastData - S.t0) * 1000)
     const snap = { ...m, rows: { ...m.rows } }
     return queue(async () => {
+      if (!isRide(snap)) return store.remove(snap.id)
       await store.putMeta(snap)
       onEnd(snap)
     })
   }
+
+  const isRide = (m) => (m.dist || 0) >= rules.minDist || m.keep
 
   /** Al abrir la app: sigue la sesión que se cortó hace poco y cierra las viejas. */
   async function recover() {
@@ -236,7 +264,7 @@ export function createLogger({ store, now, enabled = () => true, context = () =>
         } else {
           m.state = 'done'
           m.end ??= m.updated
-          await queue(() => store.putMeta(m))
+          await queue(() => (isRide(m) ? store.putMeta(m) : store.remove(m.id)))
         }
       }
     } catch (e) {
@@ -350,6 +378,11 @@ export function idbStore(name = 'sc-telemetria') {
       }),
     listMeta: () => run(['sessions'], 'readonly', (tx) => tx.objectStore('sessions').getAll()),
     getChunks: (id) => run(['chunks'], 'readonly', (tx) => tx.objectStore('chunks').getAll(chunkRange(id))),
+    remove: (id) =>
+      run(['sessions', 'chunks'], 'readwrite', (tx) => {
+        tx.objectStore('sessions').delete(id)
+        tx.objectStore('chunks').delete(chunkRange(id))
+      }),
     clear: () =>
       run(['sessions', 'chunks'], 'readwrite', (tx) => {
         tx.objectStore('sessions').clear()
@@ -376,6 +409,10 @@ export function memoryStore() {
     },
     async getChunks(id) {
       return [...chunks.values()].filter((c) => c.id === id).map(copy)
+    },
+    async remove(id) {
+      sessions.delete(id)
+      for (const k of [...chunks.keys()]) if (k.startsWith(`${id}:`)) chunks.delete(k)
     },
     async clear() {
       sessions.clear()

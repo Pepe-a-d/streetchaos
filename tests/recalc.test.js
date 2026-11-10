@@ -57,6 +57,19 @@ describe('récords rehechos con la caja negra', () => {
     expect(await recalcRecords({ store: db, analyze })).toBe(null)
   })
 
+  it('no cuenta las «salidas» de menos de 100 m (un salto del GPS parado)', async () => {
+    const ride = synthRide({ path: path(), ios: true, gpsLag: 1, tilt: 22 })
+    const db = memoryStore()
+    await db.putChunk({ ...ride.meta, source: 'real' }, { id: ride.meta.id, seq: 0, gps: ride.gps, imu: ride.imu, calc: ride.calc, ev: ride.ev })
+    // Otra «salida» de 30 m con una punta falsa de 60 m/s (216 km/h)
+    const fake = Float64Array.from(ride.gps)
+    for (let k = 7; k < fake.length; k += 11) (fake[k] = 60), (fake[k + 2] = 60)
+    await db.putChunk({ ...ride.meta, id: 'salto', source: 'real', dist: 30 }, { id: 'salto', seq: 0, gps: fake, imu: ride.imu, calc: ride.calc, ev: [] })
+    const r = await recalcRecords({ store: db, analyze })
+    expect(r.sessions).toBe(1)
+    expect(Math.abs(store.totals.maxV - ride.truth.vmax) * 3.6).toBeLessThan(2)
+  })
+
   it('sin salidas guardadas: la punta se queda e inclinación y G vuelven a cero', async () => {
     const r = await recalcRecords({ store: memoryStore(), analyze })
     expect(r.sessions).toBe(0)

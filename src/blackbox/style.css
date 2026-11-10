@@ -530,3 +530,4 @@ body[data-vista='todo'].det-video .mapbox { grid-template-columns: minmax(0, 1fr
 .vid-bar .btn.small { padding: 5px 9px; }
 .vid-bar .grow { flex: 1; }
 .vid-time { min-width: 0; font-size: 11px; }
+.tiny-btn { display: block; margin: 10px 4px 4px; font-size: 12px; }

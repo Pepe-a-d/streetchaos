@@ -5,6 +5,9 @@ import { createLogger, memoryStore, readSession, toBase64, STREAMS, RULES } from
 let clock
 let store
 let L
+let lat // la moto va hacia el norte: la posición avanza con la velocidad
+const LAT0 = 43.3712345678
+const M_PER_DEG = 111195
 const EPOCH0 = Date.UTC(2026, 10, 9, 10, 0, 0)
 
 function make(opts = {}) {
@@ -19,8 +22,11 @@ function make(opts = {}) {
   return L
 }
 
-/** Avanza el reloj `secs` segundos con GPS a 1 Hz a velocidad v, sensores a 50 Hz y tick cada 0,1 s. */
-function ride(secs, v, { acc = 4, imu = true } = {}) {
+/**
+ * Avanza el reloj `secs` segundos con GPS a 1 Hz a velocidad v, sensores a 50 Hz y tick cada 0,1 s.
+ * moving: si la posición avanza con esa velocidad (false: un GPS que dice ir rápido sin moverse).
+ */
+function ride(secs, v, { acc = 4, imu = true, moving = true } = {}) {
   const end = clock + secs
   let nextFix = Math.ceil(clock)
   while (clock < end - 1e-9) {
@@ -28,7 +34,8 @@ function ride(secs, v, { acc = 4, imu = true } = {}) {
     if (imu) L.motion({ accelerationIncludingGravity: { x: 0.1, y: 9.8, z: 0.3 }, acceleration: { x: 0, y: 0, z: 0 }, rotationRate: { alpha: 1, beta: 2, gamma: 3 }, interval: 20 }, clock)
     if (Math.abs(clock * 10 - Math.round(clock * 10)) < 1e-6) L.tick()
     if (clock >= nextFix) {
-      L.gps({ t: clock, ts: EPOCH0 + clock * 1000, lat: 43.3712345678 + clock * 1e-5, lon: -8.4022123456, acc, alt: 18.5, altAcc: 3, speedRaw: v, headingRaw: 78, v, heading: v > 1 ? 78 : null })
+      if (moving) lat += v / M_PER_DEG
+      L.gps({ t: clock, ts: EPOCH0 + clock * 1000, lat, lon: -8.4022123456, acc, alt: 18.5, altAcc: 3, speedRaw: v, headingRaw: 78, v, heading: v > 1 ? 78 : null })
       nextFix += 1
     }
   }
@@ -38,6 +45,7 @@ const sessions = async () => (await store.listMeta()).sort((a, b) => a.start - b
 
 beforeEach(async () => {
   clock = 100
+  lat = LAT0
   make()
   await L.recover()
 })
@@ -68,12 +76,41 @@ describe('caja negra', () => {
     const firstAbs = EPOCH0 + (140 - RULES.preRoll) * 1000
     expect(Math.abs(m.start - firstAbs)).toBeLessThan(1500)
     // posiciones exactas (float64)
-    expect(s.gps[2]).toBeCloseTo(43.3712345678 + (L.state.t0 + s.gps[0]) * 1e-5, 9)
+    expect(s.gps[2]).toBe(LAT0)
     expect(s.gps[3]).toBe(-8.4022123456)
     // sensores a 50 Hz y lo calculado a 10 Hz
     expect(s.imu.length / STREAMS.imu.fields.length).toBeGreaterThan(50 * 45)
     expect(s.calc.length / STREAMS.calc.fields.length).toBeGreaterThan(10 * 45)
     expect(m.imuInterval).toBe(20)
+  })
+
+  it('un salto del GPS parado (o andando) no empieza una salida (10-11-2026)', async () => {
+    ride(20, 0)
+    // Parado, el iPhone dice 30 km/h un par de veces sin moverse
+    ride(2, 8.5, { moving: false })
+    ride(30, 0)
+    // Andando con el móvil en la mano: alguna velocidad falsa, pocos metros
+    ride(3, 3, { moving: false })
+    ride(20, 1.3)
+    await L.flush()
+    expect(await sessions()).toHaveLength(0)
+    expect(L.recording).toBe(false)
+  })
+
+  it('una sesión de menos de 100 m se borra al acabar, salvo con una pasada del crono', async () => {
+    ride(10, 0)
+    ride(6, 12) // ~70 m y para
+    ride(RULES.endAfter + 5, 0)
+    await L.flush()
+    expect(await sessions()).toHaveLength(0)
+    // Con una pasada del crono, aunque sea corta, se queda
+    ride(6, 12)
+    L.event('run', { id: 'corta' })
+    ride(RULES.endAfter + 5, 0)
+    await L.flush()
+    const list = await sessions()
+    expect(list).toHaveLength(1)
+    expect(list[0].keep).toBe(true)
   })
 
   it('con GPS malo no empieza', async () => {

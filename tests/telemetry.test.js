@@ -23,6 +23,7 @@ beforeEach(async () => {
   tel.useSource({ start: (fn) => (push = fn), stop() {} })
 })
 afterEach(() => {
+  vi.doUnmock('../src/core/device.js')
   vi.restoreAllMocks()
   delete globalThis.screen
 })
@@ -111,8 +112,11 @@ describe('inclinación con la gravedad del móvil (iPhone casi plano en horizont
     expect(tel.T.leanMaxR).toBe(0)
     ride(6, 15, (i) => i * 12, () => ev({ wu: worldUp(FLAT_LAND, 25), conv: -1, axes: 'xyz' }))
     expect(store.settings.leanSign).toBe(1)
+    // (cada inclinación con su curva: giro = g·tan φ / v)
+    let h = 0
     for (const phi of [10, 30, 50, -35]) {
-      ride(2, 15, 0, () => ev({ wu: worldUp(FLAT_LAND, phi), conv: -1, axes: 'xyz' }))
+      const turn = deg((G * Math.tan(rad(phi))) / 15)
+      ride(2, 15, () => ((h += turn) + 360) % 360, () => ev({ wu: worldUp(FLAT_LAND, phi), conv: -1, axes: 'xyz' }))
       expect(leanDeg()).toBeCloseTo(phi, 0)
     }
     expect(tel.T.leanMaxR).toBeGreaterThan(49)
@@ -178,6 +182,72 @@ describe('inclinación con la gravedad del móvil (iPhone casi plano en horizont
     expect(Math.abs(leanDeg())).toBeLessThan(2)
   })
 
+  it('en curvas en S con el GPS llegando 1 s tarde, el sentido no se da la vuelta (10-11-2026)', () => {
+    imu(2, () => ev({ wu: worldUp(FLAT_LAND, 0), conv: -1, axes: 'xyz' }))
+    tel.zeroLean()
+    ride(6, 15, (i) => i * 12, () => ev({ wu: worldUp(FLAT_LAND, 25), conv: -1, axes: 'xyz' }))
+    expect(store.settings.leanSign).toBe(1)
+    // 1 s a la derecha y 1 s a la izquierda, una y otra vez. Cada posición llega 1 s tarde, con su hora
+    // buena (como en el iPhone, que la app ya corrige): su giro es el del segundo anterior
+    const hs = [100]
+    for (let j = 0; j < 40; j++) {
+      const right = j % 2 === 0
+      imu(1, () => ev({ wu: worldUp(FLAT_LAND, right ? 30 : -30), conv: -1, axes: 'xyz' }))
+      hs.push(hs[j] + (right ? 25 : -25))
+      push({ t: clock - 1, lat: 43.37, lon: -8.4, v: 15, acc: 4, alt: 10, heading: (hs[j] + 360) % 360 })
+    }
+    expect(store.settings.leanSign).toBe(1)
+    imu(1, () => ev({ wu: worldUp(FLAT_LAND, 30), conv: -1, axes: 'xyz' }))
+    expect(leanDeg()).toBeGreaterThan(25)
+  })
+
+  it('un sentido ya comprobado solo cambia si muchas curvas dicen lo contrario', () => {
+    imu(2, () => ev({ wu: worldUp(FLAT_LAND, 0), conv: -1, axes: 'xyz' }))
+    tel.zeroLean()
+    ride(6, 15, (i) => i * 12, () => ev({ wu: worldUp(FLAT_LAND, 25), conv: -1, axes: 'xyz' }))
+    expect(store.settings.leanSign).toBe(1)
+    // Una curva rara de 3 s (GPS malo, rotonda...) no basta
+    ride(3, 15, (i) => 200 - i * 12, () => ev({ wu: worldUp(FLAT_LAND, 25), conv: -1, axes: 'xyz' }))
+    expect(store.settings.leanSign).toBe(1)
+    // Pero si de verdad está al revés (curvas y curvas), se corrige
+    ride(20, 15, (i) => 160 - i * 12, () => ev({ wu: worldUp(FLAT_LAND, 25), conv: -1, axes: 'xyz' }))
+    expect(store.settings.leanSign).toBe(-1)
+  })
+
+  it('una inclinación que no cuadra con la curva que marca el GPS no hace récord (9-11-2026: 64,7° y 1,23 G)', () => {
+    imu(2, () => ev({ wu: worldUp(FLAT_LAND, 0), conv: -1, axes: 'xyz' }))
+    tel.__test.M.leanSure = true
+    clock += 11
+    // En recta (el rumbo no cambia) a 30 km/h, el móvil dice 60° (lo estás colocando)
+    ride(4, 9, 90, () => ev({ wu: worldUp(FLAT_LAND, 60), conv: -1, axes: 'xyz' }))
+    expect(tel.T.leanMaxR).toBe(0)
+    expect(tel.T.gMax).toBeLessThan(0.1)
+    // Frenando fuerte en recta, la G sí cuenta
+    let v = 20
+    gps(v, 90)
+    for (let i = 0; i < 3; i++) {
+      imu(1, () => ev({ wu: worldUp(FLAT_LAND, 0), lin: FLAT_LAND.F.map((x) => -x * 7), conv: -1, axes: 'xyz' }))
+      v -= 7
+      gps(v, 90)
+    }
+    expect(tel.T.leanMaxR).toBe(0)
+  })
+
+  it('al colocar el móvil no hace récords de G ni de inclinación falsos', () => {
+    imu(2, () => ev({ wu: worldUp(FLAT_LAND, 0), conv: -1, axes: 'xyz' }))
+    tel.__test.M.leanSure = true
+    // Recién colocado: la postura se acaba de hacer y el móvil aún se mueve (60° con el GPS a 30 km/h)
+    tel.__test.initMount(tel.__test.M.wu)
+    ride(3, 9, 0, () => ev({ wu: worldUp(FLAT_LAND, 60), conv: -1, axes: 'xyz' }))
+    expect(tel.T.leanMaxR).toBe(0)
+    expect(tel.T.gMax).toBeLessThan(0.1)
+    // Ya quieto en el soporte y en una curva de verdad (giro = g·tan 30° / v), sí
+    ride(15, 10, (i) => (i * 32) % 360, () => ev({ wu: worldUp(FLAT_LAND, 30), conv: -1, axes: 'xyz' }))
+    expect(tel.T.leanMaxR).toBeGreaterThan(25)
+    expect(tel.T.gMax).toBeGreaterThan(0.4)
+    expect(tel.T.gMax).toBeLessThan(0.9)
+  })
+
   it('si mueves el móvil en el soporte con la moto parada, rehace la postura', () => {
     imu(2, () => ev({ wu: worldUp(FLAT_LAND, 0), conv: -1, axes: 'xyz' }))
     tel.zeroLean()
@@ -196,6 +266,19 @@ describe('sin la gravedad del sistema: giroscopio', () => {
     ride(3, 20, (i) => i * 15, () => ev({ wu: UPRIGHT.U, rot, sys: false }))
     expect(leanDeg()).toBeCloseTo(phi, 0)
     expect(tel.T.gLat).toBeGreaterThan(0.4)
+  })
+
+  it('en el iPhone los ejes del giroscopio ya se saben y no cambian (10-11-2026)', async () => {
+    vi.resetModules()
+    vi.doMock('../src/core/device.js', async (orig) => ({ ...(await orig()), isIOS: () => true }))
+    store = await import('../src/core/store.js')
+    store.settings.gyroAxes = 'w3c' // aunque se hubiera guardado mal
+    tel = await import('../src/core/telemetry.js')
+    tel.useSource({ start: (fn) => (push = fn), stop() {} })
+    expect(tel.__test.M.axes).toBe('xyz')
+    const flat = mountOf([0, 0, 1], [1, 0, 0])
+    ride(8, 15, (i) => i * 10, () => ev({ wu: flat.U, rot: [0, 0, -10], axes: 'w3c', sys: false }))
+    expect(tel.__test.M.axes).toBe('xyz')
   })
 
   it('descubre que el móvil reparte los ejes como el iPhone y lo guarda', () => {

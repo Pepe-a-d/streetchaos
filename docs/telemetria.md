@@ -6,7 +6,8 @@ Código: `src/core/blackbox.js` (grabación y formato) y `src/core/logger.js` (l
 
 ## Cómo se graba
 
-- **Sesión** = una salida. Empieza sola cuando el GPS marca ≥ 2,5 m/s (9 km/h) con precisión ≤ 30 m, y se queda con los **30 s anteriores**, así la salida desde parado entra entera.
+- **Sesión** = una salida. Empieza sola cuando te mueves de verdad: **3 posiciones** a ≥ 2,5 m/s (9 km/h) con precisión ≤ 30 m y **40 m** recorridos desde la primera, en menos de 30 s (desde el 2026-11-10; antes bastaba una, y parado o andando el iPhone a veces da 15-30 km/h falsos). Se queda con los **30 s anteriores** a la primera posición rápida, así la salida desde parado entra entera.
+- Al terminar, si no llegó a **100 m** y no hubo pasadas del crono ni duelos (`keep`), **se borra**: no era una salida. El Blackbox oculta las de antes que no llegan a 100 m.
 - Termina tras **3 minutos parado** (< 1 m/s) **o sin datos** (pantalla apagada, app cerrada). La siguiente vez que te muevas empieza otra.
 - Se escribe en IndexedDB (`sc-telemetria`) **cada 5 s**. Si la app se cierra o se recarga a mitad, al abrirla la sesión **sigue con el mismo id** si han pasado menos de 3 minutos (`resumed` cuenta cuántas veces) y con un evento `resume`. Si no, se cierra.
 - Se apaga en Garaje → Ajustes → Telemetría. Cambiar la fuente de GPS (real/simulador) cierra la sesión: cada sesión tiene una sola `source`.

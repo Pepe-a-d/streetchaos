@@ -1,4 +1,6 @@
-// Récords rehechos con la caja negra (una sola vez, al arrancar la versión de 2026-11-09).
+// Récords rehechos con la caja negra (una sola vez por versión del cálculo: la de 2026-11-09 y otra
+// vez con la de 2026-11-10, que quita la G de 1,23 que se midió al colocar el móvil y las inclinaciones
+// imposibles, y no cuenta las «salidas» de menos de 100 m que empezaba un salto del GPS).
 //
 // Hasta esa versión, en el iPhone la inclinación salía con los ejes del giroscopio cambiados (71-72°
 // donde había 35°), y parado la velocidad se sacaba de saltos de posición (129 km/h falsos, y con ellos
@@ -12,7 +14,7 @@ import { totals, saveTotals, settings } from './store.js'
 import { idbStore, readSession } from './blackbox.js'
 import { revokeAchievements } from './achievements.js'
 
-export const CALC_VERSION = 2
+export const CALC_VERSION = 3
 const CATS = ['speed', 'lean', 'g']
 
 /**
@@ -28,7 +30,8 @@ export async function recalcRecords({ store = null, analyze = null } = {}) {
   } catch {
     metas = []
   }
-  metas = metas.filter((m) => m.source !== 'demo')
+  // Ni la demo ni las «salidas» de menos de 100 m (un salto del GPS parado: su punta no era de verdad)
+  metas = metas.filter((m) => m.source !== 'demo' && ((m.dist || 0) >= 100 || m.keep))
   if (metas.length && !analyze) {
     try {
       analyze = (await import('../blackbox/process.js')).analyze

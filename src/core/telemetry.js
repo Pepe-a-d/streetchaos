@@ -116,8 +116,9 @@ function handleSample(s) {
     if (okBoth && p.heading != null && s.heading != null && s.v > 3) {
       const yaw = (headingDelta(p.heading, s.heading) * Math.PI) / 180 / dt
       T.yawGps = ema(T.yawGps, yaw, dt, 0.5)
-      alignGyro()
-      learnLeanSign()
+      alignGyro(p, s, yaw)
+      learnLeanSign(p, s, yaw)
+      confirmRecords(p, s, yaw)
     } else T.yawGps = ema(T.yawGps, 0, dt, 0.5)
     if (okBoth && dt <= 1.6) learnForward(p, s)
   }
@@ -181,12 +182,15 @@ export function tick(dt) {
 const saved = settings.mount && Array.isArray(settings.mount.up) ? settings.mount : null
 const M = {
   conv: Number.isFinite(settings.gravConv) ? settings.gravConv : defaultConv(IOS),
-  axes: settings.gyroAxes || defaultAxes(IOS),
+  // En el iPhone los ejes del giroscopio ya se saben (alpha = x, beta = y, gamma = z): no se aprenden.
+  // El 10-11-2026 la app los cambió sola en marcha y el inclinómetro fue al revés 9 minutos
+  axes: IOS ? 'xyz' : settings.gyroAxes || defaultAxes(IOS),
   // Giro sobre la vertical del mundo: con la regla de la mano derecha una curva a derecha es negativa
   sign: Number.isFinite(settings.yawSign) ? settings.yawSign : -1,
   leanSign: Number.isFinite(settings.leanSign) ? settings.leanSign : 1,
   // El sentido ya se ha comprobado con una curva del GPS (hasta entonces la inclinación no hace récords)
   leanSure: Number.isFinite(settings.leanSign),
+  against: 0, // segundos de curvas que dicen que el sentido ya comprobado está al revés
   g: null, // gravedad del móvil (su convenio), suavizada
   sys: false, // la gravedad es la del sistema (hay aceleración sin gravedad)
   wu: null, // vertical del mundo (unitaria, hacia arriba)
@@ -201,8 +205,12 @@ const M = {
   rawLean: 0,
   leanCorr: 0,
   yaw: 0,
-  yawSum: { w3c: 0, xyz: 0 },
-  yawN: 0,
+  // Historia de los últimos segundos: [t, inclinación sin signo, giro w3c, giro xyz, inclinación, G long].
+  // El GPS llega tarde
+  // (el iPhone, ~1 s): su giro hay que compararlo con lo que hacían los sensores en ESE rato, no ahora.
+  // Antes se comparaba con lo de ahora y en una curva en S (izquierda y enseguida derecha) salía al revés
+  hist: [],
+  mountAt: -Infinity, // cuándo se rehízo la postura (justo después, la inclinación no hace récords)
   corr: { w3c: 0, xyz: 0 },
   corrE: 0,
   last: 0,
@@ -296,13 +304,11 @@ function onMotion(e) {
 
   // Giro alrededor de la vertical (rad/s), con las dos asignaciones de ejes para descubrir la buena
   const rr = e.rotationRate
+  let w = null
   if (rr && Number.isFinite(rr.alpha) && Number.isFinite(rr.beta) && Number.isFinite(rr.gamma)) {
     T.gyro = true
-    const w = { w3c: dot(gyroVec(rr, 'w3c'), wu) * DEG, xyz: dot(gyroVec(rr, 'xyz'), wu) * DEG }
+    w = { w3c: dot(gyroVec(rr, 'w3c'), wu) * DEG, xyz: dot(gyroVec(rr, 'xyz'), wu) * DEG }
     M.yaw = ema(M.yaw, w[M.axes], dt, 0.12)
-    M.yawSum.w3c += w.w3c
-    M.yawSum.xyz += w.xyz
-    M.yawN++
   }
 
   // G longitudinal del acelerómetro (al momento y sin el retraso del GPS) cuando ya se sabe dónde es delante
@@ -327,6 +333,23 @@ function onMotion(e) {
 
   updateMount(dt, t)
   updateLean(dt)
+  remember(t, w)
+}
+
+/** Apunta la inclinación y el giro de ahora (cada 0,05 s, los últimos 8 s). */
+function remember(t, w) {
+  const h = M.hist
+  if (h.length && t - h[h.length - 1][0] < 0.05) return
+  h.push([t, M.rawLean, w ? w.w3c : NaN, w ? w.xyz : NaN, T.lean, T.gLong])
+  while (h.length && t - h[0][0] > 8) h.shift()
+}
+
+/** Media de la columna k de la historia entre t0 y t1 (null si no hay bastante). */
+function histMean(t0, t1, k) {
+  let s = 0
+  let n = 0
+  for (const r of M.hist) if (r[0] >= t0 - 0.03 && r[0] <= t1 + 0.03 && Number.isFinite(r[k])) (s += r[k]), n++
+  return n >= 3 ? s / n : null
 }
 
 /** Postura de partida: la vertical de ahora y el lateral según cómo va la pantalla. */
@@ -339,6 +362,7 @@ function initMount(wu) {
   M.W = 0
   M.N = 0
   M.dirty = true
+  M.mountAt = now()
 }
 
 function updateMount(dt, t) {
@@ -449,34 +473,53 @@ function learnForward(p, s) {
   if (first) saveMount()
 }
 
-/** El signo de la inclinación se comprueba con las curvas del GPS: girando a la derecha, tumbas a la derecha. */
-function learnLeanSign() {
-  if (!T.motion || !T.vOk || T.v < 6 || Math.abs(T.yawGps) < 0.08) return
-  M.leanCorr = M.leanCorr * 0.97 + M.rawLean * T.yawGps
-  if (Math.abs(M.leanCorr) > 0.15) {
-    const sign = M.leanCorr > 0 ? 1 : -1
-    if (sign !== M.leanSign || !M.leanSure) {
-      M.leanSign = sign
+/**
+ * El signo de la inclinación se comprueba con las curvas del GPS: girando a la derecha, tumbas a la
+ * derecha. El giro es el de entre dos posiciones (p → s, ya en el reloj de los sensores) y la
+ * inclinación, la de ese mismo rato. Una vez comprobado, solo se da la vuelta si muchas curvas seguidas
+ * dicen lo contrario (antes bastaba una curva en S).
+ */
+function learnLeanSign(p, s, yaw) {
+  if (!T.motion || !T.vOk || s.v < 6 || Math.abs(yaw) < 0.08) return
+  const lean = histMean(p.t, s.t, 1)
+  if (lean == null || Math.abs(lean) < 5 * DEG) return
+  const dt = Math.min(2, s.t - p.t)
+  if (!M.leanSure) {
+    M.leanCorr = M.leanCorr * 0.97 + lean * yaw
+    if (Math.abs(M.leanCorr) > 0.15) {
+      M.leanSign = M.leanCorr > 0 ? 1 : -1
       M.leanSure = true
-      setSetting('leanSign', sign)
+      M.against = 0
+      setSetting('leanSign', M.leanSign)
     }
+    return
+  }
+  const agree = Math.sign(lean * yaw) === M.leanSign
+  M.against = agree ? Math.max(0, M.against - 2 * dt) : M.against + dt
+  if (M.against > 8) {
+    M.leanSign = -M.leanSign
+    M.leanCorr = -M.leanCorr
+    M.against = 0
+    setSetting('leanSign', M.leanSign)
   }
 }
 
-/** Ejes y signo del giroscopio: el que se parece al giro que marca el GPS. Solo hace falta sin la gravedad del sistema. */
-function alignGyro() {
-  if (!T.gyro || M.yawN === 0) return
-  const avg = { w3c: M.yawSum.w3c / M.yawN, xyz: M.yawSum.xyz / M.yawN }
-  M.yawSum = { w3c: 0, xyz: 0 }
-  M.yawN = 0
-  if (!T.vOk || T.v < 4 || Math.abs(T.yawGps) < 0.05) return
-  for (const k of ['w3c', 'xyz']) M.corr[k] = M.corr[k] * 0.95 + avg[k] * T.yawGps
-  M.corrE = M.corrE * 0.95 + T.yawGps * T.yawGps
+/**
+ * Ejes y signo del giroscopio: el que se parece al giro que marca el GPS entre dos posiciones (con lo que
+ * medía el giroscopio en ese mismo rato). En el iPhone los ejes ya se saben: solo el signo.
+ */
+function alignGyro(p, s, yaw) {
+  if (!T.gyro) return
+  const avg = { w3c: histMean(p.t, s.t, 2), xyz: histMean(p.t, s.t, 3) }
+  if (avg.w3c == null || avg.xyz == null) return
+  if (!T.vOk || s.v < 4 || Math.abs(yaw) < 0.05) return
+  for (const k of ['w3c', 'xyz']) M.corr[k] = M.corr[k] * 0.95 + avg[k] * yaw
+  M.corrE = M.corrE * 0.95 + yaw * yaw
   if (M.corrE < CORR_SURE) return
-  const best = Math.abs(M.corr.xyz) > Math.abs(M.corr.w3c) ? 'xyz' : 'w3c'
+  const best = IOS || Math.abs(M.corr.xyz) > Math.abs(M.corr.w3c) ? 'xyz' : 'w3c'
   const other = best === 'xyz' ? 'w3c' : 'xyz'
   // Solo con una diferencia clara, para que unas muestras raras no lo cambien
-  if (Math.abs(M.corr[best]) < 2 * Math.abs(M.corr[other]) || Math.abs(M.corr[best]) / M.corrE < 0.3) return
+  if ((!IOS && Math.abs(M.corr[best]) < 2 * Math.abs(M.corr[other])) || Math.abs(M.corr[best]) / M.corrE < 0.3) return
   const sign = M.corr[best] > 0 ? 1 : -1
   if (best !== M.axes) {
     M.axes = best
@@ -512,19 +555,49 @@ function updateLean(dt) {
   T.lean = ema(T.lean, lean, dt, 0.1)
   // G lateral de la curva (en una curva redonda, tan φ); parado no la hay aunque la moto esté tumbada
   T.gLat = Math.tan(clamp(T.lean, -1.2, 1.2)) * smooth(3, 8, v)
+  // Solo con GPS la inclinación sale del propio GPS: récords al momento. Con sensores se confirman al
+  // llegar la posición de ese rato (confirmRecords)
+  if (T.motion) return
   const deg = (T.lean * 180) / Math.PI
-  // Récords solo en marcha, con velocidad de verdad, ángulos posibles y el sentido ya comprobado
-  if (v > 5 && T.vOk && Math.abs(deg) < 65 && (M.leanSure || !T.motion)) {
-    if (deg < 0) T.leanMaxL = Math.max(T.leanMaxL, -deg)
-    else T.leanMaxR = Math.max(T.leanMaxR, deg)
-    totals.maxLeanL = Math.max(totals.maxLeanL, T.leanMaxL)
-    totals.maxLeanR = Math.max(totals.maxLeanR, T.leanMaxR)
-  }
-  const gt = Math.hypot(T.gLat, T.gLong)
-  if (v > 5 && T.vOk && gt < 2) {
+  if (v > 5 && T.vOk && Math.abs(deg) < 65) record(deg, Math.hypot(T.gLat, T.gLong))
+}
+
+function record(deg, gt) {
+  if (deg < 0) T.leanMaxL = Math.max(T.leanMaxL, -deg)
+  else T.leanMaxR = Math.max(T.leanMaxR, deg)
+  totals.maxLeanL = Math.max(totals.maxLeanL, T.leanMaxL)
+  totals.maxLeanR = Math.max(totals.maxLeanR, T.leanMaxR)
+  if (gt < 1.6) {
     T.gMax = Math.max(T.gMax, gt)
     totals.maxG = Math.max(totals.maxG, gt)
   }
+}
+
+/**
+ * Récords de inclinación y G con sensores: los de entre dos posiciones (p → s), cuando ya se sabe qué
+ * curva trazaba la moto en ese rato. Si el móvil marcaba 20° más de lo que pide la curva (tan φ = v·giro/g),
+ * no era la moto: se estaba colocando o iba en la mano (el 9-11-2026 apuntó 64,7° y 1,23 G así). También
+ * hace falta el sentido comprobado y el móvil quieto en el soporte desde hace 10 s.
+ */
+function confirmRecords(p, s, yaw) {
+  if (!T.motion || s.vOk === false || p.vOk === false || !(p.v > 5 && s.v > 5) || !M.leanSure || now() - M.mountAt <= 10) return
+  const curve = Math.atan((Math.abs(yaw) * (p.v + s.v)) / 2 / G)
+  const vMid = (p.v + s.v) / 2
+  let best = null
+  for (const r of M.hist) {
+    if (r[0] < p.t - 0.03 || r[0] > s.t + 0.03) continue
+    const lean = r[4]
+    if (!Number.isFinite(lean) || Math.abs(lean) > curve + 20 * DEG || Math.abs(lean) > 65 * DEG) return
+    const gt = Math.hypot(Math.tan(lean) * smooth(3, 8, vMid), Number.isFinite(r[5]) ? r[5] : 0)
+    if (!best) best = { L: 0, R: 0, g: 0 }
+    if (lean < 0) best.L = Math.max(best.L, -lean)
+    else best.R = Math.max(best.R, lean)
+    best.g = Math.max(best.g, gt)
+  }
+  if (!best) return
+  if (best.L) record(-best.L / DEG, best.g)
+  if (best.R) record(best.R / DEG, best.g)
+  if (!best.L && !best.R) record(0, best.g)
 }
 
 /** Pone a cero la inclinación con la moto recta: guarda la vertical de ahora (y el lateral, si hace falta). */

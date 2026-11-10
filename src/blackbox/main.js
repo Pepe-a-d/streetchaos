@@ -204,13 +204,19 @@ const vmaxOf = (m) => m.vmaxBB ?? m.vmax ?? 0
 /** Etiqueta corta de un archivo de otro aparato: «RACEBOX 25 HZ». */
 const loggerTag = (m) => `${String(m.logger.name || m.logger.kind).split(/[ ·(]/)[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()} ${Math.round(m.logger.hz)} HZ`
 const distOf = (m) => m.distBB ?? m.dist ?? 0
+// «Salidas» de menos de 100 m sin pasadas del crono: un salto del GPS parado o andando las empezaba (el
+// móvil ya no las graba desde el 10-11-2026). Van ocultas en la lista y no cuentan para nada.
+const isRide = (m) => distOf(m) >= 100 || (m.nRuns || 0) > 0
 
 async function refreshList() {
   S.list = await listSessions()
-  K('count').textContent = S.list.length ? String(S.list.length) : ''
+  const tiny = S.list.filter((m) => !isRide(m) && m.id !== S.id)
+  const shown = S.showTiny ? S.list : S.list.filter((m) => isRide(m) || m.id === S.id)
+  K('count').textContent = shown.length ? String(S.list.length - tiny.length) : ''
   let day = null
-  K('list').innerHTML = S.list.length
-    ? S.list
+  const tinyBtn = tiny.length ? `<button class="linkish tiny-btn" data-act="tiny">${S.showTiny ? 'ocultar' : 'ver'} ${tiny.length} sin viaje (menos de 100 m)</button>` : ''
+  K('list').innerHTML = shown.length
+    ? shown
         .map((m) => {
           const [txt, cls] = SRC[m.source] || ['?', '']
           const d = dayLabel(m.start)
@@ -226,8 +232,8 @@ async function refreshList() {
             <button class="del" data-del="${esc(m.id)}" title="Borrar de este navegador" aria-label="Borrar">×</button>
           </div>`
         })
-        .join('')
-    : '<p class="note">Aún no hay salidas en este navegador.</p>'
+        .join('') + tinyBtn
+    : `<p class="note">Aún no hay salidas en este navegador.</p>${tinyBtn}`
   if (!S.id) renderHome()
 }
 
@@ -838,7 +844,8 @@ function renderTab() {
         ${row('Postura: arriba', vec(I.mount?.up))}
         ${row('Postura: adelante', I.mount?.fwd ? `${vec(I.mount.fwd)} · R² ${I.mount.r2.toFixed(2)}` : 'no se pudo sacar (pocas aceleraciones)')}
         ${row('G longitudinal de', I.longFrom === 'imu' ? 'acelerómetro (calibrado con el GPS)' : I.longFrom === 'device' ? 'el acelerómetro del aparato' : 'velocidad del GPS')}
-        ${row('Inclinación de', `${LEAN[I.leanFrom] || I.leanFrom}${I.leanCorr ? ` · cuadra con el GPS ${I.leanCorr.toFixed(2)}` : I.yawCorr ? ` · correlación ${I.yawCorr.toFixed(2)}` : ''}`)}
+        ${row('Inclinación de', `${LEAN[I.leanFrom] || I.leanFrom}${I.signFrom === 'phone' ? ' · con el sentido que había comprobado el móvil' : I.leanCorr ? ` · cuadra con el GPS ${I.leanCorr.toFixed(2)}` : I.yawCorr ? ` · correlación ${I.yawCorr.toFixed(2)}` : ''}${I.upFrom === 'phone' ? ' · vertical del móvil' : ''}`)}
+        ${I.leanFixed > 0 ? row('Inclinación imposible', `${I.leanFixed.toFixed(1)} s en marcha en que el móvil no iba con la moto (al colocarlo o en la mano): ahí, la de la curva según el GPS`) : ''}
         ${row('Ejes del giroscopio', I.gyroAxes === 'xyz' ? 'los del iPhone (alpha = x)' : I.gyroAxes === 'w3c' ? 'los del estándar' : '—')}
         ${row('Retraso del GPS', Number.isFinite(I.gpsLag) ? `${I.gpsLag.toFixed(1)} s medido${I.appLag ? ` · el móvil ya descontaba ${I.appLag} s` : ''}` : '—')}
         ${row('Velocidad del GPS', Number.isFinite(I.doppler) ? `en el ${Math.round(I.doppler * 100)} % de los fixes (el resto, rellenada)` : '—')}
@@ -910,6 +917,10 @@ root.addEventListener('click', async (e) => {
     return
   }
   if (d.act === 'demo') return loadDemo()
+  if (d.act === 'tiny') {
+    S.showTiny = !S.showTiny
+    return refreshList()
+  }
   if (d.act === 'device') {
     deviceCache = await deviceSessions()
     const r = await addSessions(deviceCache, 'este móvil')
@@ -1134,6 +1145,7 @@ const when = (m, t) => fmtDateTime(m.start + t * 1000)
 async function passesEverywhere(P, onProgress, skip) {
   const out = []
   for (const m of S.list) {
+    if (!isRide(m)) continue
     if (!bboxHit(await bboxOf(m), P.bbox)) continue
     onProgress?.(m)
     const B = await analysisOf(m.id)
@@ -1329,6 +1341,7 @@ async function segmentEfforts(seg, onProgress) {
   const P = makePath(seg.points)
   const out = []
   for (const m of S.list) {
+    if (!isRide(m)) continue
     if (!bboxHit(await bboxOf(m), P.bbox)) continue
     let rec = await getEfforts(seg.id, m.id)
     if (!rec || rec.size !== m.size || rec.v !== EFFORTS_VERSION) {
@@ -1682,7 +1695,7 @@ function renderHome() {
   K('title').innerHTML = S.profile?.name && getKey() ? `Hola, <b>${esc(S.profile.name)}</b>` : 'Analizador de telemetría'
   const linked = !!getKey()
   const p = linked ? S.profile : null
-  const recent = S.list.slice(0, 6)
+  const recent = S.list.filter(isRide).slice(0, 6)
   const rideCards = recent.length
     ? `<div class="ride-cards">${recent
         .map(
@@ -1750,7 +1763,7 @@ function bars(items, { h = 84, color = 'cyan', fmt = (v) => v.toFixed(0), w = 28
 }
 
 /** Tus salidas reales con su resumen, de la más antigua a la más nueva. */
-const realRides = () => S.list.filter((m) => (m.source || 'real') === 'real').slice().reverse()
+const realRides = () => S.list.filter((m) => (m.source || 'real') === 'real' && isRide(m)).slice().reverse()
 function evolutionHtml() {
   const rides = realRides()
   if (rides.length < 2) return ''

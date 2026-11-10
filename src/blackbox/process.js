@@ -19,13 +19,13 @@
 // 6. Curvas, frenadas, pasadas del crono y estadísticas de cualquier tramo.
 
 import { STREAMS } from '../core/blackbox.js'
-import { screenRight } from '../core/mount.js'
+import { screenRight, leanAngle } from '../core/mount.js'
 
 export const G = 9.80665
 export const DT = 0.1 // s entre muestras del análisis (10 Hz)
 // Súbelo cada vez que el análisis cambie lo que sale (velocidades, tiempos, curvas): los tiempos de los
 // tramos guardados en el navegador se rehacen con él
-export const ANALYSIS_VERSION = 3
+export const ANALYSIS_VERSION = 4
 const GAP = 5 // s sin GPS que cortan la traza
 const R_EARTH = 6371008.8
 const RAD = Math.PI / 180
@@ -628,11 +628,13 @@ export function analyze(session) {
   }
 
   // Inclinación dinámica: sen φ = v·giro/g con el giro medido sobre el eje de la moto (giroscopio);
-  // tan φ = v·giro/g con el giro del rumbo (GPS)
+  // tan φ = v·giro/g con el giro del rumbo (GPS). Un giro del rumbo que pediría más de 1 g en curva es
+  // un salto del GPS, no una curva (el 9-11-2026 daba 44° con −78°/s a 27 km/h): ahí, recto
   const leanDyn = new Float64Array(n)
   for (let i = 0; i < n; i++) {
     const w = Number.isFinite(yaw[i]) ? yaw[i] * RAD : 0
-    const lat = (v[i] * w) / G
+    let lat = (v[i] * w) / G
+    if (info.leanFrom === 'gps' && Math.abs(lat) > 1) lat = 0
     const phi = info.leanFrom === 'gyro' ? Math.asin(clamp(lat, -0.97, 0.97)) : Math.atan(lat)
     // Con el rumbo del GPS, despacio el giro es ruido: solo a partir de ~15-30 km/h
     leanDyn[i] = Number.isFinite(phi) ? phi * (info.leanFrom === 'gyro' ? smoothstep(2, 6, v[i]) : smoothstep(4, 8, v[i])) : 0
@@ -655,27 +657,50 @@ export function analyze(session) {
   // la inclinación es directa: el giro de la vertical del mundo alrededor del eje de avance. Vale a
   // cualquier velocidad. El sentido se comprueba con los giros del GPS.
   if (B && B.sys > 0.5 && mount) {
+    // La vertical de la moto: la gravedad media yendo en recta y rápido; en salidas cortas o lentas, más
+    // despacio; y si ni así, la postura que apuntó el propio móvil (antes se iba a la del rumbo del GPS, que
+    // en ciudad daba 44° falsos)
     let su = [0, 0, 0]
     let cu = 0
-    for (let pass = 0; pass < 2 && !cu; pass++)
+    for (let pass = 0; pass < 3 && cu <= 50; pass++) {
+      su = [0, 0, 0]
+      cu = 0
       for (let i = 0; i < n; i++) {
-        if (!valid[i] || !(v[i] > 8) || !Number.isFinite(B.gx[i])) continue
-        if (pass === 0 && !(Math.abs(yawGps[i]) < 3)) continue
+        if (!valid[i] || !(v[i] > (pass < 2 ? 8 : 4)) || !Number.isFinite(B.gx[i])) continue
+        if (pass !== 1 && !(Math.abs(yawGps[i]) < (pass === 0 ? 3 : 5))) continue
         const g = norm([B.gx[i], B.gy[i], B.gz[i]])
         su = [su[0] + g[0], su[1] + g[1], su[2] + g[2]]
         cu++
       }
-    if (cu > 50) {
-      const U = norm(su)
+    }
+    const cal = meta?.calib
+    const fromPhone = cu <= 50 && Array.isArray(cal?.up) && cal.up.length === 3 && Number.isFinite(cal.conv)
+    if (cu > 50 || fromPhone) {
+      const U = cu > 50 ? norm(su) : norm(cal.up.map((x) => x * cal.conv))
+      if (fromPhone) info.upFrom = 'phone'
       const ortho = (a) => {
         const d = dot(a, U)
         return norm([a[0] - d * U[0], a[1] - d * U[1], a[2] - d * U[2]])
       }
       const angle = { 'landscape-primary': 90, 'portrait-secondary': 180, 'landscape-secondary': 270 }[meta?.device?.orientation] ?? 0
-      const R = mount.fwd ? norm(cross(ortho(mount.fwd), U)) : ortho(screenRight(angle))
+      const R = mount.fwd ? norm(cross(ortho(mount.fwd), U)) : Array.isArray(cal?.right) && cal.right.length === 3 ? ortho(cal.right) : ortho(screenRight(angle))
       const lg = new Float64Array(n).fill(NaN)
       for (let i = 0; i < n; i++) if (Number.isFinite(B.gx[i])) lg[i] = Math.atan2(dot([B.gx[i], B.gy[i], B.gz[i]], R), dot([B.gx[i], B.gy[i], B.gz[i]], U))
-      const rs = corrSign(lg, yawGps, (i) => valid[i] && v[i] > 6 && Math.abs(yawGps[i]) > 3)
+      let rs = corrSign(lg, yawGps, (i) => valid[i] && v[i] > 6 && Math.abs(yawGps[i]) > 3)
+      // Con pocas curvas (una salida corta o por ciudad) el GPS no basta para saber hacia qué lado es
+      // cada cosa: el que ya había comprobado el móvil (su postura y su signo, con su misma fórmula)
+      if (!(rs.corr > 0.3) && Array.isArray(cal?.up) && Array.isArray(cal?.right) && Number.isFinite(cal?.conv) && Number.isFinite(cal?.leanSign)) {
+        const ph = new Float64Array(n).fill(NaN)
+        for (let i = 0; i < n; i++) if (Number.isFinite(B.gx[i])) ph[i] = leanAngle(norm([cal.conv * B.gx[i], cal.conv * B.gy[i], cal.conv * B.gz[i]]), cal.up, cal.right) * cal.leanSign
+        const ps = corrSign(lg, ph, (i) => valid[i] && Math.abs(ph[i]) > 3 * RAD)
+        if (ps.corr > 0.8) (rs = ps), (info.signFrom = 'phone')
+      }
+      // Y si el móvil se movió en el soporte después de calibrar: la inclinación que enseñaba en marcha
+      if (!(rs.corr > 0.3) && calc.n > 50) {
+        const live = interp(t, calc.t, calc.lean)
+        const ls = corrSign(lg, live, (i) => valid[i] && v[i] > 3 && Math.abs(live[i]) > 3)
+        if (ls.corr > 0.6) (rs = ls), (info.signFrom = 'phone')
+      }
       if (rs.corr > 0.3) {
         const sm = movAvg(lg, 3)
         lean = new Float64Array(n)
@@ -684,6 +709,38 @@ export function analyze(session) {
         info.leanCorr = rs.corr
         info.mount.upSys = U
       }
+    }
+  }
+
+  // Inclinaciones imposibles en marcha: la moto tumba lo que pide la curva que traza (sen φ = v·giro/g).
+  // Si el móvil marca 20° más que eso, con el giro del giroscopio y con el del GPS, durante medio segundo o
+  // más (al colocarlo, al cogerlo en la mano o si se mueve en el soporte), no es la moto: ahí vale la de
+  // la curva según el GPS (el giroscopio también mide lo que gira el móvil en la mano). Parada se deja tal
+  // cual (la pata de cabra la tumba de verdad), pero eso no cuenta para curvas ni máximos, que van con
+  // velocidad. El 9-11-2026, colocando el móvil, salía una «curva» de 49° a 9 km/h
+  info.leanFixed = 0
+  if (info.leanFrom === 'gravity') {
+    const LIM = 20 * RAD
+    // (un giro del rumbo que pediría más de 1 g es un salto del GPS: ahí, recto)
+    const leanGps = (i) => {
+      const lat = Number.isFinite(yawGps[i]) ? (v[i] * yawGps[i] * RAD) / G : 0
+      return Math.abs(lat) > 1 ? 0 : Math.atan(lat) * smoothstep(4, 8, v[i])
+    }
+    const bad = (i) => valid[i] && v[i] > 2 && Math.abs(lean[i]) > LIM && Math.abs(lean[i] - leanDyn[i]) > LIM && Math.abs(lean[i] - leanGps(i)) > LIM
+    let i = 0
+    while (i < n) {
+      if (!bad(i)) {
+        i++
+        continue
+      }
+      let j = i
+      while (j + 1 < n && bad(j + 1)) j++
+      if (j - i + 1 >= 5) {
+        // Con un pequeño margen a cada lado (lo que tarda en apartarse o volver)
+        for (let q = Math.max(0, i - 3); q <= Math.min(n - 1, j + 3); q++) if (valid[q] && v[q] > 2) lean[q] = leanGps(q)
+        info.leanFixed += (j - i + 1) * DT
+      }
+      i = j + 1
     }
   }
 
