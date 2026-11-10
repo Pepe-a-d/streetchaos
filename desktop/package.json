@@ -1,8 +1,8 @@
 {
   "name": "streetchaos-blackbox",
   "productName": "Blackbox Street Chaos",
-  "version": "2.3.0",
-  "description": "Analizador de la telemetría de Street Chaos para el ordenador, en varias pantallas",
+  "version": "2.4.0",
+  "description": "Analizador de la telemetría de Street Chaos para Windows y Mac, en varias pantallas",
   "main": "main.js",
   "author": "Pepe",
   "license": "MIT",
@@ -10,12 +10,14 @@
     "web": "cd .. && npx vite build --mode desktop --base / --outDir desktop/app --emptyOutDir",
     "start": "npm run web && electron .",
     "build:win": "npm run web && electron-builder --win nsis portable --x64",
-    "release:win": "npm run web && electron-builder --win nsis portable --x64 --publish always"
+    "release:win": "npm run web && electron-builder --win nsis portable --x64 --publish always",
+    "build:mac": "npm run web && electron-builder --mac dmg --arm64 --x64",
+    "release:mac": "npm run web && electron-builder --mac dmg --arm64 --x64 --publish always"
   },
   "build": {
     "appId": "com.pepe.streetchaos.blackbox",
     "productName": "Blackbox Street Chaos",
-    "files": ["main.js", "preload.js", "windows.js", "app/**/*", "!app/datos/**"],
+    "files": ["main.js", "preload.js", "windows.js", "updates.js", "app/**/*", "!app/datos/**"],
     "directories": { "output": "dist", "buildResources": "build" },
     "win": { "icon": "build/icon.png", "signAndEditExecutable": false },
     "nsis": {
@@ -25,6 +27,16 @@
       "shortcutName": "Blackbox Street Chaos"
     },
     "portable": { "artifactName": "Blackbox-StreetChaos-portable.exe" },
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.sports",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "minimumSystemVersion": "11.0",
+      "artifactName": "Blackbox-StreetChaos-mac-${arch}.${ext}"
+    },
+    "dmg": { "title": "Blackbox Street Chaos", "artifactName": "Blackbox-StreetChaos-mac-${arch}.${ext}" },
     "publish": [{ "provider": "github", "owner": "Pepe-a-d", "repo": "streetchaos", "releaseType": "release" }]
   },
   "dependencies": {

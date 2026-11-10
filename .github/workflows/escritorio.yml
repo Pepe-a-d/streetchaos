@@ -1,7 +1,9 @@
-# App de Windows del Blackbox: se construye en una máquina con Windows (así el .exe lleva su icono) y se
-# publica en las «Releases» del repositorio, de donde se descarga y desde donde se actualiza sola.
-# Se lanza al subir una etiqueta v* igual a la versión de desktop/package.json (v2.0.0) o a mano desde Actions.
-name: App de Windows
+# Apps de escritorio del Blackbox: la de Windows se construye en Windows (así el .exe lleva su icono) y la
+# de Mac en un Mac (para Apple Silicon y para Intel). Las dos se publican en las «Releases» del
+# repositorio, de donde se descargan (página /blackbox/descargar/). La de Windows se actualiza sola; la
+# de Mac avisa al abrirla de que hay versión nueva.
+# Se lanza al subir una etiqueta v* igual a la versión de desktop/package.json (v2.4.0) o a mano desde Actions.
+name: Apps de escritorio
 
 on:
   push:
@@ -12,8 +14,9 @@ permissions:
   contents: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  # Las pruebas y la versión en Releases, una vez (si las dos apps la crearan a la vez, saldrían dos)
+  preparar:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -22,17 +25,26 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - name: Dependencias de la app
-        working-directory: desktop
-        run: npm ci
-      # La versión se crea antes: si no, el instalador y la portable la crean a la vez y salen dos
       - name: Crear la versión en Releases
-        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           V=$(node -p "require('./desktop/package.json').version")
-          gh release view "v$V" > /dev/null 2>&1 || gh release create "v$V" --title "$V" --notes "Blackbox Street Chaos $V para Windows. Descarga el instalador (se actualiza solo) o la versión portable."
+          gh release view "v$V" > /dev/null 2>&1 || gh release create "v$V" --title "$V" --notes "Blackbox Street Chaos $V. Windows: el instalador (se actualiza solo) o la versión portable. Mac: el .dmg de Apple Silicon (M1 en adelante) o el de Intel. Página de descarga: https://pepe-a-d.github.io/streetchaos/blackbox/descargar/"
+
+  windows:
+    needs: preparar
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Dependencias de la app
+        working-directory: desktop
+        run: npm ci
       - name: Construir y publicar
         working-directory: desktop
         env:
@@ -40,3 +52,26 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_KEY }}
         run: npm run release:win -- --config.win.signAndEditExecutable=true
+
+  mac:
+    needs: preparar
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Dependencias de la app
+        working-directory: desktop
+        run: npm ci
+      # Sin certificado de Apple: firma propia («ad hoc»), que es lo que deja abrirla en los Mac con chip M
+      - name: Construir y publicar
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_KEY }}
+        run: npm run release:mac

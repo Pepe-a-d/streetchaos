@@ -100,19 +100,24 @@ No se guarda para usar sin conexión: la app del móvil (PWA) deja fuera sus arc
 
 **Pasadas de amigos** (`src/blackbox/ghost.js`): **COMPARTIR** empaqueta el tramo que ves (su trazado y tus canales a 10 Hz con 5 s de margen, tu nombre y tu moto; ni el resto de la salida ni de dónde vienes) y da un código de 8 letras y un enlace (`/blackbox/#g=CÓDIGO`). **PASADA DE UN AMIGO** lo abre, busca tus pasadas por el mismo sitio y te compara con él: diferencia metro a metro y dónde te gana y por qué. Si aún no has pasado, se guarda como tramo. En los circuitos compartidos, PUBLICAR MI MEJOR sube también la vuelta, y **VS** te compara con la de cada piloto. Las pasadas se guardan en `bb_ghosts` (migración `20261109170000_pasadas_de_amigos.sql`) por la función `caja-negra` (`ghost-put`, `ghost-get`): no se pueden listar, solo bajar con su código.
 
-## Blackbox V2: varias pantallas y app de Windows
+## Blackbox V2: varias pantallas y apps de Windows y Mac
 
 **Varias ventanas**: el mapa, las gráficas y los datos se pueden abrir cada uno en su ventana (botón **VENTANAS**). Van todas a una (abrir una salida, elegir un tramo, mover el cursor, cambiar unidades o canales) con un `BroadcastChannel`; la principal esconde lo que está en otra ventana y le da el sitio a lo demás. **Repartir en mis pantallas** pone la principal en tu pantalla y el mapa y las gráficas en las otras (en Chrome/Edge con la Window Management API, que pide permiso; en Safari las colocas tú).
 
-**App de Windows** (`desktop/`, Electron): el Blackbox va dentro de la app (servido desde `app://local`, funciona sin conexión salvo el mapa y la nube, con sus propios datos), coloca cada ventana en su pantalla y **recuerda dónde dejas cada una** (`ventanas.json` en los datos de la app). Menú Ventanas con atajos (Ctrl+1/2/3/4 para mapa, gráficas, datos y vídeo; Ctrl+Mayús+R para repartir). Se actualiza sola desde las Releases de GitHub.
+**Apps de Windows y Mac** (`desktop/`, Electron): el Blackbox va dentro de la app (servido desde `app://local`, funciona sin conexión salvo el mapa y la nube, con sus propios datos), coloca cada ventana en su pantalla y **recuerda dónde dejas cada una** (`ventanas.json` en los datos de la app). Menú Ventanas con atajos (Ctrl/⌘+1/2/3/4 para mapa, gráficas, datos y vídeo; Ctrl/⌘+Mayús+R para repartir). En el Mac lleva además el menú de la app (con «Buscar actualizaciones…») y Edición (copiar y pegar), y cerrar las ventanas no cierra la app.
+
+- **Windows**: instalador NSIS (se actualiza solo desde las Releases de GitHub con electron-updater) y versión portable.
+- **Mac**: un .dmg para chip M (`arm64`) y otro para Intel (`x64`), con firma propia («ad hoc», sin certificado de Apple). Sin la firma de Apple no se puede actualizar sola: al abrirla mira la última versión de GitHub y, si hay una nueva, ofrece la página de descarga (`desktop/updates.js`). La primera vez macOS la bloquea: *Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente* (o `xattr -dr com.apple.quarantine "/Applications/Blackbox Street Chaos.app"`).
+- **Página de descarga**: `/blackbox/descargar/` (botón **⬇ DESCARGAR** del Blackbox): detecta tu ordenador, recomienda la versión, enseña lo que pesa y explica cómo abrirla la primera vez.
 
 ```bash
 cd desktop && npm install
 npm start               # probarla en el Mac
-npm run build:win       # .exe de instalación y portable en desktop/dist (sin icono propio desde el Mac)
+npm run build:mac       # .dmg para chip M e Intel en desktop/dist
+npm run build:win       # .exe de instalación y portable (sin icono propio desde el Mac)
 ```
 
-Las versiones oficiales las construye `.github/workflows/escritorio.yml` en Windows al subir una etiqueta `v*` con la versión de `desktop/package.json` (`v2.0.0`) y las publica en Releases (instalador y portable, con nombres fijos para que el botón **WINDOWS** del Blackbox web baje siempre la última). No está firmada: la primera vez Windows avisa («Más información → Ejecutar de todas formas»).
+Las versiones oficiales las construye `.github/workflows/escritorio.yml` al subir una etiqueta `v*` con la versión de `desktop/package.json` (`v2.4.0`): primero las pruebas y la versión en Releases, y luego, a la vez, Windows (en Windows) y Mac (en un Mac). Los archivos tienen nombres fijos para que los enlaces de la página de descarga bajen siempre la última. Ninguna está firmada: Windows avisa la primera vez («Más información → Ejecutar de todas formas») y el Mac también (arriba).
 
 ## Contacto, resumen y tramos en directo
 

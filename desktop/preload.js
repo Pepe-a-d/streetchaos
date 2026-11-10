@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('bbDesktop', {
   app: true,
+  platform: process.platform, // 'win32' | 'darwin'
   spread: () => ipcRenderer.invoke('spread'),
   version: () => ipcRenderer.invoke('version'),
 })

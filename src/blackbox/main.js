@@ -99,7 +99,7 @@ root.innerHTML = `
     <button class="btn ghost" data-act="csv" disabled title="Canales a 10 Hz para Excel u otras herramientas (del tramo elegido, o de toda la salida)">CSV</button>
     <button class="btn ghost" data-act="gpx" disabled title="El recorrido para Google Earth, Strava u otros mapas (del tramo elegido, o de toda la salida)">GPX</button>
     <button class="btn ghost" data-act="card" disabled title="Imagen para compartir (historia de Instagram): el recorrido y las cifras de la salida o del tramo">TARJETA</button>
-    <button class="btn ghost dl-btn" data-act="download" title="La app de Windows: más fluida y con una ventana en cada pantalla">⬇ WINDOWS</button>
+    <a class="btn ghost dl-btn" data-act="download" href="descargar/" title="El Blackbox como programa para Windows o Mac: más fluido y con una ventana en cada pantalla">⬇ DESCARGAR</a>
     <button class="btn ghost win-btn" data-act="windows" title="Abrir el mapa, las gráficas o los datos en otra ventana y repartirlas en tus pantallas">VENTANAS</button>
     <button class="btn ghost help-btn" data-act="help" title="Cómo se leen tus datos y atajos">?</button>
     <a class="btn ghost" href="../?app" title="Abrir la app del móvil en este ordenador (para probarla)">APP</a>
@@ -892,7 +892,6 @@ root.addEventListener('click', async (e) => {
   if (d.act === 'analyzeAll') return analyzeAll()
   if (d.act === 'help') return modal(helpHtml(), { wide: true })
   if (d.act === 'windows') return windowsMenu()
-  if (d.act === 'download') return downloadDialog()
   if (d.act === 'syncPill') return getKey() ? cloudSync() : linkDialog()
   if (d.act === 'claim') return claim(root.querySelector(`[data-k="${d.from}"]`)?.value)
   if (d.act === 'cloudSync') return cloudSync()
@@ -2533,21 +2532,7 @@ async function spread() {
   toast('Lleva cada ventana a la pantalla que quieras: se quedan sincronizadas', 6000)
 }
 
-// La app de Windows, de las Releases del repositorio (con nombres fijos: siempre la última)
-const RELEASES = 'https://github.com/Pepe-a-d/streetchaos/releases'
-const DL = { setup: `${RELEASES}/latest/download/Blackbox-StreetChaos-Setup.exe`, portable: `${RELEASES}/latest/download/Blackbox-StreetChaos-portable.exe` }
-function downloadDialog() {
-  modal(`<h2>BLACKBOX PARA WINDOWS</h2>
-    <p class="note">El mismo Blackbox como programa: va más suelto, funciona sin conexión (salvo el mapa y la nube) y pone el mapa, las gráficas y los datos cada uno en una pantalla, acordándose de dónde los dejas.</p>
-    <div class="win-btns">
-      <a class="btn" href="${DL.setup}" rel="noopener">⬇ DESCARGAR EL INSTALADOR <small>(~105 MB · se actualiza solo)</small></a>
-      <a class="btn ghost small" href="${DL.portable}" rel="noopener">VERSION PORTABLE <small>(sin instalar, ~95 MB)</small></a>
-    </div>
-    <p class="note">Al abrirlo la primera vez, Windows puede avisar de que no lo conoce (no está firmado): pulsa <b>Más información → Ejecutar de todas formas</b>.</p>
-    <p class="note">Tu móvil se vincula igual que aquí, con el código de 6 letras. Las salidas que tengas en este navegador no pasan solas: o las bajas de la nube o las importas.</p>
-    <p class="note"><a class="linkish" href="${RELEASES}" target="_blank" rel="noopener">Todas las versiones</a></p>
-    <div class="actions"><button class="btn ghost small" data-close>CERRAR</button></div>`)
-}
+// Las apps de Windows y Mac: página de descarga aparte (blackbox/descargar/, src/blackbox/descargar.js)
 
 function windowsMenu() {
   const el = modal(`<h2>VENTANAS Y PANTALLAS</h2>
@@ -2556,10 +2541,9 @@ function windowsMenu() {
       <button class="btn" data-spread>REPARTIR EN MIS PANTALLAS</button>
       ${Object.entries(VISTAS).map(([v, l]) => `<button class="btn ghost small" data-win="${v}">${l} EN OTRA VENTANA</button>`).join('')}
     </div>
-    <p class="note">${desktop ? 'La app recuerda dónde dejas cada ventana.' : 'En Chrome o Edge, «Repartir» pide permiso para ver tus pantallas y coloca cada ventana en una. En Safari ábrelas y llévalas tú. La <button class="linkish" data-act="download">app de Windows</button> lo hace sola y recuerda dónde las dejas.'}</p>
+    <p class="note">${desktop ? 'La app recuerda dónde dejas cada ventana.' : 'En Chrome o Edge, «Repartir» pide permiso para ver tus pantallas y coloca cada ventana en una. En Safari ábrelas y llévalas tú. Las <a class="linkish" href="descargar/">apps de Windows y Mac</a> lo hacen solas y recuerdan dónde las dejas.'}</p>
     <div class="actions"><button class="btn ghost small" data-close>CERRAR</button></div>`)
   el.addEventListener('click', (e) => {
-    if (e.target.closest('[data-act="download"]')) return el.close(), downloadDialog()
     const b = e.target.closest('[data-win], [data-spread]')
     if (!b) return
     el.close()

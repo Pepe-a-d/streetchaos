@@ -56,12 +56,12 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     rolldownOptions: {
-      input: { main: resolve(import.meta.dirname, 'index.html'), blackbox: resolve(import.meta.dirname, 'blackbox/index.html') },
+      input: { main: resolve(import.meta.dirname, 'index.html'), blackbox: resolve(import.meta.dirname, 'blackbox/index.html'), descargar: resolve(import.meta.dirname, 'blackbox/descargar/index.html') },
       output: {
         // Los trozos que solo usa el analizador llevan «bb-» para dejarlos fuera de la app del móvil
-        entryFileNames: (c) => (c.name === 'blackbox' ? 'assets/bb-[name]-[hash].js' : 'assets/[name]-[hash].js'),
+        entryFileNames: (c) => (c.name === 'blackbox' || c.name === 'descargar' ? 'assets/bb-[name]-[hash].js' : 'assets/[name]-[hash].js'),
         chunkFileNames: (c) => (c.moduleIds.some((id) => /maplibre|uplot|[\\/]src[\\/]blackbox[\\/]/.test(id)) ? 'assets/bb-[name]-[hash].js' : 'assets/[name]-[hash].js'),
-        assetFileNames: (a) => (/maplibre|uplot|blackbox|^map\./i.test(a.names?.[0] ?? a.name ?? '') ? 'assets/bb-[name]-[hash][extname]' : 'assets/[name]-[hash][extname]'),
+        assetFileNames: (a) => (/maplibre|uplot|blackbox|descargar|^map\./i.test(a.names?.[0] ?? a.name ?? '') ? 'assets/bb-[name]-[hash][extname]' : 'assets/[name]-[hash][extname]'),
       },
     },
   },

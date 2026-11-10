@@ -536,3 +536,28 @@ body[data-vista='todo'].det-video .mapbox { grid-template-columns: minmax(0, 1fr
 .vx-prog[hidden] { display: none; }
 .vx-prog i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--cyan); }
 .vx-prog span { position: relative; display: block; text-align: center; font: 9px var(--pixel); line-height: 18px; color: var(--ink); mix-blend-mode: difference; }
+
+/* ---------- Página de descarga (blackbox/descargar/) ---------- */
+#dl { min-height: 100vh; background: var(--bg); color: var(--ink); }
+.dl-top { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 2px solid var(--line); }
+.dl-top .grow { flex: 1; }
+.dl-main { max-width: 980px; margin: 0 auto; padding: 24px 18px 48px; display: grid; gap: 14px; }
+.dl-main h1 { font: 18px var(--pixel); color: var(--yellow); margin: 6px 0 0; font-weight: normal; }
+.dl-lead { font-size: 16px; line-height: 1.55; margin: 0; max-width: 70ch; }
+.dl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.dl-card { position: relative; padding: 18px; background: var(--panel); border: 2px solid var(--line); display: grid; gap: 10px; align-content: start; }
+.dl-card.rec { border-color: var(--cyan); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 25%, transparent); }
+.dl-card h2 { font: 13px var(--pixel); color: var(--pink); margin: 0; font-weight: normal; }
+.dl-card p { margin: 0; line-height: 1.5; }
+.dl-rec { position: absolute; top: -11px; right: 14px; font: 8px var(--pixel); background: var(--cyan); color: var(--onbright, #000); padding: 5px 7px; }
+.dl-btns { display: grid; gap: 8px; }
+.dl-btns .btn { text-decoration: none; text-align: center; display: grid; gap: 6px; padding: 12px; }
+.dl-btns .btn small { font: 12px var(--ui, system-ui), sans-serif; opacity: 0.85; }
+.dl-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.5; }
+.dl-more summary { cursor: pointer; color: var(--cyan); }
+.dl-more p { margin: 8px 0; }
+.dl-code { display: flex; gap: 8px; align-items: center; background: var(--bg); border: 1px solid var(--line); padding: 8px; overflow-x: auto; }
+.dl-code code { font: 12px var(--mono); white-space: nowrap; color: var(--ink); }
+.dl-card.web { border-style: dashed; }
+.dl-main b, .dl-main i { font: inherit; color: inherit; }
+.dl-main b { font-weight: 700; }

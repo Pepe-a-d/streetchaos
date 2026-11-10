@@ -1,10 +1,15 @@
-// Blackbox Street Chaos para Windows (y Mac): el Blackbox de la web empaquetado dentro de la app, servido
+// Blackbox Street Chaos para Windows y Mac: el Blackbox de la web empaquetado dentro de la app, servido
 // desde app://local para que funcione sin conexión (salvo el mapa y la nube) y con sus datos guardados
 // en la propia app. Abre cada parte en su ventana y las reparte en tus pantallas (windows.js).
+// - Windows: se actualiza sola (electron-updater, desde las Releases de GitHub).
+// - Mac: sin firma de Apple no se puede actualizar sola: al abrirla mira si hay versión nueva y te
+//   ofrece bajarla (updates.js).
 const { app, BrowserWindow, protocol, net, ipcMain, Menu, shell } = require('electron')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 const views = require('./windows.js')
+const { checkMacUpdate } = require('./updates.js')
+const MAC = process.platform === 'darwin'
 
 const ROOT = path.join(__dirname, 'app')
 const BASE = 'app://local/blackbox/index.html'
@@ -24,7 +29,37 @@ function menu() {
   const open = (v) => () => views.openView(v, `${BASE}?vista=${v}`, { preload: PRELOAD })
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
-      ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
+      // En el Mac: el menú de la app (Acerca de, Ocultar, Salir con ⌘Q) y Edición (copiar y pegar en los
+      // campos de texto, que si no, no funcionan)
+      ...(MAC
+        ? [
+            {
+              label: app.name,
+              submenu: [
+                { role: 'about', label: `Acerca de ${app.name}` },
+                { label: 'Buscar actualizaciones…', click: () => checkMacUpdate({ quiet: false }) },
+                { type: 'separator' },
+                { role: 'hide', label: `Ocultar ${app.name}` },
+                { role: 'hideOthers', label: 'Ocultar otras' },
+                { role: 'unhide', label: 'Mostrar todo' },
+                { type: 'separator' },
+                { role: 'quit', label: `Salir de ${app.name}` },
+              ],
+            },
+            {
+              label: 'Edición',
+              submenu: [
+                { role: 'undo', label: 'Deshacer' },
+                { role: 'redo', label: 'Rehacer' },
+                { type: 'separator' },
+                { role: 'cut', label: 'Cortar' },
+                { role: 'copy', label: 'Copiar' },
+                { role: 'paste', label: 'Pegar' },
+                { role: 'selectAll', label: 'Seleccionar todo' },
+              ],
+            },
+          ]
+        : []),
       {
         label: 'Ventanas',
         submenu: [
@@ -100,9 +135,12 @@ app.whenReady().then(() => {
       require('electron-updater').autoUpdater.checkForUpdatesAndNotify()
     } catch {}
   }
+  // En el Mac, avisa si hay una versión nueva (a los 8 s, para no estorbar al abrir)
+  if (app.isPackaged && MAC && !SMOKE) setTimeout(() => checkMacUpdate({ quiet: true }), 8000)
 })
 
-app.on('window-all-closed', () => app.quit())
+// En el Mac, cerrar todas las ventanas no cierra la app (como el resto de apps del Mac): el Dock la vuelve a abrir
+app.on('window-all-closed', () => !MAC && app.quit())
 app.on('activate', () => {
   if (!BrowserWindow.getAllWindows().length) views.openView('todo', BASE, { preload: PRELOAD })
 })
