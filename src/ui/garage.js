@@ -23,6 +23,7 @@ import { medalSvg } from './medals.js'
 import { myRoutes } from '../core/trips.js'
 import { fmtDur } from '../core/tripsum.js'
 import { placeAt } from '../core/routes.js'
+import { advancedHtml, advancedSub, fillAdvanced, advancedChange, advancedClick } from './advanced.js'
 
 const ARROW = pixelSvg(['X....', 'XX...', 'XXX..', 'XXXX.', 'XXX..', 'XX...', 'X....'], { X: 'currentColor' }, { className: 'px-arrow' })
 const BACK = pixelSvg(['....X', '...XX', '..XXX', '.XXXX', '..XXX', '...XX', '....X'], { X: 'currentColor' }, { className: 'px-arrow' })
@@ -62,6 +63,7 @@ const ITEMS = [
   { id: 'settings', title: 'AJUSTES', sub: () => 'Unidades, sonido, crono, radar' },
   { id: 'perms', title: 'PERMISOS', sub: () => (T.status === 'ok' ? 'GPS OK' : 'GPS sin señal') + (T.motion ? ' · movimiento OK' : '') },
   { id: 'data', title: 'DATOS', sub: () => (settings.logTelemetry ? 'Telemetría guardándose · exportar' : 'Telemetría apagada · exportar') },
+  { id: 'advanced', title: 'OPCIONES AVANZADAS', sub: advancedSub },
   { id: 'about', title: 'VERSION', sub: () => `${APP_VERSION.split(' ')[0]} · buscar actualización` },
 ]
 
@@ -101,6 +103,7 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
       </div>`
     if (page === 'data') fillTele()
     if (page === 'routes') fillRoutes()
+    if (page === 'advanced') fillAdvanced(el)
   }
 
   // El resumen de la caja negra se lee de IndexedDB (asíncrono)
@@ -206,6 +209,7 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
   const state = (txt, cls) => `<span class="badge ${cls}">${txt}</span>`
 
   const PAGES = {
+    advanced: advancedHtml,
     routes() {
       return `<p class="note">Las salidas que empiezan y acaban en los mismos sitios se juntan solas. El tiempo es de puerta a puerta: desde que arrancas hasta que llegas, con los semáforos.</p><div class="routes" data-k="routes"><p class="note">Mirando tus salidas…</p></div>`
     },
@@ -472,6 +476,7 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
   if (systemVoiceAvailable()) speechSynthesis.addEventListener?.('voiceschanged', () => sub === 'voice' && render())
 
   el.addEventListener('change', (e) => {
+    if (advancedChange(e.target)) return
     if (e.target.dataset.k === 'voiceName') {
       setSetting('voiceName', e.target.value)
       say('Así suena esta voz', { force: true, urgent: true })
@@ -494,6 +499,10 @@ export function mountGarage(el, { applySource, editDash = () => {} }) {
       sub = null
       render()
       return
+    }
+    if (sub === 'advanced') {
+      const r = await advancedClick(b, el)
+      if (r !== null) return void (r && render())
     }
     if (b.dataset.toggle) {
       setSetting(b.dataset.toggle, !settings[b.dataset.toggle])

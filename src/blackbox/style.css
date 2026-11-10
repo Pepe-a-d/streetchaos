@@ -561,3 +561,26 @@ body[data-vista='todo'].det-video .mapbox { grid-template-columns: minmax(0, 1fr
 .dl-card.web { border-style: dashed; }
 .dl-main b, .dl-main i { font: inherit; color: inherit; }
 .dl-main b { font-weight: 700; }
+
+/* Neumáticos: uso de la banda y temperatura estimada */
+.tread-box { margin: 4px 0 8px; padding: 8px; background: var(--bg2); border: 2px solid var(--line); }
+.tread { display: block; width: 100%; max-width: 420px; margin: 0 auto; font-family: var(--pixel); }
+.tread-share { display: flex; justify-content: space-between; gap: 8px; font: 7px var(--pixel); color: var(--dim); margin-top: 4px; }
+.tread-share b { font: 600 14px var(--mono); color: var(--ink); margin-left: 4px; }
+.tread-share .l b { color: var(--cyan); }
+.tread-share .r b { color: var(--pink); }
+.tire-chart { margin: 4px 0 8px; }
+.tire-chart .u-title { font: 8px var(--pixel); color: var(--dim); text-align: left; padding: 0 0 4px; }
+.tire-now { display: grid; gap: 4px; margin-bottom: 8px; }
+.tire-now .tw { display: grid; grid-template-columns: 44px repeat(3, 1fr) auto; gap: 4px; align-items: center; font: 7px var(--pixel); }
+.tire-now .tw > b { color: var(--dim); font-weight: normal; }
+.tire-now .tz { padding: 5px 0; text-align: center; font: 600 14px var(--mono); background: var(--bg2); border: 2px solid var(--line); }
+.tire-now .tz.frio { color: var(--cyan); }
+.tire-now .tz.templado { color: var(--yellow); }
+.tire-now .tz.ok { color: var(--green); border-color: var(--green); }
+.tire-now .tz.caliente { color: var(--red); border-color: var(--red); }
+.tire-now em { font-style: normal; padding-left: 4px; }
+.tire-now em.frio { color: var(--cyan); }
+.tire-now em.templado { color: var(--yellow); }
+.tire-now em.ok { color: var(--green); }
+.tire-now em.caliente { color: var(--red); }

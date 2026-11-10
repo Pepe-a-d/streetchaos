@@ -1684,3 +1684,72 @@ body.key-off #dash .dpages, body.key-off #dash .dnav { filter: grayscale(1) brig
 .lap-list { width: 100%; display: grid; gap: 2px; max-height: 30vh; overflow-y: auto; }
 .lap-btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .lap-note { margin: 0; font-size: 12px; color: var(--dim); line-height: 1.4; max-width: 46ch; }
+
+/* GARAJE → OPCIONES AVANZADAS */
+.adv-f { display: inline-flex; align-items: center; gap: 6px; }
+.adv-f i { font-style: normal; color: var(--dim); font-size: 17px; }
+.adv-in {
+  font: 19px var(--term);
+  color: var(--yellow);
+  background: var(--deep);
+  border: 2px solid var(--line);
+  padding: 6px 8px;
+  width: auto;
+  max-width: 9em;
+  text-align: right;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.adv-in:focus { border-color: var(--cyan); }
+.cal-grid { display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 6px; align-items: center; margin: 8px 0; }
+.cal-grid b { font: 9px var(--pixel); color: var(--dim); text-align: center; font-weight: normal; }
+.cal-grid b:nth-child(4n + 1) { text-align: left; }
+.cal-grid .adv-in { width: 100%; max-width: none; text-align: center; }
+.cal-list { display: grid; gap: 2px; margin: 4px 0; font: 17px var(--term); }
+.cal-list div { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--dash); }
+.cal-list span:nth-child(2) { color: var(--cyan); }
+
+/* DASH: bloques de NEUMATICOS (ui/tirewidgets.js) */
+.tw-disabled { align-content: center; }
+.tw-off { margin: 0; font: max(7px, min(11cqh, 3.6cqw)) / 1.5 var(--pixel); color: var(--dim); }
+.wdg .lbl small { font-size: 0.85em; color: var(--dim); }
+.st-frio { --tc: var(--cyan); }
+.st-templado { --tc: var(--yellow); }
+.st-ok { --tc: var(--green); }
+.st-caliente { --tc: var(--red); }
+.st-none { --tc: var(--faint); }
+/* 1. Números */
+[class*='w-tirenum'] { grid-template-rows: auto minmax(0, 1fr); }
+.tn { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; min-height: 0; }
+.tn-w { display: grid; justify-items: center; gap: 2px; min-width: 0; }
+.tn-w small { font: max(7px, min(11cqh, 3.5cqw)) var(--pixel); color: var(--dim); }
+.tn-w .v { font-size: calc(min(46cqh, 17cqw) * var(--seg-k)); line-height: 1; color: var(--tc, var(--ink)); white-space: nowrap; }
+/* 2. Mapa térmico */
+[class*='w-tiremap'] { grid-template-rows: auto minmax(0, 1fr); }
+.tm { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; min-height: 0; }
+.tm-w { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; justify-items: center; gap: 3px; min-height: 0; }
+.tm-w > small { font: max(7px, min(7cqh, 3cqw)) var(--pixel); color: var(--dim); }
+.tm-tire { display: grid; grid-template-columns: 1fr 1.2fr 1fr; width: min(100%, 48cqh); height: 100%; border: 3px solid var(--line); background: var(--deep); padding: 3px; gap: 3px; }
+.tm-z { display: grid; place-items: center; background: color-mix(in srgb, var(--tc) 70%, transparent); min-width: 0; }
+.tm-z:first-child { border-radius: 40% 0 0 40% / 18% 0 0 18%; }
+.tm-z:last-child { border-radius: 0 40% 40% 0 / 0 18% 18% 0; }
+.tm-z b { font: max(8px, min(10cqh, 4.2cqw)) var(--pixel); color: #000; }
+.tm-core { font: max(6px, min(6cqh, 2.6cqw)) var(--pixel); color: var(--dim); }
+/* 3. Barras */
+[class*='w-tirebars'] { grid-template-rows: auto minmax(0, 1fr); }
+.tb { display: grid; gap: max(4px, 6cqh); align-content: center; }
+.tb-r { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+.tb-r small { font: max(7px, min(11cqh, 3.2cqw)) var(--pixel); color: var(--dim); min-width: 4.5ch; }
+.tb-r b { font: max(8px, min(14cqh, 4.4cqw)) var(--pixel); color: var(--ink); min-width: 4ch; text-align: right; }
+.tb-bar { position: relative; height: max(8px, min(18cqh, 22px)); background: var(--off); border: 2px solid var(--line); }
+.tb-bar s { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--green) 35%, transparent); text-decoration: none; }
+.tb-bar i { position: absolute; top: -4px; bottom: -4px; width: 6px; margin-left: -3px; background: var(--tc); box-shadow: 0 0 0 2px #000; transition: left 0.25s linear; }
+/* 4. Semáforo */
+[class*='w-tirelight'] { grid-template-rows: auto minmax(0, 1fr); }
+.tl { display: grid; gap: max(4px, 5cqh); align-content: center; }
+.tl-r { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; min-width: 0; }
+.tl-r i { width: max(10px, min(22cqh, 26px)); aspect-ratio: 1; background: var(--tc); box-shadow: 0 0 10px var(--tc); }
+.tl-r i.st-none { box-shadow: none; }
+.tl-r small { font: max(7px, min(10cqh, 3cqw)) var(--pixel); color: var(--dim); }
+.tl-r b { font: max(8px, min(16cqh, 5cqw)) var(--pixel); color: var(--tc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

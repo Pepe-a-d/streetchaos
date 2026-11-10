@@ -6,6 +6,13 @@ import { logger } from './logger.js'
 import { packSession, gzip } from './blackbox.js'
 import { deviceId } from './device.js'
 import { level, unlocked, ACHIEVEMENTS, onAchievement } from './achievements.js'
+import { tireSettings } from './tires.js'
+
+/** Los ajustes de los neumáticos sin las medidas de cada calibración (solo hace falta el resultado). */
+function tiresForProfile(t) {
+  const s = tireSettings(t)
+  return { ...s, cals: (s.cals || []).slice(-8).map(({ meas, ...c }) => c) }
+}
 
 const URL = import.meta.env.VITE_SUPABASE_URL
 const KEY = import.meta.env.VITE_SUPABASE_KEY
@@ -105,6 +112,8 @@ export function profileData() {
     device: { ios: /iPhone|iPad/.test(navigator.userAgent), standalone: matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true },
     // Los sitios con nombre de tus trayectos (Casa, Trabajo…), para verlos igual en el Blackbox
     places: (settings.places || []).slice(0, 30),
+    // Los neumáticos (Garaje → Opciones avanzadas), para la temperatura estimada en el Blackbox
+    tires: settings.tires ? tiresForProfile(settings.tires) : null,
   }
 }
 
@@ -126,7 +135,7 @@ export function pushProfileSoon(ms = 4000) {
   clearTimeout(profileTimer)
   profileTimer = setTimeout(() => pushProfile().catch(() => {}), ms)
 }
-const PROFILE_KEYS = ['name', 'bike', 'color', 'units', 'theme', 'digits', 'accentBike', 'cloudSync', 'places']
+const PROFILE_KEYS = ['name', 'bike', 'color', 'units', 'theme', 'digits', 'accentBike', 'cloudSync', 'places', 'tires']
 onSetting((key) => PROFILE_KEYS.includes(key) && pushProfileSoon())
 onAchievement(() => pushProfileSoon(10000))
 

@@ -117,7 +117,7 @@ npm run build:mac       # .dmg para chip M e Intel en desktop/dist
 npm run build:win       # .exe de instalación y portable (sin icono propio desde el Mac)
 ```
 
-Las versiones oficiales las construye `.github/workflows/escritorio.yml` al subir una etiqueta `v*` con la versión de `desktop/package.json` (`v2.4.0`): primero las pruebas y la versión en Releases, y luego, a la vez, Windows (en Windows) y Mac (en un Mac). Los archivos tienen nombres fijos para que los enlaces de la página de descarga bajen siempre la última. Ninguna está firmada: Windows avisa la primera vez («Más información → Ejecutar de todas formas») y el Mac también (arriba).
+Las versiones oficiales las construye `.github/workflows/escritorio.yml` al subir una etiqueta `v*` con la versión de `desktop/package.json` (`v2.5.0`): primero las pruebas y la versión en Releases, y luego, a la vez, Windows (en Windows) y Mac (en un Mac). Los archivos tienen nombres fijos para que los enlaces de la página de descarga bajen siempre la última. Ninguna está firmada: Windows avisa la primera vez («Más información → Ejecutar de todas formas») y el Mac también (arriba).
 
 ## Contacto, resumen y tramos en directo
 
@@ -127,6 +127,13 @@ Las versiones oficiales las construye `.github/workflows/escritorio.yml` al subi
 - **Tramos en directo** (`core/live.js`, `core/segments.js`): los tramos que guardas en el Blackbox llegan solos al móvil (tabla `bb_kv`, acciones `kv-put`/`kv-get` de la función, migración `20261110120000_tramos_al_movil.sql`) con tu mejor pasada en cada 1 % del recorrido. Al cruzar la línea de salida aparece una franja en el DASH con el tiempo y la diferencia con tu mejor (verde delante, rojo detrás) y al cruzar la meta la voz dice el tiempo y si es récord.
 - **Vueltas** (CRONO → VUELTAS): marcas la meta al pasar por ella (o usas un circuito del Blackbox) y cada vuelta se cronometra sola, con delta predictivo contra tu mejor vuelta. Las líneas de salida y meta son «puertas» de 40 m al rumbo del tramo; el tiempo se interpola al cruzarlas.
 - **Vídeo con los datos** (Blackbox → vídeo → **⬇ MP4**, `src/blackbox/overlay.js`): graba el trozo elegido con la velocidad, la inclinación, la G y un mapa pequeño encima, con su sonido (MediaRecorder; MP4 si el navegador sabe, si no WebM). Va a tiempo real y la ventana tiene que estar a la vista.
+
+## Neumáticos
+
+- **Uso de la banda** (Blackbox → **NEUMATICOS**, siempre): un corte del neumático con lo que pisaste a cada inclinación (más intenso, más rato), el reparto entre centro y hombros, la inclinación máxima a cada lado y los milímetros de banda sin estrenar en cada lado, delante y detrás (con el borde de la banda a ~54°).
+- **Temperatura estimada** (`core/tires.js`): **apagada hasta que la actives** en Garaje → **OPCIONES AVANZADAS**. No se mide: es un modelo térmico por rueda con una carcasa y tres zonas de la banda (hombro izquierdo, centro y derecho) que elige la inclinación. Calienta la deformación al rodar (más con poca presión y carga) y la goma que desliza al frenar, acelerar y hacer curva (de tus G); enfrían el aire (más cuanto más rápido) y el asfalto (o el agua). En Opciones avanzadas van el tipo (CALLE, SPORT, CIRCUITO, cada uno con su ventana buena), las medidas, las presiones en frío, los pesos y el tiempo: de **Open-Meteo** (`core/weather.js`, con la posición redondeada a ~1 km y la hora; se puede apagar y poner la temperatura a mano).
+- **Calibración**: al parar, mides con un termómetro de infrarrojos los hombros y el centro de cada rueda y apuntas los minutos que han pasado; con la última salida de la caja negra se busca el factor de calor que mejor cuadra (se guardan las 8 últimas y pesan más las nuevas) y se enseña el error antes y después.
+- **En el DASH** (`core/tirelive.js`, `ui/tirewidgets.js`): grupo **NEUMATICOS** del catálogo (solo sale si está activada; nunca se añade solo) con cuatro formas de verla: números, mapa térmico por zonas, barras con la ventana buena y semáforo. Recuerda cómo quedaron al aparcar y se enfrían con el tiempo. En el Blackbox (con el móvil vinculado; los ajustes viajan en el perfil) salen las curvas de las dos ruedas, cuánto tardaron en coger temperatura, el tiempo en la ventana y los grados en el cursor.
 
 ## Gestos
 

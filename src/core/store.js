@@ -63,6 +63,7 @@ const DEFAULTS = {
   ignitionAuto: true, // darlo solo si vas en moto con él quitado
   places: [], // sitios con nombre para tus trayectos: [{ lat, lon, name }]
   lapMode: false, // CRONO → VUELTAS: cronometrar vueltas al circuito marcado
+  tires: null, // temperatura estimada de los neumáticos (core/tires.js): apagada hasta que la actives
 }
 
 export const settings = { ...DEFAULTS, ...load('settings', {}) }

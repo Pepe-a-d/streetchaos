@@ -68,7 +68,7 @@ const fitsBoth = (items) => ({ p: !pack(items, 'p').some((x) => x.hidden), l: !p
 export function miniLayout(items, o = 'p') {
   const { cols, rows } = GRID[o]
   const placed = pack(items, o)
-  const col = (w) => ['cyan', 'pink', 'yellow', 'green', 'violet'][GROUPS.indexOf(WIDGETS[w].group)] || 'dim'
+  const col = (w) => ['cyan', 'pink', 'yellow', 'green', 'violet', 'orange'][GROUPS.indexOf(WIDGETS[w].group)] || 'dim'
   return `<svg class="mini" viewBox="0 0 ${cols * 10} ${rows * 10}">${placed
     .filter((p) => !p.hidden)
     .map((p) => `<rect x="${p.c * 10 + 1}" y="${p.r * 10 + 1}" width="${p.w * 10 - 2}" height="${p.h * 10 - 2}" style="fill:var(--${col(p.item.w)})"/>`)
@@ -341,9 +341,9 @@ export function mountDash(el, { onTitle = () => {} } = {}) {
     const PREV = { s: 's', m: 'm', l: 'l', w: 'w', xl: 'w', max: 'w' }
     const ly = sheet(
       'NUEVO BLOQUE',
-      GROUPS.map(
+      GROUPS.filter((g) => Object.values(WIDGETS).some((W) => W.group === g && (!W.needs || W.needs()))).map(
         (g) => `<h4 class="lbl">${g}</h4><div class="cat">${Object.entries(WIDGETS)
-          .filter(([, W]) => W.group === g)
+          .filter(([, W]) => W.group === g && (!W.needs || W.needs()))
           .map(([id, W]) => `<button class="cat-card" data-add="${id}"><div class="panel wdg prev pv-${PREV[W.sizes[0]]} w-${id} sz-${W.sizes[0]}" data-prev="${id}"></div><b>${esc(W.name)}</b><small>${esc(W.desc)}</small></button>`)
           .join('')}</div>`,
       ).join(''),

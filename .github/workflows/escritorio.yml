@@ -2,7 +2,7 @@
 # de Mac en un Mac (para Apple Silicon y para Intel). Las dos se publican en las «Releases» del
 # repositorio, de donde se descargan (página /blackbox/descargar/). La de Windows se actualiza sola; la
 # de Mac avisa al abrirla de que hay versión nueva.
-# Se lanza al subir una etiqueta v* igual a la versión de desktop/package.json (v2.4.0) o a mano desde Actions.
+# Se lanza al subir una etiqueta v* igual a la versión de desktop/package.json (v2.5.0) o a mano desde Actions.
 name: Apps de escritorio
 
 on:

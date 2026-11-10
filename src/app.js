@@ -30,6 +30,7 @@ import { tripStarted, tripEnded, lastTrip } from './core/trips.js'
 import { showTrip } from './ui/trip.js'
 import { initSegments } from './core/segments.js'
 import { mountLiveStrip } from './ui/livestrip.js'
+import { initTires } from './core/tirelive.js'
 import { resetTrip } from './core/telemetry.js'
 
 const TABS = [
@@ -228,6 +229,8 @@ setupUpdates()
 // Deslizar desde el borde para volver y hacia abajo para cerrar (en marcha no se sale de una pestaña)
 setupGestures({ goTab: (id) => go(id), canLeave: () => T.v < 2 })
 initLogger()
+// Temperatura estimada de los neumáticos (solo si la activas en Garaje → Opciones avanzadas)
+initTires()
 // Subida a la nube: al cerrar cada salida, al abrir la app (lo que quedó pendiente) y al volver la conexión
 onSessionEnd(async (meta) => {
   setTimeout(syncNow, 2000)

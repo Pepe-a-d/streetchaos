@@ -27,6 +27,8 @@ import uPlot from 'uplot'
 import { CHANNELS, MAP_CHANNELS, CHART_CHANNELS, units, toSpeed, speedUnit, toDist, distUnit, fmt, fmtDur, fmtElapsed, fmtDateTime, fmtClock, gradientCss } from './channels.js'
 import { createCharts } from './charts.js'
 import { drawGG, drawLeanHist } from './gg.js'
+import { treadHtml, tempsHtml, drawTemps, tireNowHtml, destroyTemps, sessionWeather, sessionTemps } from './tires-view.js'
+import { tireSettings } from '../core/tires.js'
 
 const $ = (sel, root = document) => root.querySelector(sel)
 
@@ -85,6 +87,7 @@ const TABS = [
   ['frenadas', 'FRENADAS', 'Cada frenada: de qué velocidad a cuál, cuánto y con qué fuerza'],
   ['pasadas', 'PASADAS', 'Las pasadas del crono de esta salida, para compararlas'],
   ['potencia', 'POTENCIA', 'Banco de potencia virtual con tus aceleraciones'],
+  ['neumaticos', 'NEUMATICOS', 'Qué parte de la banda usas y, si la activas en el móvil, la temperatura estimada de cada rueda'],
   ['calidad', 'CALIDAD', 'De dónde sale cada dato y cómo de fiable es'],
 ]
 const root = document.getElementById('bb')
@@ -479,6 +482,7 @@ function setCursor(i, from) {
   pending = requestAnimationFrame(() => {
     renderReadout()
     if (prefs.tab === 'gg') drawGG(K('tabbody').querySelector('[data-k="gg"]'), A, ...S.range, S.cur)
+    if (prefs.tab === 'neumaticos') renderTireNow()
     markCurrentRow()
   })
 }
@@ -820,6 +824,18 @@ function renderTab() {
         }
         <p class="note">Potencia que llega a la rueda, estimada con la masa, la aerodinámica y la aceleración medida. Cambia si cambias la masa o la aerodinámica: sirve para comparar antes y después de tocar la moto, no como un banco de verdad.</p>`
     },
+    neumaticos() {
+      const pt = getKey() ? S.profile?.tires : null
+      const st = tireSettings(pt)
+      let temps = ''
+      if (!st.enabled) temps = `<p class="note">La <b>temperatura estimada</b> de los neumáticos está apagada. Se activa y se calibra en el móvil: GARAJE &gt; OPCIONES AVANZADAS${getKey() ? '' : ' (y para verla aquí, vincula el móvil)'}.</p>`
+      else if (S.tires?.id === S.id && S.tires.sig === JSON.stringify(st)) temps = tempsHtml(A, S.tires.R, i0, i1, st, S.tires.env)
+      else {
+        temps = '<p class="note">Calculando la temperatura de los neumáticos…</p>'
+        loadTires(st)
+      }
+      return `${treadHtml(A, i0, i1, pt)}${temps}`
+    },
     calidad() {
       const I = A.info
       const m = A.meta
@@ -868,7 +884,35 @@ function renderTab() {
     drawLeanHist(body.querySelector('[data-k="hist"]'), A, i0, i1)
   }
   if (prefs.tab === 'potencia') drawDyno(body)
+  const tst = tireSettings(getKey() ? S.profile?.tires : null)
+  if (prefs.tab === 'neumaticos' && tst.enabled && S.tires?.id === S.id && S.tires.sig === JSON.stringify(tst)) {
+    const st = tst
+    drawTemps(body, A, S.tires.R, i0, i1, st, (i) => setCursor(i, 'list'))
+    renderTireNow()
+  } else destroyTemps()
   markCurrentRow()
+}
+
+// ---------- Neumáticos ----------
+let tiresLoading = null
+/** Calcula (una vez por salida y ajustes) la temperatura de toda la salida y repinta la pestaña. */
+function loadTires(st) {
+  const id = S.id
+  const A = S.A
+  if (tiresLoading === id) return
+  tiresLoading = id
+  sessionWeather(A, metaOf(id), st, updateMeta)
+    .then((env) => {
+      if (S.id !== id) return
+      S.tires = { id, env, R: sessionTemps(A, st, env), sig: JSON.stringify(st) }
+      if (prefs.tab === 'neumaticos') renderTab()
+    })
+    .catch(() => {})
+    .finally(() => tiresLoading === id && (tiresLoading = null))
+}
+function renderTireNow() {
+  const el = K('tabbody').querySelector('[data-k="tirenow"]')
+  if (el && S.tires?.id === S.id) el.innerHTML = tireNowHtml(S.A, S.tires.R, S.cur, tireSettings(S.profile?.tires))
 }
 
 function markCurrentRow() {

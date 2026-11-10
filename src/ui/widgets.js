@@ -9,6 +9,7 @@ import { sfx } from '../core/audio.js'
 import { setter, segPad, toSpeed, speedUnit, toDist, distUnit, fmtClock, fmtT, markLabel, toast } from './util.js'
 import { pixelSvg } from './pixel.js'
 import { cssColor } from './themes.js'
+import { TIRE_WIDGETS } from './tirewidgets.js'
 
 const LEAN_SEGS = 25
 const LEAN_MAX = 60
@@ -476,8 +477,10 @@ export const WIDGETS = {
   lastrun: { name: 'Última pasada', title: 'ULTIMA PASADA', group: 'CRONO', sizes: ['m', 's'], desc: 'El tiempo de tu última pasada del crono', make: lastRunW },
   gps: { name: 'GPS', title: 'GPS', group: 'SISTEMA', sizes: ['m', 's'], desc: 'Señal y precisión', make: gpsW },
   rec: { name: 'Caja negra', title: 'CAJA NEGRA', group: 'SISTEMA', sizes: ['m', 's'], desc: 'Si está grabando la salida', make: recW },
+  // Solo en el catálogo si activas la temperatura (Garaje → Opciones avanzadas)
+  ...TIRE_WIDGETS,
 }
 
-export const GROUPS = ['VELOCIDAD', 'MOTO', 'VIAJE', 'CRONO', 'SISTEMA']
+export const GROUPS = ['VELOCIDAD', 'MOTO', 'VIAJE', 'CRONO', 'SISTEMA', 'NEUMATICOS']
 
 export const SIZE_NAMES = { s: 'MINI', m: 'ANCHO', l: 'GRANDE', w: 'BANDA', xl: 'ENORME', max: 'PANTALLA' }
