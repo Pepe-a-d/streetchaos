@@ -28,7 +28,8 @@ describe('Tus trayectos', () => {
     expect(r[0].avg).toBeCloseTo(1333.3, 0)
     expect(r[1].name).toBe('Trabajo → Casa')
     // A qué hora conviene salir
-    expect(r[0].byHour.map((x) => x.h)).toEqual([8])
+    // (en la hora local de quien lo ejecute: los servidores de GitHub van en UTC)
+    expect(r[0].byHour.map((x) => x.h)).toEqual([...new Set([day(3, 8, 10), day(4, 8, 12), day(5, 8, 40)].map((t) => new Date(t).getHours()))])
     expect(placeAt([43.3702, -8.4003], [{ lat: casa[0], lon: casa[1], name: 'Casa' }]).name).toBe('Casa')
   })
 
