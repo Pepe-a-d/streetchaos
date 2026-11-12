@@ -17,7 +17,7 @@ Claude añade aquí una entrada cada vez que se termina algo, en el Mac o en el 
 Lo siguiente, del usuario:
 1. una maqueta de cartón de 150 × 110 × 55 mm, para ver si cabe bajo el asiento;
 2. pedir las piezas. El pedido de DigiKey está en [digikey-prototipo-simple.csv](hardware/caja/digikey-prototipo-simple.csv); lo genérico va aparte;
-3. diseñar e imprimir la caja (él, en ABS);
+3. diseñar e imprimir la caja (él, en ABS). Las medidas por dentro, los agujeros y el dibujo acotado están en su documento de Claude Docs «Blackbox Street Chaos — prototipo simple», junto con sus reglas de caja estanca. Ese documento no está en el repo;
 4. la prueba de banco en `/caja/`, cuando lleguen las piezas.
 
 Lo siguiente del código, cuando él lo pida:
