@@ -16,7 +16,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # El firmware de la caja DIY (hardware/caja/firmware): sus pruebas en el ordenador y la prueba de banco
+  # para la página /caja/, que la instala desde Chrome. Si falla, la web se publica igual, sin él
+  firmware:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hardware/caja/firmware
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: actions/cache@v6
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('hardware/caja/firmware/platformio.ini') }}
+      - run: pip install platformio==6.2.0
+      - name: Pruebas en el ordenador
+        run: pio test -e native
+      - name: Compilar la prueba de banco
+        run: pio run -e prueba
+      - name: Preparar para la página
+        run: node scripts/publicar.mjs prueba "$GITHUB_WORKSPACE/firmware-caja"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: firmware-caja
+          path: firmware-caja
+
   construir:
+    needs: firmware
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -32,12 +65,19 @@ jobs:
           # Secretos del repo; sin ellos la app funciona en modo local (sin retos online)
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_KEY }}
+      - name: Firmware de la caja
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: firmware-caja
+          path: dist/caja/firmware
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
   publicar:
     needs: construir
+    if: ${{ !cancelled() && needs.construir.result == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

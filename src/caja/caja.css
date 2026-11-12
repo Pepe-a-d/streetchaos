@@ -1,0 +1,38 @@
+/* Página de la caja DIY (/caja/): lo que no tiene ya la de descarga del Blackbox (.dl-*) */
+.cj-aviso { border-color: var(--yellow); }
+.cj-aviso h2 { color: var(--yellow); }
+.cj-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.cj-btns .btn { padding: 12px 14px; }
+.cj-estado { min-height: 1.5em; color: var(--dim); }
+.cj-estado.error { color: var(--red); }
+.cj-barra { height: 10px; background: var(--bg); border: 2px solid var(--line); }
+.cj-barra > i { display: block; height: 100%; width: 0; background: var(--cyan); transition: width 0.2s; }
+
+.cj-resumen { padding: 12px 14px; border: 2px solid var(--line); background: var(--bg); display: grid; gap: 6px; }
+.cj-resumen b { font: 11px var(--pixel); font-weight: normal; line-height: 1.5; }
+.cj-resumen.ok { border-color: var(--green); }
+.cj-resumen.ok b { color: var(--green); }
+.cj-resumen.falla { border-color: var(--red); }
+.cj-resumen.falla b { color: var(--red); }
+.cj-resumen.espera b { color: var(--yellow); }
+
+.cj-filas { display: grid; gap: 8px; }
+.cj-fila { display: grid; grid-template-columns: 84px 96px minmax(0, 1fr); gap: 4px 12px; align-items: center; padding: 10px 12px; background: var(--bg2); border: 2px solid var(--line); }
+.cj-fila > b { font: 9px var(--pixel); font-weight: normal; color: var(--dim); }
+.cj-fila .pill { font: 9px var(--pixel); text-align: center; padding: 6px 4px; border: 2px solid currentColor; }
+.cj-fila .txt { line-height: 1.45; overflow-wrap: anywhere; }
+.cj-fila .cj-av { grid-column: 3; color: var(--yellow); line-height: 1.45; }
+.cj-fila.ok .pill { color: var(--green); }
+.cj-fila.falla { border-color: var(--red); }
+.cj-fila.falla .pill { color: var(--red); }
+.cj-fila.espera .pill { color: var(--yellow); }
+.cj-fila.prueba .pill { color: var(--faint); }
+
+.cj-log { margin: 8px 0 0; max-height: 240px; overflow: auto; padding: 8px; background: var(--bg); border: 1px solid var(--line); font: 11px/1.4 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cj-demo { font: 8px var(--pixel); color: var(--onbright); background: var(--yellow); padding: 4px 6px; justify-self: start; }
+
+@media (max-width: 560px) {
+  .cj-fila { grid-template-columns: 70px minmax(0, 1fr); }
+  .cj-fila .pill { justify-self: start; padding: 6px 8px; }
+  .cj-fila .txt, .cj-fila .cj-av { grid-column: 1 / -1; }
+}

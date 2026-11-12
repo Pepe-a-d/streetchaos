@@ -41,11 +41,11 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         // La voz de la app (public/voz) también, para que hable sin conexión
         globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}', 'voz/*.{m4a,json}'],
-        // El analizador (/blackbox) es para el ordenador: ni se guarda para usar sin conexión ni
-        // se le sirve la app del móvil al navegar
-        globIgnores: ['blackbox/**', 'assets/bb-*'],
+        // El analizador (/blackbox) y la página de la caja (/caja) son para el ordenador: ni se guardan
+        // para usar sin conexión ni se les sirve la app del móvil al navegar
+        globIgnores: ['blackbox/**', 'caja/**', 'assets/bb-*'],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/\/blackbox(\/|$)/],
+        navigateFallbackDenylist: [/\/blackbox(\/|$)/, /\/caja(\/|$)/],
       },
     }),
   ].filter(Boolean),
@@ -56,12 +56,13 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     rolldownOptions: {
-      input: { main: resolve(import.meta.dirname, 'index.html'), blackbox: resolve(import.meta.dirname, 'blackbox/index.html'), descargar: resolve(import.meta.dirname, 'blackbox/descargar/index.html') },
+      input: { main: resolve(import.meta.dirname, 'index.html'), blackbox: resolve(import.meta.dirname, 'blackbox/index.html'), descargar: resolve(import.meta.dirname, 'blackbox/descargar/index.html'), caja: resolve(import.meta.dirname, 'caja/index.html') },
       output: {
-        // Los trozos que solo usa el analizador llevan «bb-» para dejarlos fuera de la app del móvil
-        entryFileNames: (c) => (c.name === 'blackbox' || c.name === 'descargar' ? 'assets/bb-[name]-[hash].js' : 'assets/[name]-[hash].js'),
-        chunkFileNames: (c) => (c.moduleIds.some((id) => /maplibre|uplot|[\\/]src[\\/]blackbox[\\/]/.test(id)) ? 'assets/bb-[name]-[hash].js' : 'assets/[name]-[hash].js'),
-        assetFileNames: (a) => (/maplibre|uplot|blackbox|descargar|^map\./i.test(a.names?.[0] ?? a.name ?? '') ? 'assets/bb-[name]-[hash][extname]' : 'assets/[name]-[hash][extname]'),
+        // Los trozos que solo usan el analizador y la página de la caja llevan «bb-» para dejarlos fuera
+        // de la app del móvil
+        entryFileNames: (c) => (['blackbox', 'descargar', 'caja'].includes(c.name) ? 'assets/bb-[name]-[hash].js' : 'assets/[name]-[hash].js'),
+        chunkFileNames: (c) => (c.moduleIds.some((id) => /maplibre|uplot|esptool-js|pako|[\\/]src[\\/](blackbox|caja)[\\/]/.test(id)) || /esptool-js/.test(c.facadeModuleId ?? '') ? 'assets/bb-[name]-[hash].js' : 'assets/[name]-[hash].js'),
+        assetFileNames: (a) => (/maplibre|uplot|blackbox|descargar|caja|^map\./i.test(a.names?.[0] ?? a.name ?? '') ? 'assets/bb-[name]-[hash][extname]' : 'assets/[name]-[hash][extname]'),
       },
     },
   },

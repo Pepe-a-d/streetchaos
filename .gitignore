@@ -6,3 +6,5 @@ datos/
 desktop/node_modules
 desktop/dist
 desktop/app
+# Firmware de la caja: compilación de PlatformIO
+hardware/caja/firmware/.pio/
