@@ -8,7 +8,7 @@ Del pedido a la primera salida. Cada parte se prueba antes de pasar a la siguien
 - [3. La caja](#3-la-caja)
 - [4. El cable de la moto](#4-el-cable-de-la-moto)
 - [5. Instalación en la Ninja 125](#5-instalación-en-la-ninja-125)
-- [6. Revoluciones (fase 2)](#6-revoluciones-fase-2)
+- [6. Freno y revoluciones (fase 2)](#6-freno-y-revoluciones-fase-2)
 - [7. Unidad de pantalla (fase 4)](#7-unidad-de-pantalla-fase-4)
 - [8. Comprobaciones antes de rodar](#8-comprobaciones-antes-de-rodar)
 - [9. Mantenimiento](#9-mantenimiento)
@@ -19,7 +19,7 @@ Tiempo aproximado, sin contar esperas:
 - caja y cable: 1 tarde;
 - instalación en la moto: 1 mañana;
 - revoluciones: 2 h;
-- pantalla: 2 tardes.
+- pantalla: 2-3 tardes, más lo que tarde la impresión de la carcasa.
 
 ---
 
@@ -27,9 +27,18 @@ Tiempo aproximado, sin contar esperas:
 
 ### 0.1 El pedido
 
-1. **Pide primero la pantalla** (Adafruit 4694): es la que más tarda.
-2. Haz un pedido en DigiKey con todo lo que lleve referencia de DigiKey en [piezas.md](piezas.md).
-3. El resto: Kiwi (LEDs, sensor de luz, batería), BricoGeek (pulsadores), Quad Lock (adaptador), y Amazon o una tienda para la microSD y el material genérico.
+Va en dos partes.
+
+1. **Ahora, la caja y el material de instalación** (apartados 1 y 3 de [piezas.md](piezas.md), ≈ 360 €):
+   - un pedido en DigiKey con todo lo que lleve referencia de DigiKey;
+   - en Amazon o en una tienda, la microSD y el material genérico.
+2. **Más adelante, la pantalla** (apartado 2, ≈ 207 €):
+   - en RS, la Riverdi y su Break Out Board 20;
+   - en DigiKey, la placa, el regulador y los componentes;
+   - en Kiwi, los LEDs y el sensor de luz;
+   - en BricoGeek, los pulsadores;
+   - en Quad Lock, el adaptador;
+   - en Amazon, el conector SP13 y los insertos.
 
 ### 0.2 Busca el sitio en la moto
 
@@ -44,7 +53,8 @@ La caja mide **160,8 × 90,8 × 62,5 mm** contando las pestañas.
    - la caja queda **plana** y con el lado largo a lo largo de la moto;
    - **el asiento cierra** sin apretarla;
    - está **lejos del escape** y de cualquier pieza que se mueva;
-   - hay una superficie plana y limpia para pegarla, o un tubo del chasis o un soporte cerca para las bridas.
+   - hay una superficie plana y limpia para pegarla, o un tubo del chasis o un soporte cerca para las bridas;
+   - para el soporte impreso ([impresion.md](impresion.md)): fotos del hueco desde arriba y de lado, con una regla al lado, y dónde hay tornillos, pestañas o tubos de la moto a los que agarrarlo.
 4. **Busca también el sitio de la antena** (50 × 38 × 17 mm):
    - mirando al cielo, bajo plástico (el asiento del pasajero o el colín), nunca bajo metal;
    - a **más de 20 cm de la caja**: la radio de la placa mete ruido al GPS;
@@ -65,44 +75,71 @@ La caja mide **160,8 × 90,8 × 62,5 mm** contando las pestañas.
 
 ## 1. Pruebas de banco, sin soldar
 
-Antes de soldar nada, comprueba que cada pieza funciona. Todo se conecta con cables Qwiic, que son de enchufar. Es el hito **H1** del plan.
+Antes de soldar nada, comprueba que cada pieza funciona. Es el hito **H1** del plan:
+- todo se conecta con cables Qwiic, que son de enchufar;
+- el programa de prueba se instala desde una página web, sin instalar nada en el Mac.
 
-### 1.1 Programas
+Necesitas:
+- la placa U1 (Thing Plus);
+- el GPS U2 con su antena;
+- el sensor U3;
+- la microSD y los dos cables Qwiic;
+- un cable USB-C de datos;
+- el Mac con **Chrome**.
 
-1. Instala **Arduino IDE 2** en el Mac.
-2. En *Boards Manager*, instala **esp32 de Espressif**.
-3. Elige la placa **SparkFun ESP32-S3 Thing Plus**, con *USB CDC On Boot* en *Enabled*.
-4. En *Library Manager*, instala:
-   - **SparkFun u-blox GNSS v3**;
-   - **Adafruit LSM6DS**;
-   - **Adafruit SHARP Memory Display**;
-   - **Adafruit NeoPixel**;
-   - **Adafruit VEML7700**.
+### 1.1 Prepara la microSD
 
-### 1.2 La placa y la microSD
+1. Métela en el Mac, con un adaptador si hace falta.
+2. Abre **Utilidad de Discos**, elige la tarjeta y pulsa **Borrar**:
+   - formato «MS-DOS (FAT)», que es FAT32;
+   - esquema «Registro de arranque maestro».
+3. Expúlsala y métela en la ranura de la placa U1.
 
-1. Formatea la microSD en FAT32 desde el Mac (Utilidad de Discos, «MS-DOS (FAT)»).
-2. Métela en la placa y conéctala al Mac por USB-C.
-3. Carga el ejemplo de la tarjeta del repositorio de SparkFun (`SparkFun_Thing_Plus_ESP32-S3`, carpeta `Firmware`, ejemplos `SD_*`).
-4. En el monitor serie tiene que salir el tamaño de la tarjeta y un archivo escrito y leído.
+### 1.2 Conecta las piezas
 
-### 1.3 El GPS
+```
+ Mac ══(USB-C)══ U1 placa ──(Qwiic)── U2 GPS ──(Qwiic)── U3 sensor
+                                         │
+                                       antena
+```
 
 1. Enrosca la antena en el conector SMA del GPS, a mano.
-2. Une la placa y el GPS con un cable Qwiic.
-3. Carga el ejemplo básico de posición de la librería de u-blox (*Example1*).
-4. Pon la antena en una ventana o, mejor, en la calle.
+2. Une la placa U1 y el GPS con un cable Qwiic.
+   - Los conectores Qwiic son los pequeños, negros, de 4 patillas.
+   - Solo entran en un sentido: no fuerces.
+3. Une el GPS y el sensor con el otro cable Qwiic: van en cadena.
+4. Deja el sensor plano sobre la mesa. La antena, junto a una ventana o, mejor, fuera.
 
-En menos de un minuto tiene que dar posición con más de 8 satélites. El LED `PPS` del GPS parpadea una vez por segundo cuando tiene posición.
+### 1.3 Instala el programa de prueba
 
-### 1.4 El sensor de movimiento
+1. Abre **Chrome** en el Mac. Safari no sirve: no puede hablar con la placa.
+2. Entra en la página de la caja: <https://pepe-a-d.github.io/streetchaos/caja/>. Si quieres verla antes de tener la placa, añade `?demo` al final de la dirección.
+3. Conecta la placa U1 al Mac con el cable USB-C.
+4. Pulsa **INSTALAR LA PRUEBA** y elige en la lista el puerto de la placa.
+5. Espera a que termine.
 
-1. Enchufa el sensor en el segundo conector Qwiic del GPS: van en cadena.
-2. Carga el ejemplo `adafruit_ism330dhcx_test`.
+**Si no sale ningún puerto, o la instalación falla:**
+1. mantén pulsado el botón **BOOT** de la placa;
+2. pulsa y suelta **RESET**;
+3. suelta BOOT y vuelve a probar.
 
-Encima de la mesa, el eje Z tiene que dar unos +9,8 m/s² y los giros, casi 0. Inclínalo y comprueba que los números cambian.
+Si aun así no sale, prueba con otro cable USB-C: algunos solo cargan y no pasan datos.
 
-**Si las tres pruebas van bien, todo el material está bien.** Desde aquí, el programa de verdad lo escribo yo: primero el de banco, que graba en bruto.
+### 1.4 Lee los resultados
+
+La misma página dice **OK** o **FALLA** para cada pieza:
+
+| Pieza | Qué comprueba | Qué tienes que ver |
+| --- | --- | --- |
+| MICROSD | El tipo y el tamaño de la tarjeta; escribe un archivo, lo vuelve a leer y mide la velocidad | OK, unos 32 GB y su velocidad en MB/s |
+| GPS | Que responde por el Qwiic y es un NEO-M9N; los satélites y la posición | Pone **BUSCANDO** hasta que la antena ve el cielo, y luego OK. Con la antena fuera, posición en menos de un minuto y con más de 8 satélites. El LED `PPS` del GPS parpadea una vez por segundo cuando tiene posición |
+| SENSOR | Que responde (dirección 0x6A). En la mesa, el eje Z marca unos +9,8 y los giros, casi 0 | OK en reposo. Luego pone **INCLINALO**: inclínalo más de 30° y vuelve a OK |
+
+El LED de la placa U1 también lo dice: **azul** mientras prueba, **verde** si todo está bien y **rojo** si algo falla.
+
+**Si todo da OK, el material está bien** y puedes pasar a soldar la placa base (apartado 2). Mándame una captura de la página.
+
+Si algo da FALLA, mándame una captura de la página y una foto de cómo está conectado.
 
 ---
 
@@ -138,7 +175,16 @@ Marca la posición de cada pieza con un rotulador.
 
 ### 2.4 Alimentación
 
-Suelda J1, D1, U4 (sobre pines macho), C1, U5 (sobre pines macho), D2, R3, R8, R9 y C4. Une las redes `12V`, `GND`, `CONT` (por ahora solo J1-3 y R3), `ON`, `12V_SW`, `5V_REG`, `5V` y `VMOTO` de la [lista de conexiones](conexiones.md#4-lista-de-conexiones-de-la-placa-base) con hilo por la cara de abajo.
+Suelda estas piezas:
+- J1, D1 y C1;
+- U4 y U5, sobre pines macho;
+- D2, R3, R8, R9 y C4;
+- F2 y J3, la salida al manillar (pantalla o botón).
+
+Después une con hilo, por la cara de abajo, estas redes de la [lista de conexiones](conexiones.md#4-lista-de-conexiones-de-la-placa-base):
+- `12V`, `GND`, `ON` y `12V_SW`;
+- `CONT`, por ahora solo J1-3 y R3;
+- `5V_REG`, `5V`, `VMOTO` y `PANT`.
 
 Fíjate en el sentido de tres piezas:
 
@@ -160,6 +206,7 @@ Fíjate en el sentido de tres piezas:
    - `5V_REG` = 5,0 V.
    - `5V` ≈ 4,7-4,9 V.
    - `VMOTO` ≈ 2,2 V.
+   - `PANT` (J3-1) ≈ 12 V.
 4. **Quita ese cable**: todo tiene que seguir encendido, porque el interruptor se queda enclavado.
 5. Toca un instante la patilla `OFF` de U4 con un cable que venga de `5V`: **todo se apaga** (0 V).
 
@@ -169,6 +216,7 @@ Si algo no sale, no sigas: repasa esa parte.
 
 - **Contacto y freno:** U6, U7, R1, R2, R4, R5, D3 y D4.
 - **Revoluciones:** U8, R6, R7, R10, D5, D6, C2 y C3, y J2.
+- **Botón del manillar:** R12 y C5 (redes `BTN_MAN` y `BTN`). Solo se usa con el móvil de pantalla, pero se sueldan ya: son dos piezas.
 - **Patillas sin usar del 74HC14:** une a `GND` las entradas 3, 5, 9, 11 y 13. Es importante: al aire, el chip hace cosas raras.
 
 ### 2.6 Prueba de las entradas
@@ -181,6 +229,7 @@ Si algo no sale, no sigas: repasa esa parte.
    - `BRK` baja a menos de 0,4 V.
 4. Toca J2-2 con un cable que venga de `3V3`.
    - Mide en la patilla `1` de U1 (la patilla 2 de U8 queda debajo de la placa): pasa de 3,3 V a 0 V. Al soltar, vuelve a 3,3 V.
+5. Con la fuente quitada y el multímetro en ohmios, mide entre J3-2 y la patilla `A1` de U1: unos 1 kΩ (es R12). El botón se prueba de verdad en la prueba de la caja (paso 2.9).
 
 ### 2.7 El sensor de movimiento
 
@@ -211,10 +260,25 @@ Nada de cables Dupont dentro de la caja: con las vibraciones se sueltan.
 3. **Mira las soldaduras con la lupa o el móvil.**
    - Tienen que ser brillantes y en forma de cono.
    - Ni bolas ni puentes entre agujeros vecinos.
-4. **Prueba completa:** fuente de 12 V y J1-3 unido a J1-1.
-   - Se enciende el LED de U1.
-   - El GPS da posición junto a la ventana.
-   - Con el programa de banco: graba en la microSD.
+4. **Prueba de la caja**, con el firmware de la caja (desde el hito H2):
+   1. Con la fuente de 12 V **quitada**, conecta la placa U1 al Mac por USB.
+   2. En la página del paso 1.3, pulsa **INSTALAR LA CAJA**. Al terminar, la página lee la placa por el USB y enseña **PRUEBA DE LA CAJA**:
+      - MICROSD: OK;
+      - GPS: OK. Ahora va por sus patillas `TX` y `RX`, no por el Qwiic, y la página comprueba también que llega la PPS;
+      - SENSOR: OK.
+      - La contraseña de la red WiFi de la caja: **apúntala** en una pegatina por dentro de la tapa. La inventa la caja la primera vez que arranca y no está en ningún otro sitio. Si la pierdes, vuelve a salir al pasar la prueba por USB.
+   3. **Sin quitar el USB**, conecta la fuente: + a J1-1 y − a J1-2. El USB va siempre antes que la fuente, nunca con la caja ya encendida ([conexiones, apartado 2](conexiones.md#2-alimentación-de-la-caja)).
+      - Une J1-3 a J1-1: CONTACTO, OK.
+      - Une J2-1 a J1-1: FRENO, OK.
+      - BATERÍA DE LA MOTO enseña una tensión: tiene que salir parecida (±0,3 V) a la que mide el multímetro en J1-1.
+      - REVOLUCIONES marca 0 en la mesa: es lo normal.
+      - Une un momento J3-2 a J3-3: BOTÓN, OK.
+      - **En el prototipo simple** (sin freno, revoluciones ni J3), la página dice «PROTOTIPO SIMPLE: SIN FRENO, REVOLUCIONES NI BOTON» y no prueba esas tres cosas.
+5. **Prueba de apagado**, antes de llevarla a la moto. Con el firmware de la caja (desde el hito H2):
+   - con J1-3 unido a J1-1 (el contacto), la caja se enciende;
+   - quita ese cable: en **menos de 1 minuto** se apaga sola. Sin el USB, el LED de U1 se apaga y en `5V` y en J3-1 hay 0 V. Con el USB puesto, la placa sigue encendida por el USB y la página dice «APAGADO PEDIDO»; comprueba entonces que en `12V_SW` hay 0 V;
+   - comprueba que apagada no gasta nada: quita el cable de la fuente de J1-1 y pon el multímetro en corriente continua (escala de mA) entre el + de la fuente y J1-1. Tiene que marcar **0** (unos µA como mucho).
+   - Si no se apaga o gasta algo, no la montes en la moto: dímelo.
 
 ---
 
@@ -230,13 +294,13 @@ Medidas en el [dibujo](esquemas/caja-taladros.svg). Taladra despacio con la broc
 
 | Dónde | Agujero | Para |
 | --- | --- | --- |
-| Pared corta delantera, a 32 mm del suelo de la caja montada, a 22 mm a cada lado del centro | 2 × Ø 12,5 mm | Prensaestopas PG7 (cable de la moto y cable de revoluciones) |
-| Pared corta delantera, en el centro, a 32 mm del suelo | Ø 12,2 mm | Membrana de ventilación |
+| Pared corta delantera, a 32 mm del suelo de la caja montada: en el centro y a 22 mm a cada lado | 3 × Ø 12,5 mm | Prensaestopas PG7: a los lados, cable de la moto y cable de revoluciones; en el centro, cable de la pantalla |
 | Pared corta trasera, en el centro, a 40 mm del suelo | Ø 6,5 mm (compruébalo con el pasamuros) | Pasamuros SMA de la antena |
+| Pared corta trasera, a 40 mm del suelo y a 22 mm del pasamuros | Ø 12,2 mm | Membrana de ventilación |
 
 El «suelo» es la cara de abajo de la tapa con pestañas.
 
-A esas alturas los agujeros quedan en el cuerpo, por encima de la unión con la tapa (a unos 16 mm del suelo; mídela en tu caja). El pasamuros va más alto que los prensaestopas para pasar por encima del GPS.
+A esas alturas los agujeros quedan en el cuerpo, por encima de la unión con la tapa (a unos 16 mm del suelo; mídela en tu caja). El pasamuros y la membrana van más altos que los prensaestopas, para pasar por encima del GPS.
 
 **Nunca en la cara de arriba**: el agua se queda encima.
 
@@ -260,10 +324,7 @@ En la cara de arriba del cuerpo, con rotulador permanente o una pegatina:
 - una **flecha «ADELANTE»** hacia la pared de los prensaestopas;
 - **«FUSIBLE 2 A»**.
 
-### 3.5 Cerrar
-
-1. Comprueba que la junta de silicona está bien asentada en su ranura.
-2. Aprieta los 4 tornillos M4 en cruz, con poca fuerza: el fabricante dice 30 cN·m, que es justo «firme» a mano con un destornillador pequeño.
+La caja se cierra después de conectar el cable de la moto (paso 4.7).
 
 ---
 
@@ -286,20 +347,25 @@ Se prepara en la mesa, menos las dos derivaciones del piloto trasero.
 4. **Cable de revoluciones (LiYCY):**
    - **Extremo de la caja:** el hilo blanco a J2-2 y la malla, retorcida, a J2-3. El hilo marrón no se usa: córtalo y aíslalo.
    - **Extremo de la bobina:**
-     - quita 30 cm de funda y de malla;
+     - quita 40 cm de funda y de malla: dan para unas 13 vueltas, por si en la calibración hacen falta más de 10;
      - corta la malla al ras y aíslala con termorretráctil;
      - el marrón, cortado y aislado;
      - el blanco queda suelto para enrollarlo en la moto (paso 6). Su punta, aislada con un capuchón de termorretráctil.
 5. **Resistencias de las derivaciones (RT1 y RT2):**
    - en el extremo del **verde**, a 2-3 cm de la punta, intercala RT1 (1 kΩ ½ W): corta el cable, suelda la resistencia entre los dos trozos y cúbrela con termorretráctil con adhesivo;
    - lo mismo con RT2 en el **amarillo**;
-   - la punta corta que queda es la que irá a la Posi-Tap.
+   - la punta corta que queda es la que irá a la Posi-Tap;
+   - con el multímetro, entre esa punta y el otro extremo del cable, tiene que marcar unos 1 kΩ.
 
    Son el seguro de esos dos cables: si se pelan y tocan masa bajo el asiento, no salta el fusible de las luces de la moto.
 6. **Mete los dos cables por los prensaestopas** y conecta en J1 y J2 según la tabla de [conexiones.md](conexiones.md#5-cable-de-la-caja-a-la-moto-ninja-125).
    - Deja 10 cm de holgura dentro, para poder levantar el cuerpo de la caja.
    - Aprieta los prensaestopas.
    - Tira un poco de cada cable: no tiene que moverse.
+   - **El prensaestopas del centro es para el cable al manillar** (fase 4: la pantalla o el botón del manillar). Hasta entonces, tápalo: mete un trozo de 3 cm de cable de 5-6 mm (vale un recorte de la manguera) y apriétalo.
+7. **Cierra la caja:**
+   - comprueba que la junta de silicona está bien asentada en su ranura;
+   - aprieta los 4 tornillos M4 en cruz, con poca fuerza: el fabricante dice 30 cN·m, que es justo «firme» a mano con un destornillador pequeño.
 
 ---
 
@@ -371,6 +437,8 @@ Es lo más firme. Nunca la sujetes con gomas ni con espuma gruesa: si la caja ba
 2. Pon una brida cada 10-15 cm.
 3. Comprueba que no roza con nada que se mueva ni toca el escape.
 
+El cable de la pantalla irá por el mismo camino hasta la pipa de dirección (paso 7.5).
+
 ### 5.6 Batería
 
 1. Pon el **ojal del portafusibles (marrón)** en el borne **+**, junto al cable de la moto.
@@ -399,24 +467,34 @@ Es lo más firme. Nunca la sujetes con gomas ni con espuma gruesa: si la caja ba
    - intermitentes;
    - claxon;
    - arranque.
-4. **Prueba la caja:**
-   - con el contacto se enciende: con el firmware, aparece la red WiFi «StreetChaos-Caja» (el LED no se ve, la caja es opaca);
-   - al quitarlo sigue un rato y luego se apaga sola: la red WiFi desaparece.
-5. **Comprueba que apagada no gasta nada** (la única prueba de que se corta sola de verdad):
+4. **Prueba la caja:** da el contacto unos minutos, quítalo y espera 2 minutos. La caja se apaga sola en menos de 1 minuto. El LED no se ve, porque la caja es opaca. Desde el hito H5, su red WiFi «StreetChaos-Caja» aparece con la moto parada y sin grabar:
+   - con el contacto puesto, antes de salir;
+   - al aparcar, mientras espera al móvil (hasta 10 minutos, 15 como mucho).
+5. **Comprueba que apagada no gasta nada** (en la moto, la única prueba de que se corta sola de verdad):
    1. espera a que se apague, con el contacto quitado;
    2. quita el fusible de 2 A;
    3. pon el multímetro en corriente continua (escala de mA) con las puntas en los dos contactos del portafusibles.
    - Tiene que marcar **0** (unos µA como mucho).
-   - Si marca decenas de mA, la caja no se ha apagado: no dejes la moto así y dímelo.
-   - Pon otra vez el fusible.
+   - Si marca decenas de mA, la caja no se ha apagado: deja el fusible quitado y dímelo.
+   - Si marca 0, pon otra vez el fusible.
+
+   > **Si algún día, con la moto aparcada más de 20 minutos, la caja sigue encendida** (esta medida no da 0 o, desde H5, su red WiFi sigue ahí), quita el fusible y dímelo. Encendida gasta unos 0,1-0,3 A y vaciaría la batería de la moto en uno o dos días.
 6. **Gira el manillar a tope** a los dos lados: nada tira.
 7. **Pon los asientos**: cierran sin pillar ningún cable.
 
 ---
 
-## 6. Revoluciones (fase 2)
+## 6. Freno y revoluciones (fase 2)
 
-### 6.1 Llegar al cable de bujía
+### 6.1 El freno
+
+No hay nada que montar: la derivación va desde el paso 5.7 y la caja apunta el freno desde la primera salida (hito H3).
+
+- Desde el hito H5: con el contacto puesto y la moto parada, conecta el móvil a la red «StreetChaos-Caja» y abre la pestaña **TALLER** de su página. FRENO tiene que encenderse al tirar de la maneta y al pisar el pedal, y apagarse al soltar. Más adelante se verá también en la pantalla ESTADO.
+- Con el Blackbox del hito H6, el freno sale en FRENADAS.
+- Si no aparece nunca, revisa la derivación del amarillo (paso 5.7).
+
+### 6.2 Llegar al cable de bujía
 
 1. **Busca la bobina:**
    - en la Ninja 125 va sujeta al chasis con dos tornillos;
@@ -424,7 +502,7 @@ Es lo más firme. Nunca la sujetes con gomas ni con espuma gruesa: si la caja ba
    - según dónde quede, puede que haya que quitar el carenado lateral o la tapa del depósito (mira el manual de taller o un vídeo de tu modelo).
 2. **Nunca arranques el motor con la pipa quitada**: el pico de tensión puede romper la bobina o la centralita.
 
-### 6.2 Pasar el cable
+### 6.3 Pasar el cable
 
 1. Lleva el cable apantallado de la caja a la bobina **por el chasis**:
    - dentro del tubo corrugado;
@@ -432,27 +510,25 @@ Es lo más firme. Nunca la sujetes con gomas ni con espuma gruesa: si la caja ba
    - con una brida cada 10-15 cm.
 2. **No lo pongas pegado a otros cables en paralelo** si puedes evitarlo.
 
-### 6.3 Enrollar la pinza
+### 6.4 Enrollar la pinza
 
 1. A unos **5 cm de la bobina**, enrolla el hilo blanco **8-10 vueltas** apretadas sobre el cable de bujía, una junto a otra.
 2. Sujétalo con cinta autovulcanizante.
 3. Cubre el tramo que queda cerca del motor con la **funda de fibra de vidrio**: el aislante normal no aguanta el calor de la culata.
 
-### 6.4 Calibrar
+### 6.5 Calibrar
 
-Con el firmware, desde la página de la caja:
+Con la moto parada, en punto muerto y con el motor en marcha: conecta el móvil a la red «StreetChaos-Caja» y abre la pestaña **TALLER** de su página.
 
-1. **Motor al ralentí**, ya caliente. Compara lo que marca la caja con el cuentarrevoluciones de la moto.
-2. **Ajusta las chispas por vuelta**, empezando con el ajuste en 1:
-   - si la caja marca lo mismo que el cuentarrevoluciones, es **1 chispa por vuelta**;
-   - si marca **la mitad**, es una chispa cada dos vueltas: pon **0,5**;
-   - si marca **el doble**, está contando dos pulsos por chispa: quita una vuelta a la pinza o alarga la ventana de rebote en el firmware.
+1. **Motor al ralentí**, ya caliente. Compara las REVOLUCIONES de TALLER con el cuentarrevoluciones de la moto.
+2. **Ajusta las chispas por vuelta** en TALLER, empezando por una chispa por vuelta:
+   - si marca lo mismo que el cuentarrevoluciones, se queda en **1 chispa por vuelta**;
+   - si marca **la mitad**, es una chispa cada dos vueltas: elige ese ajuste;
+   - si marca **el doble**, está contando dos pulsos por chispa: quita una vuelta a la pinza, o dime que alargue la ventana de rebote del firmware.
 3. **Comprueba a unas 5000 rpm sostenidas.** Tiene que cuadrar a ±50 rpm.
+   - TALLER guarda el ralentí.
+   - Apúntame el ajuste de chispas que ha quedado y el ralentí: son datos de tu moto.
 4. **Si no cuenta o cuenta a saltos**, ajusta según [conexiones.md, apartado 3.2](conexiones.md#32-revoluciones-pinza-en-el-cable-de-bujía): 2-3 vueltas más (o quitar C2, sacando antes U1) si no cuenta, y una vuelta menos si cuenta de más.
-
-### 6.5 El freno
-
-En la pantalla ESTADO, o en la página de la caja, tiene que verse FRENO al tirar de la maneta o pisar el pedal, y desaparecer al soltar.
 
 ---
 
@@ -460,76 +536,126 @@ En la pantalla ESTADO, o en la página de la caja, tiene que verse FRENO al tira
 
 ![Unidad de pantalla](esquemas/pantalla.svg)
 
-Va en tu soporte Quad Lock, con el amortiguador de vibraciones entre medias. Funciona con batería y se carga por USB-C, como el móvil: te la llevas a casa.
+Va en tu soporte Quad Lock, con el amortiguador de vibraciones entre medias.
+- Es una pantalla de 4,3" en color que se ve al sol y de noche, en una carcasa impresa en ASA.
+- No lleva batería: toma la corriente de la caja por un cable, y se enciende y se apaga con ella.
+- Para quitarla del soporte, se desenchufa el conector estanco.
 
-### 7.1 Distribución dentro de la caja
+### 7.1 Distribución
 
-La caja (Hammond RP1085C) mide 105 × 75 × 40 mm por fuera, con la **tapa transparente delante**. Desde el fondo hacia la tapa:
+La carcasa mide unos 116 × 98 × 36 mm por fuera ([impresion.md](impresion.md), pieza 7):
 
-1. **En el fondo, sobre la placa de metacrilato:**
-   - la batería, plana;
-   - la placa U11 al lado, con su USB-C hacia la pared de abajo;
-   - el interruptor de los LEDs (U15).
-2. **Encima, sobre separadores:** la pantalla, con el cristal a 1-2 mm de la tapa.
-   - Salen unos 20 mm de separador: combina dos de 10 mm por esquina.
-   - Mídelo en tu caja antes de atornillar.
-3. **Junto a la tapa:**
-   - la tira de LEDs, arriba, encima de la pantalla, sobre dos separadores o pegada con cinta de doble cara a la pared de arriba;
-   - el sensor de luz, en la esquina de arriba a la derecha, mirando hacia fuera.
-4. **En la pared derecha, en la franja libre junto a la pantalla:** los dos pulsadores, A arriba y B abajo.
+1. **Delante, la pantalla.** Va atornillada por sus 4 orejetas a insertos M3 y asoma por un marco con junta de TPU. No lleva cristal delante: un cristal añade reflejos al sol.
+2. **Encima de la pantalla, la tira de LEDs**, tras una ventana de policarbonato.
+3. **En la pared de arriba, el sensor de luz**, tras una ventanita, mirando al cielo.
+4. **En la pared derecha, por detrás de la pantalla, los dos pulsadores:** A arriba y B abajo.
+5. **Detrás de la pantalla:**
+   - la Break Out Board 20;
+   - una placa perforada con U11, U16, U17 y los componentes de la alimentación.
+6. **En la pared de abajo, el prensaestopas del cable**, con unos 15 cm de cable hasta el conector SP13 macho.
+7. **Por detrás, la chapa de aluminio** atornillada a insertos, con el adaptador Quad Lock pegado.
 
-### 7.2 Agujeros
+Antes de imprimir la definitiva, imprime la carcasa en PLA y presenta todas las piezas:
+- la pantalla asienta en su marco;
+- los pulsadores no chocan con nada;
+- la tapa cierra.
 
-| Dónde | Agujero |
-| --- | --- |
-| Pared derecha | 2 × Ø 16 mm (A a 20 mm de arriba, B a 20 mm de abajo) |
-| Pared de abajo | El agujero que pida el prolongador USB-C de panel (normalmente redondo, mira su hoja) |
-| Fondo | 4 × Ø 3,2 mm en un rectángulo de 66 × 40 mm, centrado: para la chapa del Quad Lock. Los tornillos quedan a los lados del adaptador (que mide 48 mm de ancho), no debajo |
-| Placa de metacrilato | Según los postes de tu caja, y 4 × Ø 2,7 mm para la pantalla (58,42 × 50,8 mm entre centros) |
+### 7.2 La placa de la pantalla
 
-### 7.3 Montaje
+En una placa perforada de unos 50 × 70 mm, como la placa base de la caja (apartado 2):
 
-1. **Placa de metacrilato:** atorníllala a los postes de la caja.
-2. **Batería:**
-   - **comprueba su polaridad con el multímetro** antes de enchufarla: el + tiene que caer en el + de la placa;
-   - pégala a la placa de metacrilato con cinta de doble cara.
-3. **U11:** atorníllala por sus dos agujeros y apoya el otro extremo en un taco de cinta de espuma.
-4. **Suelda los cables** según [conexiones.md, apartado 6](conexiones.md#6-unidad-de-pantalla), directamente a las placas y con hilo de silicona.
-   - R11 va en serie con el cable de datos de los LEDs, junto a la tira, cubierta con termorretráctil.
+1. **Zócalos hembra para U11**, soldados usando la propia placa de plantilla (como en el paso 2.3).
+2. **La alimentación:** D11, C12, U16 (sobre pines macho) y D12. Fíjate en el sentido:
+
+   | Pieza | Sentido |
+   | --- | --- |
+   | D11 (TVS) | La raya va a `PANT_IN` |
+   | D12 | La raya va a `VUSB` |
+   | C12 | La pata corta (−) va a `GND` |
+
+3. **U17** (74AHCT125), con C13 pegado a sus patillas 7 y 14. La patilla 1 lleva un punto o una muesca.
+4. **Une las redes** de [conexiones, apartado 6.3](conexiones.md#63-redes-para-soldar) con hilo por debajo.
+   - Hasta los pines de la Break Out Board 20, hilos de silicona.
+   - R11 va en el hilo de datos de los LEDs, junto a la tira, cubierta con termorretráctil.
    - C11 va soldado en las patillas de alimentación de la tira.
-5. **Pulsadores:** atorníllalos en la pared y conecta sus dos terminales, uno a su GPIO y el otro a `GND`.
-6. **Sensor de luz:** únelo con el cable Qwiic. Del pin `VIN` del sensor sale el hilo que alimenta la pantalla (`VIN` de U12).
-7. **En U11 corta la soldadura `LP_CTL`** con un cúter: así la pantalla se queda sin corriente cuando la unidad duerme (por qué, en [conexiones.md, apartado 6](conexiones.md#6-unidad-de-pantalla)). **Solo en la placa de la pantalla, nunca en la de la caja.**
-8. **USB-C:** monta el prolongador USB-C de panel en la pared de abajo y enchufa su otro extremo en U11.
-9. **Opcional:** corta la soldadura `PWR` de U11 (el LED de encendido) para que gaste menos dormida.
 
-### 7.4 La máscara
+**Prueba de la placa**, sin U11 y sin la pantalla:
+1. Con el multímetro en continuidad, **no tiene que pitar** entre `PANT_IN` y `GND`, ni entre `5V_P` y `GND`.
+2. Conecta la fuente de 12 V a un SP13 (patilla 1 al +, 2 al −):
+   - en `5V_P` tiene que haber 5,0 V;
+   - en `VUSB`, unos 4,7-4,9 V.
 
-Pega vinilo negro por dentro de la tapa transparente, con tres ventanas:
-- **59 × 36 mm** justo sobre la zona visible de la pantalla;
-- una tira sobre los LEDs;
-- un cuadrado sobre el sensor de luz.
+**Prueba con la pantalla:**
+1. Pincha U11 en sus zócalos.
+2. Une la Break Out Board 20 y la pantalla **con el cable plano que trae la Break Out Board**, sin forzar los cierres de los conectores. Conecta también la tira de LEDs, el sensor de luz (cable Qwiic) y los dos pulsadores, aunque estén sueltos.
+3. Con la unidad **sin corriente**, conecta U11 al Mac por USB. En la página del paso 1.3, pulsa **INSTALAR LA PANTALLA**.
+4. **Sin quitar el USB**, conecta la fuente de 12 V al SP13: patilla 1 al +, patilla 2 al −. El USB va siempre antes que la fuente, nunca con la unidad ya encendida. Solo con el USB la pantalla no se ilumina, porque su luz y los LEDs van a los 5 V del regulador.
+5. La página enseña **PRUEBA DE LA PANTALLA**, con OK o FALLA:
+   - PANTALLA: el chip de la pantalla contesta y sale una carta de ajuste;
+   - LEDS: se encienden uno a uno, en rojo, verde y azul;
+   - BOTÓN A y BOTÓN B: púlsalos cuando te lo pida;
+   - LUZ: enseña los lux; al tapar el sensor con la mano, bajan.
 
-Tapa el borde de la pantalla: el fabricante pide que el circuito del borde del cristal no reciba luz directa.
+### 7.3 La carcasa
 
-### 7.5 La chapa y el Quad Lock
+1. **Imprime la carcasa en ASA** de un color claro, gris o blanco: al sol, una negra pasa de 70 °C, que es el límite de la pantalla. La junta del frente va en TPU ([impresion.md](impresion.md), pieza 7).
+2. **Mete los insertos M3** con el soldador a unos 230 °C, empujando recto y sin prisa.
+3. **Pantalla:**
+   - pon la junta de TPU en el marco;
+   - presenta la pantalla y atorníllala por sus 4 orejetas;
+   - aprieta poco: la junta queda aplastada, sin doblar el marco.
+4. **LEDs y sensor:**
+   - pega las ventanas de policarbonato por dentro, con silicona neutra;
+   - detrás, la tira de LEDs y el sensor, con cinta de doble cara.
+5. **Pulsadores:** en la pared derecha, con su tuerca y su junta.
+6. **Placa:** atorníllala a sus insertos y conecta el cable plano.
+7. **Cable de salida:**
+   - pasa unos 15 cm de manguera por el prensaestopas de abajo (vale un recorte de la de 3 hilos: el verde, cortado y aislado);
+   - suelda el marrón a `PANT_IN` y el blanco a `GND`;
+   - en la punta, el SP13 macho: patilla 1 marrón, 2 blanco;
+   - aprieta el prensaestopas.
+8. **Cierra la tapa trasera** con sus tornillos.
 
-1. **Atornilla la chapa de aluminio** (80 × 60 mm) por fuera al fondo de la caja: 4 tornillos M3 × 8 con arandela de nylon por fuera y tuerca por dentro. Pon una gota de silicona neutra en cada agujero para que no entre agua.
+### 7.4 La chapa y el Quad Lock
+
+1. **Atornilla la chapa de aluminio** (80 × 60 mm) a la tapa trasera: 4 tornillos M3 a insertos, con arandela de nylon y una gota de silicona neutra en cada uno.
 2. **Limpia la chapa con alcohol.**
 3. **Pega el adaptador Quad Lock** centrado, entre las cabezas de los tornillos, con su lado largo en vertical, y aprieta 30 segundos.
 4. **Espera 24 h** antes de usarlo.
 
+### 7.5 El cable de la caja al manillar
+
+1. **Quita el contacto y desconecta el negativo de la batería** (paso 5.2).
+2. **Mide el recorrido**, de la caja al soporte del Quad Lock, con el manillar girado a tope hacia el lado más lejano. Añade 20 cm.
+3. **Abre la caja** (4 tornillos) y quita el trozo de cable que tapaba el prensaestopas del centro.
+4. **Pasa la manguera de 3 hilos** por el prensaestopas del centro:
+   - marrón a J3-1 (`PANT`), verde a J3-2 (`BOTÓN`) y blanco a J3-3 (`GND`);
+   - aprieta el prensaestopas y cierra la caja (paso 4.7).
+5. **Lleva el cable por el chasis**, junto al mazo de la moto y dentro del tubo corrugado, hasta la pipa de dirección.
+   - De ahí sube al manillar por donde van los cables de las piñas.
+   - Deja una vuelta floja para que la dirección gire sin tirar.
+6. **En la punta, el SP13 hembra** (patilla 1 marrón, 2 blanco), sujeto con una brida cerca del soporte. El verde, cortado y aislado con termorretráctil: es del botón del manillar, que con la Riverdi no se usa.
+7. **Conecta el negativo de la batería** y comprueba con el multímetro en el SP13 hembra:
+   - con el contacto quitado y la caja apagada, 0 V;
+   - con el contacto, unos 12 V, con la patilla 1 en positivo.
+8. **Gira el manillar a tope a los dos lados:** el cable no tira ni se pilla. Comprueba luces y freno.
+
 ### 7.6 Probar y poner en la moto
 
-1. **Con el firmware, comprueba:**
-   - la pantalla enseña algo;
+1. **Encaja la pantalla** en el amortiguador del Quad Lock y enchufa el SP13.
+2. **Vincúlala con la caja.** Se hace una sola vez; para cambiar de pantalla, se repite.
+   1. Con el contacto puesto y la moto parada, la pantalla dice «BUSCANDO LA CAJA».
+   2. Conecta el móvil a la red «StreetChaos-Caja» y, en la pestaña **TALLER** de su página, pulsa **VINCULAR PANTALLA**.
+   3. Desde entonces, la caja solo habla con esa pantalla.
+3. **Con el contacto puesto**, comprueba:
+   - la pantalla enseña algo y cambia con el botón A;
+   - el botón B marca;
    - los LEDs se encienden;
-   - cada botón responde;
-   - el sensor de luz cambia de valor al taparlo con la mano;
-   - con el USB enchufado, se enciende el LED de carga.
-2. **Encájala en el amortiguador del soporte.** Tiene que quedar con el USB-C hacia abajo, para que no le entre lluvia, y con su tapa puesta.
-3. **Comprueba** que no tapa el cuadro ni te quita visión, y que el manillar gira a tope sin tocar el carenado.
-4. **Aparcada al sol, quítala.** El fabricante de la pantalla no recomienda dejarla mucho tiempo al sol directo.
+   - el brillo cambia al tapar el sensor de luz.
+4. **Quita el contacto:** la pantalla se queda a oscuras, y se apaga del todo cuando se apaga la caja.
+5. **Comprueba** que no tapa el cuadro ni te quita visión, y que el manillar gira a tope sin tocar el carenado.
+6. **La unidad pesa unos 250 g:** comprueba que el amortiguador la sujeta firme.
+7. **Si ruedas sin la pantalla, tapa el conector** de la moto.
 
 ---
 
@@ -537,8 +663,8 @@ Tapa el borde de la pantalla: el fabricante pide que el circuito del borde del c
 
 - [ ] Luces de posición y freno (maneta y pedal), intermitentes, claxon y arranque, todo igual que antes.
 - [ ] La caja se enciende con el contacto y se apaga sola después.
-- [ ] El GPS tiene posición con la moto en la calle; en la pantalla ESTADO, satélites y 25 Hz.
-- [ ] El freno se marca al frenar.
+- [ ] El GPS tiene posición con la moto en la calle: en la pestaña TALLER (o en la pantalla ESTADO), satélites y 25 Hz.
+- [ ] El freno se marca al frenar (en la pestaña TALLER).
 - [ ] Las revoluciones cuadran con el cuentarrevoluciones.
 - [ ] Ningún cable tira con el manillar a tope ni toca el escape.
 - [ ] El asiento cierra sin pillar nada.
@@ -562,7 +688,7 @@ Tapa el borde de la pantalla: el fabricante pide que el circuito del borde del c
 
 **La microSD:** si un día falla, se cambia y ya. Las salidas ya subidas están en la nube.
 
-**La batería de la pantalla:**
-- se carga al enchufar el USB-C, esté la unidad dormida o despierta; despierta, la pantalla dice CARGANDO;
-- no la dejes al sol;
-- si se hincha, cámbiala.
+**La pantalla:**
+- no lleva batería;
+- al lavar la moto, no apuntes con agua a presión al conector SP13 ni a los botones;
+- aparcada mucho rato a pleno sol en verano, mejor quitarla.

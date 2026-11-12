@@ -45,6 +45,7 @@ Por orden, el lado corto de patillas (12) es: `SDA`, `SCL`, `1`, `2`, `4`, `5`, 
 | 1 | `1` | Revoluciones (salida del 74HC14, U8) | entra | Un pulso bajo por chispa |
 | 10 | `A0` | Divisor de tensión de la batería de la moto | analógica | ADC1. V moto = V leída × 122 / 22 |
 | 21 | `21` | Interruptor de encendido (U4), patilla `OFF` | sale | Un pulso alto de 10 ms apaga toda la caja |
+| 14 | `A1` | Botón del manillar (J3-2), por R12 | entra | **Nivel bajo = pulsado.** Pull-up interna; antirrebote en el firmware. Solo se usa con el móvil de pantalla ([docs/caja-movil.md](../../docs/caja-movil.md)) |
 
 Ya usadas dentro de la placa, **no tocar**:
 - microSD: GPIO 33, 34, 38, 39, 40 y 47, y 48 para detectar la tarjeta;
@@ -54,9 +55,9 @@ Ya usadas dentro de la placa, **no tocar**:
 - alimentación del Qwiic y la microSD (`3.3V_P`): 45;
 - USB: 19 y 20.
 
-> **En la caja, el GPIO 45 siempre en alto y la soldadura `LP_CTL` sin cortar.** El sensor de movimiento depende de las resistencias del I2C que cuelgan de `3.3V_P`, y la microSD también. Cortar `LP_CTL` es solo para la pantalla (apartado 6).
+> **En la caja, el GPIO 45 siempre en alto y la soldadura `LP_CTL` sin cortar.** El sensor de movimiento depende de las resistencias del I2C que cuelgan de `3.3V_P`, y la microSD también. No se corta en ninguna de las dos placas.
 
-Libres para más adelante: 2 (IMU `I2`), 42, 11, 12, 13, 14, 15, 16, 17 y 18. Las analógicas buenas (ADC1) son solo de la 1 a la 10: la ADC2 no funciona con el WiFi encendido.
+Libres para más adelante: 2 (IMU `I2`), 42, 11, 12, 13, 15, 16, 17 y 18. Las analógicas buenas (ADC1) son solo de la 1 a la 10: la ADC2 no funciona con el WiFi encendido.
 
 ---
 
@@ -73,6 +74,7 @@ La caja **no lleva batería propia**. Va a la batería de la moto (12 V siempre)
  Batería − ──────────(blanco)────► J1-2 «GND» ──┴── GND común
 
  U4 VOUT = «12V_SW» ──┬──► U5 VIN    (regulador Pololu D36V28F5)
+                      ├──[F2 0,75 A]──► J3-1 «PANT» ══(marrón)══► pantalla (apartado 6)
                       ├── C1 47 µF 50 V ── GND
                       └── R8 100k ──┬── R9 22k ── GND
                                     ├── C4 100 nF ── GND
@@ -80,6 +82,10 @@ La caja **no lleva batería propia**. Va a la batería de la moto (12 V siempre)
 
  U5 VOUT ──▶|── «5V» ──► U1 VUSB (placa)  y  U2 5V (GPS)
           D2 1N5819
+
+ J3-2 «BOTÓN» ══(verde)══ R12 1k ──┬──► GPIO 14 (pull-up interna; pulsado = bajo)
+                                   └── C5 100 nF ── GND
+ J3-3 «GND» ══(blanco)══ GND
 
  Contacto ──(verde)──► J1-3 «CONT» ──┬── R3 22k ───► U4 ON
                                      └── R1 1,8k ──► optoacoplador U6 (apartado 3)
@@ -90,7 +96,7 @@ La caja **no lleva batería propia**. Va a la batería de la moto (12 V siempre)
 Cómo funciona:
 
 1. **Das el contacto.** La luz de posición recibe 12 V y, a través de R3, la patilla `ON` del interruptor U4 lo enciende. Llegan 12 V al regulador U5, que da 5 V a la placa y al GPS.
-2. **Quitas el contacto.** U4 sigue encendido (se queda «enclavado»). La caja ve el contacto quitado por el GPIO 6, cierra la salida y, si está en casa, sube las salidas por WiFi.
+2. **Quitas el contacto.** U4 sigue encendido (se queda «enclavado»). La caja ve el contacto quitado por el GPIO 6 y cierra la salida. Si tiene salidas sin pasar, espera al móvil.
 3. **La caja se apaga sola.** El firmware da un pulso en el GPIO 21 hacia `OFF` y U4 corta todo. Lo hace solo si el contacto sigue quitado, así `ON` está en bajo y no hay conflicto.
    - Tiempo máximo encendida sin contacto: 15 minutos, aunque no haya terminado de subir.
    - Si la batería de la moto baja de 12,0 V, se apaga en el momento.
@@ -102,12 +108,14 @@ Por qué cada pieza:
 
 | Pieza | Para qué |
 | --- | --- |
-| **F1** fusible de 2 A, junto a la batería | Si algo se cortocircuita, salta el fusible y no arde el cable. La caja gasta como mucho 0,3 A a 12 V |
+| **F1** fusible de 2 A, junto a la batería | Si algo se cortocircuita, salta el fusible y no arde el cable. La caja gasta como mucho 0,3 A a 12 V; con la pantalla, unos 0,6 A |
+| **F2** fusible rearmable de 0,75 A y **J3** | J3 lleva 3 hilos hasta el manillar:<br>• `PANT` (J3-1): los 12 V del interruptor (`12V_SW`) hacia la pantalla Riverdi (apartado 6). Así la pantalla se enciende y se apaga con la caja, y apagada tampoco gasta nada. Si ese cable hace corto, F2 corta y se rearma solo al quitar el corto;<br>• `BOTÓN` (J3-2): el botón del manillar, si se usa el móvil de pantalla;<br>• `GND` (J3-3): masa |
+| **R12 y C5** | Protegen la entrada del botón del manillar: el cable es largo y pasa junto al mazo de la moto. R12 limita la corriente de cualquier pico, y C5 filtra el ruido. El pull-up es el interno del ESP32 |
 | **D1** TVS 1.5KE22A | Corta los picos de tensión de la moto. Deja pasar hasta 18,8 V sin hacer nada y recorta a 30,6 V como mucho, por debajo de lo que aguantan U4 (40 V) y U5 (50 V). Si conectas la batería al revés, conduce y salta el fusible |
 | **U4** Pololu 2809 (versión SV, 4,5-32 V) | El interruptor. **No uses la versión LV (2808) aquí**: solo aguanta 20 V |
 | **C1** 47 µF 50 V | Reserva junto al regulador contra picos de los cables |
 | **U5** Pololu D36V28F5 | 12 V → 5 V, hasta 3,2 A (la caja pide unos 0,6 A en el peor momento). Aguanta hasta 50 V y la batería al revés |
-| **D2** 1N5819 | Deja pasar los 5 V hacia la placa pero no al revés. **La patilla `VUSB` de la placa es la misma que el USB**: sin este diodo, al enchufar el USB al ordenador, sus 5 V entrarían en el regulador U5. Aun así, **enchufa el USB con la caja apagada**: con la caja encendida hay ~4,8 V en el USB y el ordenador puede no reconocer la placa |
+| **D2** 1N5819 | Deja pasar los 5 V hacia la placa pero no al revés. **La patilla `VUSB` de la placa es la misma que el USB**: sin este diodo, al enchufar el USB al ordenador, sus 5 V entrarían en el regulador U5. Aun así, **enchufa el USB con la caja apagada**: con la caja encendida hay ~4,8 V en el USB y el ordenador puede no reconocer la placa. **Orden seguro en la mesa:** primero el USB, con la fuente de 12 V quitada, y después la fuente. Con los dos puestos, el USB (5,0 V) alimenta la placa; U5 solo llega a ~4,7 V por D2, así que no entra corriente al ordenador. El USB se puede quitar en cualquier momento. Si la caja se apaga con el USB puesto, la placa sigue encendida por el USB, pero `12V_SW` baja a 0 V |
 | **R8, R9, C4** | Divisor de tensión: el ESP32 mide la batería de la moto (para la pantalla ESTADO y avisar si está baja). Con 16 V lee 2,9 V, dentro de su rango |
 
 El GPS (U2) toma los 5 V por su patilla `5V`; tiene su propio regulador a 3,3 V. Así no carga el regulador de la placa, que se queda para el ESP32 y la microSD.
@@ -179,7 +187,8 @@ La Ninja 125 tiene un **conector de diagnosis de 4 vías (KDS)** junto a la cent
 Para soldar. Cada fila es una «red»: todo lo que pone en la fila tiene que quedar unido. Táchalas al soldarlas y **comprueba cada una con el multímetro en modo continuidad** antes de enchufar nada.
 
 Nombres de las piezas:
-- **J1, J2:** bornas de tornillo.
+- **J1, J2, J3:** bornas de tornillo de 3 vías. J3 es la salida al manillar (pantalla o botón).
+- **F2:** fusible rearmable de la pantalla.
 - **U1:** placa (Thing Plus).
 - **U2:** GPS.
 - **U3:** IMU.
@@ -193,13 +202,16 @@ En los PC817 y en el 74HC14 la patilla 1 lleva un punto o una muesca.
 | Red | Une |
 | --- | --- |
 | `12V` | J1-1 · D1 cátodo (lado de la raya) · U4 `VIN` |
-| `GND` | J1-2 · J2-3 · D1 ánodo · U4 `GND` · U5 `GND` · C1 − · U1 `GND` · U2 `GND` · U3 `GND` · U6 pat. 2 y 3 · U7 pat. 2 y 3 · D3 ánodo · D4 ánodo · D6 ánodo · C2 · C3 · C4 · R7 · R9 · U8 pat. 7, 3, 5, 9, 11, 13 |
+| `GND` | J1-2 · J2-3 · J3-3 · C5 · D1 ánodo · U4 `GND` · U5 `GND` · C1 − · U1 `GND` · U2 `GND` · U3 `GND` · U6 pat. 2 y 3 · U7 pat. 2 y 3 · D3 ánodo · D4 ánodo · D6 ánodo · C2 · C3 · C4 · R7 · R9 · U8 pat. 7, 3, 5, 9, 11, 13 |
 | `CONT` | J1-3 · R1 · R3 (RT1 va fuera, en la derivación del cable verde) |
 | `ON` | R3 (otro extremo) · U4 `ON` |
 | `OPTO_CONT` | R1 (otro extremo) · U6 pat. 1 · D3 cátodo |
 | `FRENO` | J2-1 · R2 (RT2 va fuera, en la derivación del cable amarillo) |
 | `OPTO_FRENO` | R2 (otro extremo) · U7 pat. 1 · D4 cátodo |
-| `12V_SW` | U4 `VOUT` · U5 `VIN` · C1 + · R8 |
+| `12V_SW` | U4 `VOUT` · U5 `VIN` · C1 + · R8 · F2 |
+| `PANT` | F2 (otro extremo) · J3-1 |
+| `BTN_MAN` | J3-2 · R12 |
+| `BTN` | R12 (otro extremo) · C5 · U1 `A1` (GPIO 14) |
 | `5V_REG` | U5 `VOUT` · D2 ánodo |
 | `5V` | D2 cátodo (lado de la raya) · U1 `VUSB` · U2 `5V` |
 | `3V3` | U1 `3V3` · U3 `VIN` · R4 · R5 · U8 pat. 14 · C3 · D5 cátodo |
@@ -236,7 +248,10 @@ Comprobaciones con el multímetro antes de enchufar las placas:
 
 ## 5. Cable de la caja a la moto (Ninja 125)
 
-Un cable de 4 hilos (manguera 4 × 0,5 mm², colores DIN: marrón, blanco, verde, amarillo) y uno apantallado para las revoluciones. Entran en la caja por dos prensaestopas.
+Tres cables, cada uno por su prensaestopas:
+- uno de 4 hilos a la batería y al piloto (manguera 4 × 0,5 mm², colores DIN: marrón, blanco, verde, amarillo);
+- uno apantallado para las revoluciones;
+- uno de 3 hilos (3 × 0,5 mm², marrón, blanco y verde) hasta el manillar: la pantalla o el botón.
 
 | Borna | Color | Señal | En la moto se conecta a | Cómo |
 | --- | --- | --- | --- | --- |
@@ -244,8 +259,11 @@ Un cable de 4 hilos (manguera 4 × 0,5 mm², colores DIN: marrón, blanco, verde
 | J1-2 `GND` | blanco | Masa | **Borne − de la batería** | Terminal de ojal M5 |
 | J1-3 `CONT` | verde | 12 V con el contacto | **Cable de la luz de posición trasera** (el que tiene 12 V en cuanto das el contacto) | Derivación Posi-Tap, sin cortar el cable, con **RT1 (1 kΩ ½ W)** soldada en el verde a 2-3 cm de la derivación |
 | J2-1 `FRENO` | amarillo | 12 V al frenar | **Cable de la luz de freno** (12 V solo con una maneta o el pedal) | Derivación Posi-Tap, con **RT2 (1 kΩ ½ W)** soldada en el amarillo junto a la derivación |
-| J2-2 `RPM` | vivo del apantallado | Pinza | **8-10 vueltas alrededor del cable de bujía**, a unos 5 cm de la bobina | Enrollado y cubierto con termorretráctil; la punta, aislada y sin conectar |
+| J2-2 `RPM` | vivo del apantallado | Pinza | **8-10 vueltas alrededor del cable de bujía**, a unos 5 cm de la bobina | Enrollado y sujeto con cinta autovulcanizante; la punta, aislada y sin conectar |
 | J2-3 `MALLA` | malla del apantallado | Masa del blindaje | Solo en la caja; en la punta de la pinza, cortada y aislada | |
+| J3-1 `PANT` | marrón del cable de 3 hilos | +12 V mientras la caja está encendida | **Pantalla Riverdi**, por el conector estanco SP13 (patilla 1). Con el móvil de pantalla, sin conectar y aislado | A lo largo del chasis hasta el manillar, con holgura para girar la dirección |
+| J3-2 `BOTÓN` | verde del cable de 3 hilos | A masa al pulsar | **Botón del manillar**, si se usa el móvil de pantalla. Con la Riverdi, aislado | El otro terminal del botón, al blanco |
+| J3-3 `GND` | blanco del cable de 3 hilos | Masa | Pantalla (SP13, patilla 2) o botón | |
 
 **Colores de la moto: compruébalos con el multímetro** (paso a paso en [montaje.md](montaje.md#5-instalación-en-la-ninja-125)). En otras Kawasaki el freno es azul, la posición es roja y la masa negra con raya amarilla, pero no está confirmado para la Ninja 125 de 2019 en adelante.
 
@@ -268,46 +286,111 @@ Datos de la moto:
 
 ![Unidad de pantalla](esquemas/pantalla.svg)
 
-Placa **U11 = SparkFun Thing Plus ESP32-S3**, igual que la de la caja. Funciona con su batería (BT1) y se carga por su USB-C.
+La unidad lleva estas piezas:
+- **U11**: placa **SparkFun Thing Plus ESP32-S3**, igual que la de la caja;
+- **U12**: pantalla **Riverdi RVT43HLBFWN00**, 4,3", IPS y 1000 cd/m², con un chip gráfico propio (BT817) que dibuja él solo; la placa solo le manda órdenes por SPI;
+- la **Break Out Board 20** de Riverdi y su cable plano, que unen la pantalla con la placa.
 
-| GPIO | Patilla | Va a | Nota |
+Se alimenta **de la caja**, por un cable de 2 hilos: se enciende y se apaga con ella, y no lleva batería.
+
+### 6.1 Alimentación
+
+```
+ Caja J3-1 «PANT» ══(marrón)══ SP13-1 ──┬────────────► U16 VIN   (regulador Pololu D24V10F5)
+                                        ├── D11 TVS 1.5KE22A (raya hacia PANT) ── GND
+                                        └── C12 47 µF 50 V ── GND
+ Caja J3-3 «GND»  ══(blanco)══ SP13-2 ──── GND
+
+ U16 VOUT = «5V_P» ──┬──► RiBUS 17 y 18 (BLVDD: la luz de la pantalla)
+                     ├──► U13 5VDC (tira de LEDs) · C11 100 µF ── GND
+                     ├──► U17 pat. 14 (VCC) · C13 100 nF ── GND
+                     └──▶|──► U11 VUSB
+                       D12 1N5819
+
+ U11 3V3 ──► RiBUS 1 (VDD: la electrónica de la pantalla)
+```
+
+- **D11 y C12** hacen lo mismo que D1 y C1 en la caja: recortan los picos que entren por el cable. Si el cable se conecta al revés, D11 conduce y F2 corta en la caja.
+- **U16** da 1 A. Lo que gasta la unidad:
+  - la luz de la pantalla, hasta 268 mA;
+  - la placa, unos 250 mA;
+  - los LEDs, limitados a la mitad de brillo, unos 250 mA.
+- **D12** hace lo mismo que D2 en la caja: se puede enchufar el USB de la placa para programarla sin que sus 5 V entren en U16. La regla es la misma: primero el USB, con la unidad sin corriente, y después la corriente.
+- **Solo con el USB** se alimentan U11 y la electrónica de la pantalla (3,3 V), así que el BT817 contesta. Pero no se encienden la luz de la pantalla, ni los LEDs, ni U17: van a `5V_P`, que solo da U16 con los 12 V. Para ver algo en la mesa, primero el USB y después la fuente de 12 V en el SP13.
+- **U17** pasa la señal de los LEDs de 3,3 V a 5 V. Con 5 V de alimentación, los LEDs no dan por buena una señal de 3,3 V.
+- La placa no lleva batería: su conector de batería queda libre.
+- **La soldadura `LP_CTL` no se corta.** El sensor de luz queda alimentado mientras la unidad tiene corriente.
+
+### 6.2 Patillas
+
+| GPIO | Patilla de U11 | Va a | Nota |
 | --- | --- | --- | --- |
-| 12 | `SCK` | Pantalla `CLK` | SPI a 2 MHz como mucho |
-| 11 | `PICO` | Pantalla `DI` | |
-| 10 | `A0` | Pantalla `CS` | **En esta pantalla CS es activo en alto** |
-| 21 | `21` | Tira de LEDs `DIN`, a través de R11 (470 Ω) | |
-| 4 | `4` | Interruptor de los LEDs (U15) `ON` | Pulso alto: enciende los LEDs |
-| 5 | `5` | Interruptor de los LEDs (U15) `OFF` | Pulso alto: apaga los LEDs |
-| 7 | `7` | Botón A (SW1) a GND | PANTALLA: cambia de pantalla y despierta la unidad. Pull-up interna |
+| 12 | `SCK` | RiBUS 3 `SPI_SCLK` | SPI |
+| 11 | `PICO` | RiBUS 5 `MOSI` | |
+| 13 | `POCI` | RiBUS 4 `MISO` | El BT817 contesta: hace falta para leerlo |
+| 10 | `A0` | RiBUS 6 `CS` | **Activo en bajo** |
+| 5 | `5` | RiBUS 8 `RST/PD` | Activo en bajo: en bajo, la pantalla queda apagada y reiniciada |
+| 4 | `4` | RiBUS 7 `INT` | Entra; activo en bajo, con pull-up interna |
+| 21 | `21` | U17 1A (pat. 2) → 1Y (pat. 3) → R11 470 Ω → U13 `DIN` | Datos de los LEDs, pasados a 5 V |
+| 7 | `7` | Botón A (SW1) a GND | PANTALLA: cambia de pantalla. Pull-up interna |
 | 6 | `6` | Botón B (SW2) a GND | MARCA: corta = marca; larga = meta. Pull-up interna |
 | 8, 9 | Qwiic | Sensor de luz VEML7700 (U14) | Cable Qwiic; dirección 0x10 |
 
+### 6.3 Redes, para soldar
+
+Las patillas de la Break Out Board 20 siguen el orden del RiBUS (1 a 20). Compruébalo con su serigrafía antes de soldar.
+
 | Red | Une |
 | --- | --- |
-| `VBAT` | Patilla `VBATT` de U11 · U15 `VIN` |
-| `VLED` | U15 `VOUT` · U13 `5VDC` · C11 + |
-| `3V3_P` | Qwiic de U11 (por el cable) → U14 `VIN` · pantalla U12 `VIN` (un hilo desde el pin `VIN` de U14) |
-| `GND` | U11 `GND` · U12 `GND` · U13 `GND` · U15 `GND` · C11 − · SW1 · SW2 |
-| Batería | BT1 al conector de batería (JST-PH) de U11 |
+| `PANT_IN` | SP13-1 · D11 cátodo (lado de la raya) · C12 + · U16 `VIN` |
+| `GND` | SP13-2 · D11 ánodo · C12 − · U16 `GND` · U11 `GND` · RiBUS 2, 19 y 20 · U13 `GND` · C11 − · C13 · U17 pat. 7, 1 (1OE) y 5, 9, 12 (entradas sin usar) · SW1 · SW2 |
+| `5V_P` | U16 `VOUT` · D12 ánodo · RiBUS 17 y 18 · U13 `5VDC` · C11 + · U17 pat. 14 y 4, 10, 13 (los OE sin usar) · C13 |
+| `VUSB` | D12 cátodo (lado de la raya) · U11 `VUSB` |
+| `3V3` | U11 `3V3` · RiBUS 1 |
+| `SCK` | U11 `SCK` (12) · RiBUS 3 |
+| `MOSI` | U11 `PICO` (11) · RiBUS 5 |
+| `MISO` | U11 `POCI` (13) · RiBUS 4 |
+| `CS` | U11 `A0` (10) · RiBUS 6 |
+| `PD` | U11 `5` · RiBUS 8 |
+| `INT` | U11 `4` · RiBUS 7 |
+| `LED_3V3` | U11 `21` · U17 pat. 2 (1A) |
+| `LED_5V` | U17 pat. 3 (1Y) · R11 |
+| `DIN` | R11 (otro extremo) · U13 `DIN` |
+| `BTN_A` | U11 `7` · SW1 |
+| `BTN_B` | U11 `6` · SW2 |
+
+Sin conectar:
+- **RiBUS:** 9 a 16.
+- **U16:** `EN` (se queda encendido) y `PG`.
+- **U13:** `DOUT`.
+- **U11:** el conector de batería.
 
 Notas:
-- **Pantalla (U12):** `EXTMD`, `DISP` y `EXTIN` sin conectar. La placa ya trae las resistencias que la dejan encendida, y el cambio de polaridad (VCOM) lo hace el programa: hay que refrescarla al menos cada 2 s **mientras tenga corriente**.
-- **Por eso la pantalla se alimenta de `3.3V_P`** (la línea del Qwiic), que se corta al dormir:
-  - en esta placa, U11, **se corta la soldadura `LP_CTL`**; así el GPIO 45 manda sobre `3.3V_P` y en reposo queda en bajo;
-  - el programa pone el GPIO 45 en alto al despertar;
-  - antes de dormir, deja la pantalla en blanco y pone el GPIO 45 en bajo.
-  - Si se quedara alimentada semanas sin refrescar, la imagen se quedaría marcada y la pantalla se iría estropeando.
-  - El sensor de luz va en la misma línea y también se apaga.
-- **Los LEDs van a la batería directamente**, no al regulador de 3,3 V: en blanco a tope pedirían casi 0,5 A. El interruptor U15 los apaga del todo: estos LEDs gastan 0,5 mA o más cada uno aunque estén apagados, y sin él vaciarían la batería en unos días.
-- Con la batería entre 3,7 y 4,2 V, la señal de 3,3 V del ESP32 les vale (Adafruit lo da por bueno). Por debajo de ~3,6 V los colores pueden cambiar un poco; para entonces la unidad ya avisa de batería baja.
-- **Apagado:** la unidad se duerme sola si no llega nada de la caja en 2 minutos, o con una pulsación larga de A. Se despierta con A.
-  - Dormida gasta muy poco: solo la placa en reposo, con la pantalla y el sensor sin corriente. No está medido, pero son meses con la batería llena.
-  - Cortando la soldadura `PWR` de la placa (el LED de encendido), gasta aún menos.
-- **C11 es de 100 µF**, no más: uno grande, al encender los LEDs de golpe, podría bajar la batería lo justo para reiniciar el ESP32.
+- **La luz de la pantalla** la regula el propio BT817 por SPI, sin patilla aparte. Con el sensor de luz: al 100 % a pleno sol y baja de noche.
+- **Al quitar el contacto**, la caja puede seguir encendida hasta 15 minutos esperando al móvil, y la pantalla con ella. La pantalla se queda a oscuras (luz a 0, LEDs apagados y el BT817 dormido) en dos casos:
+  - en cuanto la caja le dice que no hay contacto;
+  - si pasa 3 s sin oír a la caja. Esto ocurre, por ejemplo, cuando la caja se conecta al Compartir Internet del iPhone y cambia de canal.
+  Vuelve en cuanto llegan mensajes con el contacto puesto.
+- **Vinculación:** la pantalla solo atiende a su caja. Se vinculan una vez desde la pestaña TALLER de la página de la caja (montaje, paso 7.6).
+- **Conector SP13:** patilla 1, marrón, +12 V; patilla 2, blanco, masa. Igual en los dos lados. El verde (botón del manillar) no se usa con la Riverdi: queda cortado y aislado en el manillar.
 
 ---
 
 ## 7. Datos para el firmware
+
+**Prototipo simple (el primero que se monta; decidido el 2026-11-12):**
+- Es la misma placa base con menos piezas:
+  - **lleva** la alimentación (J1, D1, C1, U4, U5, D2, R3, R8, R9 y C4), el contacto (U6, R1, R4 y D3), U1, el GPS y el sensor;
+  - **no lleva** el freno (U7, R2, R5 y D4), las revoluciones (U8, R6, R7, R10, D5, D6, C2, C3 y J2) ni el manillar (F2, J3, R12 y C5).
+- Los GPIO 7, 1 y 14 quedan al aire: pull-up interna en los tres, o no leerlos. En esta versión, la PRUEBA DE LA CAJA no da FALLA por FRENO, REVOLUCIONES ni BOTÓN. La versión se elige en la configuración: con las piezas puestas no se distingue.
+- Las salidas se bajan **solo por la WiFi de la caja**. No hay subida por el Compartir Internet ni vinculación.
+  - Red «StreetChaos-Caja» con una contraseña propia de cada caja, que nunca va al repo.
+  - Página en `http://192.168.4.1`: la lista de salidas nuevas (fecha, duración y km), BAJAR (un solo archivo con todas las nuevas) y APAGAR.
+- La WiFi está encendida:
+  - con la moto parada y sin grabar;
+  - al quitar el contacto, 10 minutos; después, el pulso de `OFF`, con las protecciones de siempre (15 minutos como mucho, 12,0 V);
+  - siempre, si solo hay USB.
+- La caja la diseña e imprime él, así que puede ir en cualquier postura. El Blackbox aprende la postura: no hay que dar por hecho que la flecha X del sensor apunta adelante.
 
 **GPS (NEO-M9N):**
 - UART a 230400 baudios (de fábrica viene a 38400).
@@ -328,7 +411,12 @@ Notas:
 **Interruptor (protecciones aparte de la lógica normal):**
 - Antes de dar el pulso en `OFF` (GPIO 21), comprobar que `IGN` (GPIO 6) está en alto, es decir, contacto quitado.
 - El límite de 15 minutos sin contacto, con un temporizador propio que no dependa del resto del programa.
-- Contacto quitado y batería de la moto por debajo de 12,0 V: apagar en el momento.
+- Contacto quitado y batería de la moto por debajo de 12,0 V: apagar en el momento. Esta regla solo vale con la batería medida a 5 V o más.
+- **Solo USB:** si la batería medida (lectura del GPIO 10 × 122 / 22) está por debajo de 5 V, la caja va solo por el USB: U4 está apagado, porque VMOTO se mide después de él. Entonces:
+  - no se da el pulso de `OFF`;
+  - no se aplican las reglas de apagado (ni la de 12,0 V ni la de 15 minutos);
+  - no se espera al móvil;
+  - la PRUEBA DE LA CAJA sigue, y la página dice «SOLO USB».
 - Si tras el pulso la caja sigue viva a los ~100 ms (el contacto ha vuelto y `ON` está en alto), seguir como si nada.
 - Perro guardián activado.
 - **Nunca poner el GPIO 45 en bajo** en la caja: corta la microSD y las resistencias del I2C del sensor.
@@ -351,6 +439,27 @@ Notas:
 | 5.ª | 1,056 | 10,56 | 111 |
 | 6.ª | 0,962 | 11,59 | 122 |
 
-**Chispas por vuelta: sin confirmar.** No se ha encontrado sensor de árbol de levas, lo que apunta a una chispa por vuelta. Se calibra comparando con el cuentarrevoluciones (paso 6.4 de [montaje.md](montaje.md#6-revoluciones-fase-2)).
+**Chispas por vuelta: sin confirmar.** No se ha encontrado sensor de árbol de levas, lo que apunta a una chispa por vuelta. Se calibra comparando con el cuentarrevoluciones (paso 6.5 de [montaje.md](montaje.md#65-calibrar)).
 
 **Ralentí: sin confirmar.** Se mide en la calibración.
+
+**Pantalla (unidad del manillar):**
+- Riverdi RVT43HLBFWN00: BT817 (EVE4), 480 × 272.
+  - Librerías: la de Rudolph Riedel (PlatformIO, tiene configuración para las Riverdi de 4,3") o la de Bridgetek para Arduino.
+- SPI: `SCK` 12, `MOSI` 11, `MISO` 13 y `CS` 10, activo en bajo.
+  - Hasta 11 MHz mientras arranca, antes de configurar su reloj; luego, hasta 30 MHz.
+- `PD` en el GPIO 5, activo en bajo; `INT` en el GPIO 4.
+- Luz de la pantalla:
+  - se regula por SPI, con el registro de PWM del BT817;
+  - el nivel lo marca el VEML7700 (Qwiic, 0x10).
+- LEDs en el GPIO 21 (pasan por U17), **con el brillo limitado al 50 %**: el regulador U16 da 1 A.
+- Botón A en el GPIO 7 y botón B en el GPIO 6, con pull-up interna.
+- Alimentación:
+  - la pantalla toma la corriente de la caja (`12V_SW` → F2 → J3);
+  - se queda a oscuras sin contacto o tras 3 s sin mensajes de la caja;
+  - el GPIO 45 va en alto (`LP_CTL` sin cortar).
+
+**Botón del manillar (solo con el móvil de pantalla):**
+- GPIO 14 (`A1`), entrada con pull-up interna: en bajo, pulsado. Pasa por R12 (1 kΩ) y C5 (100 nF), así que el flanco no es seco: antirrebote en el firmware.
+- Pulsación corta: marca (`mark`). Larga: meta. Como el botón B de la pantalla.
+- Con la Riverdi, el GPIO 14 queda sin usar (el verde, aislado).

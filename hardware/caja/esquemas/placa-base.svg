@@ -34,18 +34,25 @@
   <text x="510.5" y="200.5" font-size="10.5" fill="#212121" text-anchor="middle">U8, R6, R7, R10, D5, D6, C2, C3</text>
   <text x="510.5" y="213.5" font-size="10.5" fill="#212121" text-anchor="middle">solo piezas bajas (&lt; 6 mm)</text>
   <text x="449" y="125.2" font-size="11.5" fill="#1b5e20" font-weight="bold" text-anchor="middle">U1 · Thing Plus ESP32-S3, sobre zócalos hembra (8,5 mm)</text>
-  <rect x="158" y="285" width="48" height="91.4" rx="2" fill="#81c784" stroke="#2e7d32" stroke-width="1.6"/>
-  <rect x="158" y="393" width="48" height="91.4" rx="2" fill="#81c784" stroke="#2e7d32" stroke-width="1.6"/>
-  <text x="215" y="304" font-size="9.5" fill="#1b5e20">12V</text>
-  <text x="215" y="334.5" font-size="9.5" fill="#1b5e20">GND</text>
-  <text x="215" y="365" font-size="9.5" fill="#1b5e20">CONT</text>
-  <text x="215" y="412" font-size="9.5" fill="#1b5e20">FRENO</text>
-  <text x="215" y="442.5" font-size="9.5" fill="#1b5e20">RPM</text>
-  <text x="215" y="473" font-size="9.5" fill="#1b5e20">MALLA</text>
-  <text x="158" y="279" font-size="11" fill="#222" font-weight="bold">J1</text>
-  <text x="158" y="387" font-size="11" fill="#222" font-weight="bold">J2</text>
-  <rect x="158" y="495" width="57" height="27" rx="2" fill="#ffebee" stroke="#c62828" stroke-width="1.6"/>
-  <text x="186.5" y="512.5" font-size="10" fill="#212121" font-weight="bold" text-anchor="middle">D1</text>
+  <rect x="158" y="226" width="48" height="91.4" rx="2" fill="#81c784" stroke="#2e7d32" stroke-width="1.6"/>
+  <rect x="158" y="327" width="48" height="91.4" rx="2" fill="#81c784" stroke="#2e7d32" stroke-width="1.6"/>
+  <rect x="158" y="428" width="48" height="91.4" rx="2" fill="#81c784" stroke="#2e7d32" stroke-width="1.6"/>
+  <text x="215" y="245" font-size="9.5" fill="#1b5e20">12V</text>
+  <text x="215" y="275.5" font-size="9.5" fill="#1b5e20">GND</text>
+  <text x="215" y="306" font-size="9.5" fill="#1b5e20">CONT</text>
+  <text x="215" y="346" font-size="9.5" fill="#1b5e20">FRENO</text>
+  <text x="215" y="376.5" font-size="9.5" fill="#1b5e20">RPM</text>
+  <text x="215" y="407" font-size="9.5" fill="#1b5e20">MALLA</text>
+  <text x="215" y="447" font-size="9.5" fill="#1b5e20">PANT</text>
+  <text x="215" y="477.5" font-size="9.5" fill="#1b5e20">BOTÓN</text>
+  <text x="215" y="508" font-size="9.5" fill="#1b5e20">GND</text>
+  <rect x="310" y="540" width="44" height="18" rx="6" fill="#fff59d" stroke="#f9a825" stroke-width="1.2"/>
+  <text x="360" y="553" font-size="10" fill="#212121" font-weight="bold">F2</text>
+  <text x="158" y="221" font-size="11" fill="#222" font-weight="bold">J1</text>
+  <text x="141" y="337" font-size="11" fill="#222" font-weight="bold">J2</text>
+  <text x="141" y="438" font-size="11" fill="#222" font-weight="bold">J3</text>
+  <rect x="245" y="535" width="57" height="27" rx="2" fill="#ffebee" stroke="#c62828" stroke-width="1.6"/>
+  <text x="273.5" y="552.5" font-size="10" fill="#212121" font-weight="bold" text-anchor="middle">D1</text>
   <rect x="245" y="285" width="106.8" height="121.8" rx="2" fill="#fff3e0" stroke="#e65100" stroke-width="1.6"/>
   <text x="298.4" y="336.9" font-size="10.5" fill="#212121" font-weight="bold" text-anchor="middle">U5</text>
   <text x="298.4" y="349.9" font-size="10.5" fill="#212121" text-anchor="middle">regulador</text>
@@ -69,7 +76,7 @@
   <rect x="407" y="456" width="246" height="117" rx="2" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="1.6" stroke-dasharray="4,3"/>
   <text x="464" y="483" font-size="10.5" fill="#4a148c" font-weight="bold" text-anchor="middle">optoacopladores</text>
   <text x="464" y="496" font-size="10.5" fill="#4a148c" text-anchor="middle">U6, U7, R1-R5,</text>
-  <text x="464" y="509" font-size="10.5" fill="#4a148c" text-anchor="middle">D3, D4</text>
+  <text x="464" y="509" font-size="10.5" fill="#4a148c" text-anchor="middle">D3, D4, R12, C5</text>
   <text x="464" y="522" font-size="10.5" fill="#4a148c" text-anchor="middle">(bajo el GPS)</text>
   <rect x="527" y="285" width="220.8" height="243.6" rx="2" fill="none" stroke="#1565c0" stroke-width="2.4" stroke-dasharray="8,5"/>
   <circle cx="542.2" cy="300.2" r="15.6" fill="#bbdefb" stroke="#0d47a1" stroke-width="1.4"/>
@@ -86,11 +93,11 @@
   <line x1="70" y1="345" x2="143" y2="345" stroke="#37474f" stroke-width="2" marker-end="url(#fl)"/>
   <text x="30" y="261" font-size="10.5" fill="#37474f">pared</text>
   <text x="30" y="275" font-size="10.5" fill="#37474f">delantera:</text>
-  <text x="30" y="289" font-size="10.5" fill="#37474f">2 prensa-</text>
-  <text x="30" y="303" font-size="10.5" fill="#37474f">estopas y</text>
-  <text x="30" y="317" font-size="10.5" fill="#37474f">membrana</text>
+  <text x="30" y="289" font-size="10.5" fill="#37474f">3 prensa-</text>
+  <text x="30" y="303" font-size="10.5" fill="#37474f">estopas</text>
   <text x="794" y="285" font-size="10.5" fill="#37474f">pared trasera:</text>
   <text x="794" y="299" font-size="10.5" fill="#37474f">pasamuros SMA</text>
+  <text x="794" y="313" font-size="10.5" fill="#37474f">y membrana</text>
   <line x1="257" y1="677" x2="161" y2="677" stroke="#c62828" stroke-width="3" marker-end="url(#fl)"/>
   <text x="266" y="682" font-size="13" fill="#c62828" font-weight="bold">ADELANTE (hacia la parte delantera de la moto)</text>
   <line x1="149" y1="619" x2="749" y2="619" stroke="#607d8b" stroke-width="1"/>
@@ -113,7 +120,7 @@
   <text x="900" y="326" font-size="11" fill="#455a64">quedan unos 6 mm.</text>
   <text x="900" y="348" font-size="12" fill="#37474f" font-weight="bold">Alimentación</text>
   <text x="900" y="364" font-size="11" fill="#455a64">Junto a las bornas: los cables gruesos,</text>
-  <text x="900" y="378" font-size="11" fill="#455a64">cortos.</text>
+  <text x="900" y="378" font-size="11" fill="#455a64">cortos. J3 y F2: la salida al manillar.</text>
   <text x="900" y="400" font-size="12" fill="#37474f" font-weight="bold">IMU (U3)</text>
   <text x="900" y="416" font-size="11" fill="#455a64">Soldada pegada a la placa, en el centro,</text>
   <text x="900" y="430" font-size="11" fill="#455a64">entre los cuatro tornillos. Su flecha X</text>

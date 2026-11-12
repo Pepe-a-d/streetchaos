@@ -13,6 +13,8 @@ caja,1,D2,Diodo Schottky 1 A,1N5819,1,DigiKey,0.40,La raya hacia 5V
 caja,1,C1,Condensador electrolítico 47 uF 50 V,genérico,1,DigiKey,0.40,
 caja,1,F1,Portafusibles estanco mini,Littelfuse 0FHM0003ZXJS,1,DigiKey,6.86,A menos de 15 cm de la batería
 caja,1,F1,Fusible mini 2 A 32 V,Littelfuse 0297002,2,DigiKey / recambios,1.20,Uno de repuesto
+caja,4,F2,Fusible rearmable PTC 0.75 A 60 V,Bourns MF-R075,1,DigiKey,0.40,Protege el cable de la pantalla
+caja,4,J3,Borna de tornillo 3 vías 5.08 mm,Phoenix Contact MKDS 1.5/3-5.08 (1715734),1,DigiKey,0.80,Salida de 12 V a la pantalla; botón del manillar; masa
 caja,1,U6,Optoacoplador (contacto),Sharp PC817X2NSZ9F,1,DigiKey,0.35,
 caja,2,U7,Optoacoplador (freno),Sharp PC817X2NSZ9F,1,DigiKey,0.35,
 caja,2,U8,Disparador Schmitt,TI SN74HC14N,1,DigiKey,0.60,
@@ -28,47 +30,57 @@ caja,2,R7,Resistencia 100 kOhm 1/4 W,genérica,1,,0.05,
 caja,1,R8,Resistencia 100 kOhm 1/4 W,genérica,1,,0.05,
 caja,1,R9,Resistencia 22 kOhm 1/4 W,genérica,1,,0.05,
 caja,2,R10,Resistencia 4.7 kOhm 1/4 W,genérica,1,,0.05,
+caja,4,R12,Resistencia 1 kOhm 1/4 W,genérica,1,,0.05,Entrada del botón del manillar (GPIO 14)
 caja,1,D3,Diodo 1N4148,genérico,1,,0.10,
 caja,2,D4-D6,Diodo 1N4148,genérico,3,,0.30,
 caja,2,C2,Condensador cerámico 1 nF,genérico,1,,0.20,
 caja,2,C3,Condensador cerámico 100 nF,genérico,1,,0.15,
 caja,1,C4,Condensador cerámico 100 nF,genérico,1,,0.15,
+caja,4,C5,Condensador cerámico 100 nF,genérico,1,,0.15,Filtro del botón del manillar
 caja,1,J1,Borna de tornillo 3 vías 5.08 mm,Phoenix Contact MKDS 1.5/3-5.08 (1715734),1,DigiKey,0.80,
 caja,2,J2,Borna de tornillo 3 vías 5.08 mm,Phoenix Contact MKDS 1.5/3-5.08 (1715734),1,DigiKey,0.80,
 caja,1,,Caja estanca IP68 con tapa de pestañas,Hammond 1555F2F42GY,1,DigiKey HM388-ND,25.35,160.8 x 90.8 x 62.5 mm
-caja,1,,Prensaestopas PG7 IP68 (3-7 mm),Hammond 1427NCGPG7B,2,DigiKey,4.98,Agujero 12.5 mm
+caja,1,,Prensaestopas PG7 IP68 (3-7 mm),Hammond 1427NCGPG7B,3,DigiKey,7.47,Agujero 12.5 mm; el tercero es para el cable de la pantalla
 caja,1,,Membrana de ventilación M12,Amphenol LTW VENT-PS1NGY-O8001,1,DigiKey / Mouser,5,Aprox.; agujero 12.2 mm
 caja,1,,Placa perforada doble cara 80 x 120 mm,genérica FR4,1,,3,Se corta a 100 x 80
 caja,1,,Zócalos hembra 2.54 mm (16 + 12),Adafruit 2886 o genéricos,1,,1.50,
 caja,1,,Tira de pines macho 2.54 mm,genérica 40 pines,2,,2,Unos 57 pines en total
-caja,1,,Kit de separadores de nylon M3 (6 y 15 mm) con tornillos y tuercas,genérico,1,,10,
+caja,1,,Separadores de nylon: 4 lisos de 6 mm con agujero de 3.2 mm (placa base) y 4 hexagonales M3 macho-hembra de 15 mm (GPS) con tornillos y tuercas,genérico,1,,10,Los de 6 mm sin rosca: el tornillo de chapa pasa por dentro
 caja,1,,Tornillo rosca chapa ST2.9 x 13 DIN 7981,genérico,4,ferretería,1,
 caja,1,,Cable de silicona 26 AWG (3 colores),genérico,1,,6,
-caja,1,,Cable Qwiic 100 mm (pruebas de banco),SparkFun PRT-17259,1,DigiKey,2.09,
+caja,1,,Cable Qwiic 100 mm (pruebas de banco),SparkFun PRT-17259,2,DigiKey,4.18,Placa-GPS y GPS-sensor; luego uno va a la pantalla
 instalacion,1,,Manguera 4 x 0.5 mm2 (marrón blanco verde amarillo),LiYY 4x0.5,2 m,,5,
 instalacion,2,,Cable apantallado 2 x 0.25 mm2,LiYCY 2x0.25,2 m,,5,
 instalacion,1,,Terminal de ojal aislado M5 rojo,genérico,2,,1,
 instalacion,1,,Empalme a tope aislado rojo,genérico,1,,0.20,
 instalacion,1,,Derivación Posi-Tap (talla según el cable de la moto),Posi-Products,2,,8,Medir el cable antes
 instalacion,1,,Termorretráctil con adhesivo surtido,genérico,1,,8,
+instalacion,1,,Cinta autovulcanizante 19 mm,genérica,1 rollo,ferretería,4,Cubre las derivaciones y sujeta la pinza
 instalacion,1,,Tubo corrugado partido 7 mm,genérico,2 m,,4,
 instalacion,2,,Funda de fibra de vidrio 6 mm,genérica,30 cm,,4,Para el tramo de la pinza junto al motor
 instalacion,1,,Bridas negras resistentes al sol 3.6 mm,genéricas,1 bolsa,,3,
 instalacion,1,,Chapita de acero 7 x 7 cm bajo la antena,genérica,1,ferretería,2,
-instalacion,1,,Cierre reutilizable 25 mm,3M Dual Lock SJ3550,30 cm,Amazon,12,Si la bandeja es de PP: imprimación 3M Primer 94 o tornillos
+instalacion,1,,Cierre reutilizable 25 mm,3M Dual Lock SJ3550,1 m,Amazon,12,Se usan unos 45 cm; si la bandeja es de PP: imprimación 3M Primer 94 o tornillos
 pantalla,4,U11,Placa ESP32-S3,SparkFun Thing Plus ESP32-S3 (WRL-24408),1,DigiKey 24408,30.14,
-pantalla,4,U12,Pantalla Sharp Memory 2.7 pulgadas 400 x 240,Adafruit 4694,1,Opencircuit (o DigiKey con plazo),63.25,Pedirla la primera
+pantalla,4,U12,Pantalla IPS 4.3 pulgadas 480 x 272 1000 cd/m2 BT817 con marco,Riverdi RVT43HLBFWN00,1,RS o Riverdi,85,Aprox.; la versión sin marco está a 83.20 en RS
+pantalla,4,,Adaptador RiBUS a pines 2.54 mm con cable plano de 15 cm,Riverdi Break Out Board 20,1,RS 634-768,5,Aprox.; usar su propio cable plano
 pantalla,4,U13,Tira de 8 LEDs RGB,Adafruit NeoPixel Stick 8 x 5050 (1426),1,Kiwi Electronics,6.64,
 pantalla,4,U14,Sensor de luz,Adafruit VEML7700 (4162),1,Kiwi / DigiKey,6,Aprox.
-pantalla,4,U15,Interruptor electrónico 2.2-16 V (LEDs),Pololu Mini Pushbutton Power Switch LV (2808),1,DigiKey,6.03,
-pantalla,4,BT1,Batería LiPo 1S 2000 mAh JST-PH,Adafruit 2011,1,Kiwi / DigiKey,15,Aprox.; comprobar polaridad
-pantalla,4,SW1-SW2,Pulsador estanco IP67 16 mm,BricoGeek CPM-0133,2,BricoGeek,3.88,De marca: C&K ATP16DL1000B4SA04G
-pantalla,4,,Cable Qwiic 100 mm,SparkFun PRT-17259,1,DigiKey,2.09,
+pantalla,4,U16,Regulador 12 V a 5 V 1 A,Pololu D24V10F5 (2831),1,DigiKey,11,Aprox.; LEDs a la mitad de brillo como mucho
+pantalla,4,U17,Adaptador de nivel 3.3 a 5 V DIP-14,TI SN74AHCT125N,1,DigiKey,0.60,
+pantalla,4,D11,Diodo TVS 1500 W,1.5KE22A,1,DigiKey,1.14,
+pantalla,4,D12,Diodo Schottky 1 A,1N5819,1,DigiKey,0.40,La raya hacia VUSB
+pantalla,4,C12,Condensador electrolítico 47 uF 50 V,genérico,1,DigiKey,0.40,
+pantalla,4,C11,Condensador electrolítico 100 uF 10 V,genérico,1,,0.30,En la tira de LEDs
+pantalla,4,C13,Condensador cerámico 100 nF,genérico,1,,0.15,Junto a U17
 pantalla,4,R11,Resistencia 470 Ohm 1/4 W,genérica,1,,0.05,
-pantalla,4,C11,Condensador electrolítico 100 uF 10 V,genérico,1,,0.30,No más grande
-pantalla,4,,Caja con tapa transparente 105 x 75 x 40 mm,Hammond RP1085C,1,DigiKey,15.67,
+pantalla,4,SW1-SW2,Pulsador estanco IP67 16 mm,BricoGeek CPM-0133,2,BricoGeek,3.88,De marca: C&K ATP16DL1000B4SA04G
+pantalla,4,,Cable Qwiic 100 mm,SparkFun PRT-17259,1,(de las pruebas de banco),0,Se reutiliza uno de los dos de la caja
+pantalla,4,,Placa perforada pequeña con zócalos hembra 16 + 12 y pines macho,genéricos,1,,4.50,
+pantalla,4,,Manguera 3 x 0.5 mm2 (marrón blanco y verde),LiYY 3x0.5,2 m,,3.50,De la caja al manillar; el verde es del botón
+pantalla,4,,Conector estanco IP68 2 vías macho y hembra de cable,SP13 2 pines,1 par,Amazon,7,Aprox.
+pantalla,4,,Prensaestopas PG7 IP68,Hammond 1427NCGPG7B,1,DigiKey,2.49,Entrada del cable en la carcasa
+pantalla,4,,Insertos de latón M3 y tornillos M3 inox,genéricos,1 juego,Amazon,6,Aprox.
+pantalla,4,,Policarbonato transparente 2 mm,genérico,1,,2,Ventanas de LEDs y sensor
 pantalla,4,,Adaptador Quad Lock adhesivo,Quad Lock Universal Adaptor Original,1,quadlockcase.eu,24.99,No el MAG
-pantalla,4,,Chapa de aluminio 2 mm 80 x 60 con 4 tornillos M3 x 8 inox arandelas de nylon y tuercas,genérica,1,ferretería,6,
-pantalla,4,,Placa de metacrilato 3 mm 96 x 66 y 8 separadores M2.5 de 10 mm con tornillos,genérica,1,,6,
-pantalla,4,,Prolongador USB-C de panel IP67 con tapa (20-30 cm),genérico,1,Amazon,10,
-pantalla,4,,Vinilo negro opaco,genérico,1,,2,
+pantalla,4,,Chapa de aluminio 2 mm 80 x 60 con 4 tornillos M3 x 8 inox y arandelas de nylon,genérica,1,ferretería,6,

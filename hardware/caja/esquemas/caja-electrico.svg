@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="960" viewBox="0 0 1300 960" font-family="Helvetica, Arial, sans-serif">
-  <rect width="1300" height="960" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="990" viewBox="0 0 1300 990" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1300" height="990" fill="#ffffff"/>
   <text x="30" y="36" font-size="20" fill="#111" font-weight="bold">Caja: circuito eléctrico de la placa base</text>
   <text x="30" y="56" font-size="12" fill="#555">Los nombres son los de conexiones.md. Dos etiquetas con el mismo nombre están unidas.</text>
   <rect x="20" y="70" width="1260" height="270" rx="8" fill="#ffffff" stroke="#cfd8dc" stroke-width="1.4"/>
@@ -115,8 +115,26 @@
   <line x1="990" y1="190" x2="1080" y2="190" stroke="#222" stroke-width="1.6"/>
   <rect x="1080" y="181" width="47" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
   <text x="1103.5" y="194" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">VMOTO</text>
-  <text x="880" y="300" font-size="11" fill="#555">Batería de la moto: V = lectura en GPIO 10 × 122 / 22</text>
-  <text x="880" y="318" font-size="11" fill="#555">Con 16 V lee 2,9 V (dentro del rango del ADC)</text>
+  <text x="905" y="300" font-size="11" fill="#555">Batería de la moto: V = lectura en GPIO 10 × 122 / 22</text>
+  <text x="905" y="318" font-size="11" fill="#555">Con 16 V lee 2,9 V (dentro del rango del ADC)</text>
+  <rect x="680" y="222" width="54" height="18" rx="9" fill="#ffebee" stroke="#c62828" stroke-width="1.3"/>
+  <text x="707" y="235" font-size="11" fill="#b71c1c" font-weight="bold" text-anchor="middle">12V_SW</text>
+  <line x1="734" y1="231" x2="750" y2="231" stroke="#222" stroke-width="1.6"/>
+  <rect x="750" y="225" width="36" height="12" rx="1" fill="#fff" stroke="#222" stroke-width="1.6"/>
+  <text x="750" y="219" font-size="10.5" fill="#222">F2 0,75 A</text>
+  <line x1="786" y1="231" x2="800" y2="231" stroke="#222" stroke-width="1.6"/>
+  <rect x="800" y="212" width="70" height="80" rx="4" fill="#eceff1" stroke="#222" stroke-width="1.6"/>
+  <text x="805" y="235" font-size="10.5" fill="#222" font-weight="bold">1  PANT</text>
+  <text x="805" y="259" font-size="10.5" fill="#222" font-weight="bold">2  BOTÓN</text>
+  <text x="805" y="283" font-size="10.5" fill="#222" font-weight="bold">3  GND</text>
+  <line x1="870" y1="255" x2="876" y2="255" stroke="#222" stroke-width="1.6"/>
+  <rect x="876" y="246" width="40" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="896" y="259" font-size="10" fill="#0d47a1" font-weight="bold" text-anchor="middle">BTN_M</text>
+  <polyline points="870,279 880,279 880,286" fill="none" stroke="#222" stroke-width="1.6" stroke-linejoin="round"/>
+  <line x1="871" y1="286" x2="889" y2="286" stroke="#222" stroke-width="1.6"/>
+  <line x1="874" y1="290" x2="886" y2="290" stroke="#222" stroke-width="1.6"/>
+  <line x1="877" y1="294" x2="883" y2="294" stroke="#222" stroke-width="1.6"/>
+  <text x="740" y="306" font-size="11" fill="#555">J3 (borna) → manillar</text>
   <rect x="20" y="350" width="1260" height="290" rx="8" fill="#ffffff" stroke="#cfd8dc" stroke-width="1.4"/>
   <text x="32" y="372" font-size="15" fill="#263238" font-weight="bold">2 · Entradas de la moto</text>
   <rect x="40" y="421" width="40" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
@@ -206,6 +224,23 @@
   <text x="500" y="434" font-size="10.5" fill="#555">→ GPIO 6 (bajo = contacto)</text>
   <text x="40" y="633" font-size="10.5" fill="#c62828">CONT y FRENO llegan por RT1 y RT2 (1 kΩ ½ W), soldadas en el cable junto a la derivación</text>
   <text x="500" y="564" font-size="10.5" fill="#555">→ GPIO 7 (bajo = frenando)</text>
+  <rect x="500" y="480" width="40" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="520" y="493" font-size="10" fill="#0d47a1" font-weight="bold" text-anchor="middle">BTN_M</text>
+  <line x1="540" y1="489" x2="550" y2="489" stroke="#222" stroke-width="1.6"/>
+  <rect x="550" y="483" width="32" height="12" rx="1" fill="#fff" stroke="#222" stroke-width="1.6"/>
+  <text x="550" y="477" font-size="10" fill="#222">R12 1k</text>
+  <line x1="582" y1="489" x2="610" y2="489" stroke="#222" stroke-width="1.6"/>
+  <circle cx="596" cy="489" r="3" fill="#222"/>
+  <line x1="596" y1="489" x2="596" y2="500" stroke="#222" stroke-width="1.6"/>
+  <line x1="588" y1="500" x2="604" y2="500" stroke="#222" stroke-width="2"/>
+  <line x1="588" y1="505" x2="604" y2="505" stroke="#222" stroke-width="2"/>
+  <line x1="596" y1="505" x2="596" y2="512" stroke="#222" stroke-width="1.6"/>
+  <line x1="589" y1="512" x2="603" y2="512" stroke="#222" stroke-width="1.6"/>
+  <line x1="592" y1="516" x2="600" y2="516" stroke="#222" stroke-width="1.6"/>
+  <text x="608" y="508" font-size="10" fill="#222">C5</text>
+  <text x="614" y="493" font-size="10.5" fill="#555">BTN</text>
+  <text x="500" y="532" font-size="10.5" fill="#555">BTN → GPIO 14</text>
+  <text x="500" y="546" font-size="10" fill="#777">botón del manillar (móvil)</text>
   <rect x="680" y="410" width="62" height="100" rx="4" fill="#eceff1" stroke="#222" stroke-width="1.6"/>
   <text x="686" y="432" font-size="10.5" fill="#222" font-weight="bold">1  FRENO</text>
   <text x="686" y="464" font-size="10.5" fill="#222" font-weight="bold">2  RPM</text>
@@ -275,7 +310,7 @@
   <text x="680" y="580" font-size="11" fill="#555">U8: patilla 14 a 3V3 y 7 a GND, con C3 (100 nF) entre las dos. Entradas sin usar (3, 5, 9, 11 y 13) a GND.</text>
   <text x="680" y="598" font-size="11" fill="#555">D5 y D6 recortan los picos de la pinza; R10 protege la entrada de U8. La malla del cable, solo a GND aquí.</text>
   <text x="680" y="616" font-size="11" fill="#555">El firmware ignora los pulsos a menos de 2 ms del anterior (rebotes de la misma chispa).</text>
-  <rect x="20" y="660" width="1260" height="286" rx="8" fill="#ffffff" stroke="#cfd8dc" stroke-width="1.4"/>
+  <rect x="20" y="660" width="1260" height="316" rx="8" fill="#ffffff" stroke="#cfd8dc" stroke-width="1.4"/>
   <text x="32" y="682" font-size="15" fill="#263238" font-weight="bold">3 · Placas</text>
   <rect x="40" y="700" width="180" height="160" rx="4" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.6"/>
   <text x="50" y="722" font-size="12.5" fill="#0d47a1" font-weight="bold">U2 · GPS NEO-M9N</text>
@@ -301,7 +336,7 @@
   <text x="255" y="850" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">PPS</text>
   <text x="40" y="880" font-size="11" fill="#555">SMA → latiguillo → pasamuros → antena</text>
   <text x="40" y="898" font-size="11" fill="#c62828">Con la caja montada, no uses su USB-C</text>
-  <rect x="470" y="700" width="300" height="214" rx="4" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.6"/>
+  <rect x="470" y="700" width="300" height="238" rx="4" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.6"/>
   <text x="482" y="722" font-size="12.5" fill="#1b5e20" font-weight="bold">U1 · SparkFun Thing Plus ESP32-S3</text>
   <text x="478" y="754" font-size="10.5" fill="#222">VUSB</text>
   <line x1="452" y1="750" x2="470" y2="750" stroke="#222" stroke-width="1.6"/>
@@ -359,7 +394,11 @@
   <line x1="770" y1="894" x2="788" y2="894" stroke="#222" stroke-width="1.6"/>
   <rect x="788" y="885" width="34" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
   <text x="805" y="898" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">OFF</text>
-  <text x="470" y="934" font-size="11" fill="#555">microSD, LED RGB, USB y botón BOOT: dentro de la placa, no se tocan</text>
+  <text x="478" y="922" font-size="10.5" fill="#222">A1 · GPIO 14</text>
+  <line x1="452" y1="918" x2="470" y2="918" stroke="#222" stroke-width="1.6"/>
+  <rect x="418" y="909" width="34" height="18" rx="9" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.3"/>
+  <text x="435" y="922" font-size="11" fill="#0d47a1" font-weight="bold" text-anchor="middle">BTN</text>
+  <text x="470" y="958" font-size="11" fill="#555">microSD, LED RGB, USB y botón BOOT: dentro de la placa, no se tocan</text>
   <rect x="1080" y="700" width="180" height="160" rx="4" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.6"/>
   <text x="1090" y="722" font-size="12.5" fill="#0d47a1" font-weight="bold">U3 · ISM330DHCX</text>
   <text x="1088" y="754" font-size="10.5" fill="#222">VIN</text>
