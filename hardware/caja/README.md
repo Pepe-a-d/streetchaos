@@ -67,10 +67,10 @@ Cierran las decisiones pendientes del plan:
 
 | Parte | Aprox. |
 | --- | --- |
-| Caja (fases 1 y 2) | 305 € |
+| Caja (fases 1 y 2) | 295 € |
 | Material de instalación | 56 € |
 | Pantalla (fase 4), se compra después | 207 € |
-| **Total** | **≈ 570 €** (versión ahorro ≈ 440 €) |
+| **Total** | **≈ 560 €** (versión ahorro ≈ 440 €) |
 | Herramientas, si faltan | ≈ 150 € |
 
 Detalle y versión ahorro en [piezas.md](piezas.md#5-resumen-y-versión-ahorro).

@@ -2,6 +2,8 @@
 
 Lista de la compra exacta del prototipo: la caja (fases 1 y 2) y la unidad de pantalla (fase 4). Las referencias de la columna «Ref.» son las de [conexiones.md](conexiones.md) y los esquemas. La misma lista en tabla está en [piezas.csv](piezas.csv).
 
+**Prototipo simple:** lo que se compra en DigiKey está listo para subir de una vez en [digikey-prototipo-simple.csv](digikey-prototipo-simple.csv), con existencias comprobadas el 2026-11-12. Son unos 216 € con IVA.
+
 **Precios comprobados el 2026-11-10, con IVA.** Los de DigiKey se han mirado en su web de España. Los marcados con «≈» son orientativos (genéricos o sin mirar en la tienda). Los precios y las existencias cambian: repásalos al pedir.
 
 - [Dónde comprar](#dónde-comprar)
@@ -30,7 +32,7 @@ Lista de la compra exacta del prototipo: la caja (fases 1 y 2) y la unidad de pa
 | --- | --- | --- | --- | --- | --- |
 | U1 | Placa ESP32-S3 con microSD | **SparkFun Thing Plus ESP32-S3** (WRL-24408; módulo ESP32-S3-MINI-1-N4R2) | 1 | [DigiKey 24408](https://www.digikey.es/en/products/detail/sparkfun-electronics/24408/22606864) | 30,14 |
 | U2 | Receptor GPS 25 Hz | **SparkFun GPS Breakout NEO-M9N, SMA** (GPS-17285) | 1 | [DigiKey 17285](https://www.digikey.es/en/products/detail/sparkfun-electronics/17285/13561758) | 82,17 |
-| ANT | Antena GPS activa, magnética, 3 m, SMA macho | **SparkFun GPS-14986** (28 dB, 3-5 V) | 1 | [SparkFun](https://www.sparkfun.com/gps-gnss-magnetic-mount-antenna-3m-sma.html) (16,50 $) o [DigiKey](https://www.digikey.es/en/products/detail/sparkfun-electronics/GPS-14986/9682235) (plazo 12 semanas) | 20,49 |
+| ANT | Antena GPS activa, magnética, 3 m, SMA macho (GPS, Galileo y GLONASS; 3,3 V) | **Joymax PPF-GP07SAXB-P300** | 1 | [DigiKey 5448-PPF-GP07SAXB-P300-ND](https://www.digikey.es/en/products/result?keywords=PPF-GP07SAXB-P300) | 10,84 |
 | — | Pasamuros SMA hembra-hembra, IP67 | **GCT RFAD-SA3SA2-01-N-A** | 1 | [DigiKey](https://www.digikey.es/en/products/detail/gct/RFAD-SA3SA2-01-N-A/25819955) | 4,26 |
 | — | Latiguillo SMA macho-macho RG316, 152 mm | **Amphenol RF 135101-01-06.00** | 1 | [DigiKey ACX1567-ND](https://www.digikey.es/en/products/result?keywords=ACX1567-ND) | 20,12 |
 | U3 | Sensor de movimiento 6 ejes | **Adafruit ISM330DHCX** (4502) | 1 | [DigiKey](https://www.digikey.es/en/products/result?keywords=adafruit%204502) | 21,43 |
@@ -39,7 +41,7 @@ Lista de la compra exacta del prototipo: la caja (fases 1 y 2) y la unidad de pa
 Notas:
 - **U1**: la misma placa va en la pantalla, así hay una sola plataforma. Lleva la ranura microSD, el USB-C y un medidor de batería. Viene **sin pines soldados**.
 - **U2**: da corriente a la antena por el propio conector (3,2 V) y lleva una pila recargable para arrancar en caliente (~2 s). **No la cambies por la MAX-M10S sin mirar la [versión ahorro](#5-resumen-y-versión-ahorro)**: esa no tiene regulador y se alimenta a 3,3 V.
-- **ANT**: alternativa en DigiKey, más barata y normalmente con existencias: **Quectel YG0035AA** (≈ 8,95 €, 3 m, SMA macho, IP64). Antes de comprarla, comprueba en su hoja de datos que funciona a 3,3 V.
+- **ANT**: cambiada el 2026-11-12 porque la SparkFun GPS-14986 no está disponible. La Joymax tiene el mismo tamaño (48,8 × 37,7 × 16,4 mm), un amplificador de dos etapas que funciona a 3,3 V (lo que le da el GPS por el cable; gasta unos 10 mA) e IP65, y aguanta de −30 a 70 °C ([ficha](https://file.joymax.com.tw/Datasheet/PPF-GP07SAXB-cccc_DS_RevA.pdf)).
 - **Latiguillo**: cualquier SMA macho-macho de RG316 de 10-15 cm vale (≈ 5 € los genéricos).
 - **SD**: si encuentras la **Kingston Industrial SDCIT2/16GB** (−40 a 85 °C, pSLC) por menos de 30 €, es mejor. En DigiKey está carísima.
 
@@ -53,7 +55,7 @@ Notas:
 | D2 | Diodo Schottky 1 A | **1N5819** | 1 | DigiKey | ≈ 0,40 |
 | C1 | Condensador electrolítico 47 µF, 50 V | genérico, radial | 1 | DigiKey | ≈ 0,40 |
 | F1 | Portafusibles estanco para fusible mini | **Littelfuse 0FHM0003ZXJS** (cables de 0,82 mm²) | 1 | [DigiKey](https://www.digikey.es/es/products/result?keywords=0FHM0003ZXJS) | 6,86 |
-| F1 | Fusible mini de 2 A, 32 V (uno de repuesto) | **Littelfuse 0297002** | 2 | DigiKey / recambios de coche | ≈ 1,20 |
+| F1 | Fusible mini de 2 A, 32 V (uno de repuesto) | **Littelfuse 0297002** (el 2026-11-12, sin existencias en DigiKey: vale el **Bussmann ATM-2**, 283-2323-ND) | 2 | DigiKey / recambios de coche | ≈ 1,20 |
 | F2 | Fusible rearmable (PTC) de 0,75 A, 60 V, radial: protege el cable de la pantalla | **Bourns MF-R075** | 1 | DigiKey | ≈ 0,40 |
 | J3 | Borna de tornillo para placa, 3 vías, paso 5,08 mm: salida de 12 V a la pantalla, botón del manillar y masa | **Phoenix Contact MKDS 1,5/3-5,08** (1715734), la misma que J1 y J2 | 1 | DigiKey | ≈ 0,80 |
 
@@ -92,7 +94,7 @@ Notas:
 | Cable de silicona fino (26 AWG) para la placa, 3 colores | — | 1 | | ≈ 6 |
 | Cable Qwiic de 100 mm (solo para las pruebas de banco: uno de la placa al GPS y otro del GPS al sensor; luego uno sirve para la pantalla) | **SparkFun PRT-17259** | 2 | DigiKey | 4,18 |
 
-**Subtotal de la caja: ≈ 305 €** (sin el material de instalación).
+**Subtotal de la caja: ≈ 295 €** (sin el material de instalación).
 
 ---
 
@@ -189,10 +191,10 @@ Solo si te faltan.
 
 | Parte | Fase | Recomendado |
 | --- | --- | --- |
-| Caja: electrónica, alimentación, entradas, placa y caja | 1 y 2 | ≈ 305 € |
+| Caja: electrónica, alimentación, entradas, placa y caja | 1 y 2 | ≈ 295 € |
 | Material de instalación | 1 y 2 | ≈ 56 € |
 | Unidad de pantalla | 4 | ≈ 207 € |
-| **Total** | **1 + 2 + 4** | **≈ 570 €** |
+| **Total** | **1 + 2 + 4** | **≈ 560 €** |
 | Herramientas, si faltan | | ≈ 150 € |
 
 Lo que es solo de la fase 2 (freno y revoluciones) cuesta unos 15 €: los componentes, el cable apantallado, una derivación y la funda. Casi todo el dinero está en la caja y en la pantalla.
@@ -209,7 +211,6 @@ Lo que es solo de la fase 2 (freno y revoluciones) cuesta unos 15 €: los compo
 | Cambio | Ahorro | Qué pierdes |
 | --- | --- | --- |
 | GPS **SparkFun MAX-M10S** (GPS-18037, 49,36 € en DigiKey) en vez del NEO-M9N | ≈ 33 € | 10 Hz con varias constelaciones en vez de 25 Hz. Se alimenta a 3,3 V: su `3V3` va al `3V3` de U1 y no se usa su `5V` (no tiene). Tiene PPS |
-| Antena **Quectel YG0035AA** en vez de la de SparkFun | ≈ 11 € | Nada importante (comprobar que funciona a 3,3 V) |
 | Latiguillo SMA genérico | ≈ 15 € | Nada |
 | Regulador **Pololu D24V10F5** (5 V 1 A, hasta 36 V, ≈ 11 €) en vez del D36V28F5 | ≈ 18 € | Margen frente a picos: aguanta 36 V frente a los 30,6 V del TVS. Sin protección de polaridad propia (la pone U4) |
 | Placa **Seeed XIAO ESP32S3** (≈ 8,53 € en Kiwi) en la pantalla | ≈ 22 € | Una placa distinta en cada unidad, con patillas distintas a las de [conexiones.md](conexiones.md) |

@@ -36,6 +36,13 @@ Lo siguiente del código, cuando él lo pida:
 - `.gitignore`: `secrets.h` del firmware.
 - Fuera de git, a pasar a mano: `.env.local` y `datos/`.
 
+### 2026-11-12 · Mac · Caja DIY: pedido de DigiKey del prototipo simple
+- Nuevo [digikey-prototipo-simple.csv](hardware/caja/digikey-prototipo-simple.csv), para subir a DigiKey de una vez: 28 líneas, unos 216 € con IVA. Las existencias se comprobaron el 2026-11-12. Lo genérico se compra aparte.
+- Antena: la SparkFun GPS-14986 no está disponible y se cambia por la **Joymax PPF-GP07SAXB-P300** (10,84 €; GPS, Galileo y GLONASS; 3,3 V). Cambiado en piezas.md, piezas.csv, conexiones.md, el plan y el README de `hardware/caja/`.
+- Fusible F1: el Littelfuse 0297002 no tiene existencias; vale el Bussmann ATM-2.
+- La caja pasa de ≈ 305 a ≈ 295 €, y el total, de ≈ 570 a ≈ 560 €.
+- No se ha pedido nada.
+
 ### 2026-11-12 · Mac · Caja DIY: prototipo simple, pantalla y piezas impresas (e4c63cb)
 - Prototipo simple en [conexiones.md §7](hardware/caja/conexiones.md) y en el plan, §3.4.
 - Pantalla Riverdi 4,3" y botón del manillar en el GPIO 14.

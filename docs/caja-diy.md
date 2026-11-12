@@ -106,7 +106,7 @@ Elegidas el 2026-11-10. La lista completa, con referencias, tiendas y precios, e
 | --- | --- | --- |
 | Placa | **SparkFun Thing Plus ESP32-S3** (WRL-24408): microSD, medidor de batería y Qwiic integrados | 30 € |
 | GPS | **u-blox NEO-M9N** (SparkFun GPS-17285): 25 Hz con GPS, Galileo y GLONASS, PPS, alimenta la antena | 82 € |
-| Antena | Activa, magnética, 3 m, SMA (SparkFun GPS-14986), con pasamuros SMA estanco y latiguillo | 45 € |
+| Antena | Activa, magnética, 3 m, SMA (Joymax PPF-GP07SAXB-P300; la SparkFun GPS-14986 no está disponible), con pasamuros SMA estanco y latiguillo | 35 € |
 | Sensor de movimiento | **ISM330DHCX** (Adafruit 4502): 6 ejes de ST, FIFO de 9 KB | 21 € |
 | microSD | SanDisk High Endurance 32 GB (o Kingston Industrial) | ≈ 12 € |
 | Alimentación | **Sin batería**: 12 V permanente con fusible de 2 A, TVS 1.5KE22A, interruptor electrónico Pololu 2809 (lo enciende el contacto y lo apaga la caja) y regulador Pololu D36V28F5 a 5 V | 45 € |
@@ -409,15 +409,15 @@ Precios con IVA comprobados el 2026-11-10 con las piezas exactas del prototipo (
 
 | Parte | Qué | Aprox. |
 | --- | --- | --- |
-| Caja (fases 1 y 2) | Placa, GPS NEO-M9N con antena, sensor, microSD, alimentación protegida, entradas de freno y revoluciones, salida a la pantalla, caja estanca | 305 € |
+| Caja (fases 1 y 2) | Placa, GPS NEO-M9N con antena, sensor, microSD, alimentación protegida, entradas de freno y revoluciones, salida a la pantalla, caja estanca | 295 € |
 | Instalación | Cables, fusible, derivaciones, termorretráctil, cinta autovulcanizante, Dual Lock | 56 € |
 | Pantalla (fase 4), se compra después | Placa, Riverdi 4,3" de 1000 nits con su adaptador, LEDs, sensor de luz, regulador, botones, cable y conector estanco, insertos y adaptador Quad Lock (la carcasa se imprime) | 207 € |
-| **Total** | **Fases 1 + 2 + 4** | **≈ 570 €** |
-| Versión ahorro | GPS MAX-M10S (10 Hz), antena y latiguillo genéricos, regulador más pequeño, placa XIAO en la pantalla | ≈ 440 € |
+| **Total** | **Fases 1 + 2 + 4** | **≈ 560 €** |
+| Versión ahorro | GPS MAX-M10S (10 Hz), latiguillo genérico, regulador más pequeño, placa XIAO en la pantalla | ≈ 440 € |
 | Herramientas, si faltan | Soldador, estaño y flux, multímetro, pelacables, crimpadora, pistola de calor, broca escalonada, fuente de 12 V | ≈ 150 € |
 
 **El primer cálculo (175-275 €) se quedaba corto.** Al elegir las piezas exactas suben:
-- el GPS de 25 Hz con su antena (≈ 125 €);
+- el GPS de 25 Hz con su antena (≈ 115 €);
 - la alimentación protegida para la moto (≈ 45 €);
 - la caja estanca de marca;
 - la segunda placa y el adaptador Quad Lock;

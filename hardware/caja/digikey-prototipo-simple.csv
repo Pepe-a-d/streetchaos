@@ -1,0 +1,29 @@
+Quantity,Digi-Key Part Number,Manufacturer Part Number,Manufacturer,Customer Reference,Description
+1,1568-24408-ND,24408,SparkFun Electronics,U1 placa ESP32-S3,SparkFun Thing Plus ESP32-S3
+1,1568-17285-ND,17285,SparkFun Electronics,U2 GPS NEO-M9N,SparkFun GPS Breakout NEO-M9N SMA
+1,5448-PPF-GP07SAXB-P300-ND,PPF-GP07SAXB-P300,Joymax Electronics,ANT antena GPS,Antena GNSS activa magnetica 3 m SMA macho 3.3V
+1,2073-RFAD-SA3SA2-01-N-A-ND,RFAD-SA3SA2-01-N-A,GCT,Pasamuros SMA antena,SMA jack-jack bulkhead IP67
+1,1528-4502-ND,4502,Adafruit Industries LLC,U3 sensor ISM330DHCX,Adafruit ISM330DHCX 6DoF STEMMA QT
+1,2183-2809-ND,2809,Pololu,U4 interruptor SV,Pololu Mini Pushbutton Power Switch SV 4.5-32V
+1,2183-3782-ND,3782,Pololu,U5 regulador 5V,Pololu D36V28F5 5V 3.2A
+1,,1.5KE22A,Littelfuse Inc.,D1 TVS,TVS 1500W 18.8V unidireccional DO-201
+2,,1N5819,STMicroelectronics,D2 Schottky (1 de repuesto),Schottky 40V 1A DO-41
+1,,EEU-FR1H470,Panasonic,C1 47uF 50V,Electrolitico 47uF 50V radial
+1,5346-0FHM0003ZXJS-ND,0FHM0003ZXJS,Littelfuse,F1 portafusibles,Portafusibles estanco mini en linea
+1,283-2323-ND,BK/ATM-2,Eaton - Bussmann,F1 fusible 2A,Fusible mini (ATM) 2A 32V
+2,PC817X2NSZ9F-ND,PC817X2NSZ9F,Sharp/Socle Technology,U6 optoacoplador (1 de repuesto),Optoacoplador DIP-4
+2,1.8KQBK-ND,CFR-25JB-52-1K8,YAGEO,R1 1k8,Resistencia 1.8k 1/4W
+3,,CFR-25JB-52-22K,YAGEO,R3 R9 22k,Resistencia 22k 1/4W
+2,,CFR-25JB-52-10K,YAGEO,R4 10k,Resistencia 10k 1/4W
+2,,CFR-25JB-52-100K,YAGEO,R8 100k,Resistencia 100k 1/4W
+2,,CFR-50JB-52-1K,YAGEO,RT1 1k medio vatio,Resistencia 1k 1/2W
+2,,1N4148,onsemi,D3 1N4148,Diodo 1N4148 DO-35
+2,445-173588-1-ND,FG28X7R1H104KNT06,TDK,C4 100nF,Ceramico 100nF 50V X7R radial
+1,277-1264-ND,1715734,Phoenix Contact,J1 borna 3 vias,Borna MKDS 1.5/3-5.08
+1,S7014-ND,PPTC161LFBN-RC,Sullins Connector Solutions,Zocalo hembra 16 (U1),Zocalo hembra 16 pines 2.54
+1,S6100-ND,PPTC121LFBN-RC,Sullins Connector Solutions,Zocalo hembra 12 (U1),Zocalo hembra 12 pines 2.54
+2,,PRPC040SAAN-RC,Sullins Connector Solutions,Pines macho (U1 U3 U4 U5),Tira de 40 pines macho 2.54
+2,1568-17259-ND,17259,SparkFun Electronics,Cable Qwiic 100 mm (banco),Qwiic cable 100 mm
+1,164-1427NCGPG7B-ND,1427NCGPG7B,Hammond Manufacturing,Prensaestopas PG7,Prensaestopas PG7 nylon negro 3-7 mm
+1,1754-1219-ND,VENT-PS1NGY-O8001,Amphenol LTW,Membrana M12,Membrana de ventilacion M12x1.5
+1,1754-1547-ND,APTP-ABKPA012-001,Amphenol LTW,Tuerca membrana,Tuerca M12x1.5 de la membrana

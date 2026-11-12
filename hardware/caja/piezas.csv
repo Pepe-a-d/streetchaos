@@ -1,7 +1,7 @@
 unidad,fase,ref,pieza,referencia,cantidad,tienda,precio_eur_iva,notas
 caja,1,U1,Placa ESP32-S3 con microSD,SparkFun Thing Plus ESP32-S3 (WRL-24408),1,DigiKey 24408,30.14,Viene sin pines
 caja,1,U2,Receptor GPS 25 Hz,SparkFun GPS Breakout NEO-M9N SMA (GPS-17285),1,DigiKey 17285,82.17,Alternativa ahorro: SparkFun MAX-M10S (GPS-18037) 49.36
-caja,1,ANT,Antena GPS activa magnética 3 m SMA,SparkFun GPS-14986,1,SparkFun o DigiKey,20.49,Alternativa: Quectel YG0035AA 8.95 (comprobar 3.3 V)
+caja,1,ANT,Antena GPS activa magnética 3 m SMA,Joymax PPF-GP07SAXB-P300,1,DigiKey 5448-PPF-GP07SAXB-P300-ND,10.84,GPS Galileo y GLONASS; 3.3 V; la SparkFun GPS-14986 no está disponible
 caja,1,,Pasamuros SMA hembra-hembra IP67,GCT RFAD-SA3SA2-01-N-A,1,DigiKey,4.26,Agujero 6.5 mm (comprobar)
 caja,1,,Latiguillo SMA macho-macho RG316 152 mm,Amphenol RF 135101-01-06.00,1,DigiKey ACX1567-ND,20.12,Vale uno genérico de 10-15 cm
 caja,1,U3,Sensor de movimiento 6 ejes,Adafruit ISM330DHCX (4502),1,DigiKey,21.43,Dirección I2C 0x6A

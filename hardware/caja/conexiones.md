@@ -395,7 +395,7 @@ Notas:
 **GPS (NEO-M9N):**
 - UART a 230400 baudios (de fábrica viene a 38400).
 - Solo el mensaje UBX-NAV-PVT, a **25 Hz**.
-- GPS + Galileo + GLONASS. La antena de SparkFun no cubre BeiDou B1I.
+- GPS + Galileo + GLONASS. La antena (Joymax PPF-GP07SAXB-P300, desde el 2026-11-12) está hecha para esas tres; BeiDou B1I no está garantizado.
 - Modelo dinámico de automoción (o «moto» si el firmware del receptor lo tiene).
 - PPS por el flanco de subida en el GPIO 4.
 
