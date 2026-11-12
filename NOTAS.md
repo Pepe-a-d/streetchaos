@@ -30,6 +30,15 @@ Lo siguiente del código, cuando él lo pida:
 
 ## Entradas
 
+### 2026-11-12 · PC · PC preparado para el proyecto
+- Repositorio clonado en `%USERPROFILE%\streetchaos`, fuera de OneDrive.
+- Node 22 (22.23.5) instalado con winget. Es el que se usa en el PC, igual que en GitHub; el Node 24 que había se queda instalado.
+- `npm ci` y `npm test`: pasan los 15 archivos de prueba (130 pruebas).
+- `.env.local` creado desde `.env.example` con la URL y la clave pública de Supabase. No se sube.
+- Git: `gh` ya tenía la sesión iniciada en GitHub, con permiso para subir. Los commits de este PC salen como `Pepe-a-d`, con el correo privado («noreply») de GitHub.
+- No cambia nada del código. No se ha guardado nada en git ni subido.
+- Decidido por el usuario: sus preferencias van en la memoria de Claude de cada ordenador, no en el repositorio.
+
 ### 2026-11-12 · Mac · Trabajo desde dos ordenadores
 - Nuevos [CLAUDE.md](CLAUDE.md) (reglas y cómo seguir entre el Mac y el PC) y este archivo.
 - `.gitattributes`: los archivos de texto van con finales de línea LF en los dos ordenadores.
